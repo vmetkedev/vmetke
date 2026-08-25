@@ -1,0 +1,11 @@
+{
+  "name": "vmetke",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
