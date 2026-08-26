@@ -4,8 +4,8 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
-import jwtPlugin from "./plugins/jwt";
-import authRoutes from "./routes/auth";
+import jwtPlugin from "./plugins/jwt.js";
+import authRoutes from "./routes/auth.js";
 
 const app = Fastify({ logger: true });
 

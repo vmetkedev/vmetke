@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
 import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
-import { db } from "../db/client";
-import { users, refreshTokens } from "../db/schema";
-import type { RegisterInput, LoginInput } from "../schemas/auth";
+import { db } from "../db/client.js";
+import { users, refreshTokens } from "../db/schema/index.js";
+import type { RegisterInput, LoginInput } from "../schemas/auth.js";
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
 

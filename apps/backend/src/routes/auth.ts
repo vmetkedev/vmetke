@@ -1,16 +1,16 @@
 import type { FastifyInstance } from "fastify";
-import { registerSchema, loginSchema } from "../schemas/auth";
+import { registerSchema, loginSchema } from "../schemas/auth.js";
 import {
   registerUser,
   validateCredentials,
   createRefreshToken,
   rotateRefreshToken,
   revokeRefreshToken,
-} from "../services/auth.service";
+} from "../services/auth.service.js";
 
 import { eq } from "drizzle-orm";
-import { db } from "../db/client";
-import { users } from "../db/schema";
+import { db } from "../db/client.js";
+import { users } from "../db/schema/index.js";
 
 const REFRESH_COOKIE_NAME = "refresh_token";
 const REFRESH_COOKIE_OPTIONS = {
