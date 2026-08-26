@@ -51,6 +51,17 @@ jobs:
           strip_components: 1
           overwrite: true
 
+      - name: Copy migrations to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "apps/backend/drizzle/*"
+          target: "/var/www/vmetke/backend/drizzle"
+          strip_components: 3
+          overwrite: true
+
       - name: Run migrations and restart backend
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -59,6 +70,6 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /var/www/vmetke/backend
-            node_modules/.bin/drizzle-kit migrate
+            node dist/db/migrate.js
             systemctl restart vmetke-backend
             systemctl status vmetke-backend --no-pager
