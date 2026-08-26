@@ -11,11 +11,25 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/jwt": "^10.2.2",
+    "@fastify/rate-limit": "^11.2.0",
     "@vmetke/shared": "workspace:^",
-    "fastify": "^5.12.1"
+    "bcrypt": "^6.0.0",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
+    "fastify": "^5.12.1",
+    "fastify-plugin": "^6.0.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^24.13.3",
+    "drizzle-kit": "^0.31.10",
     "oxlint": "^1.75.0",
     "tsx": "^4.23.12",
     "typescript": "~6.0.2"
