@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, refreshTokens } from "../db/schema/index.js";
 import type { RegisterInput, LoginInput } from "../schemas/auth.js";
@@ -26,7 +26,9 @@ export async function validateCredentials(input: LoginInput) {
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.email, input.email));
+    .where(
+      or(eq(users.email, input.identifier), eq(users.username, input.identifier))
+    );
 
   if (!user) return null;
 

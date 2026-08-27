@@ -22,36 +22,42 @@ const REFRESH_COOKIE_OPTIONS = {
 };
 
 export default async function authRoutes(app: FastifyInstance) {
-  app.post("/register", async (request, reply) => {
-    const parsed = registerSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: parsed.error.flatten() });
-    }
+  app.post(
+    "/register",
+    { config: { rateLimit: { max: 5, timeWindow: "10 minutes" } } },
+    async (request, reply) => {
+      const parsed = registerSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: parsed.error.flatten() });
+      }
 
-    const user = await registerUser(parsed.data);
-    const accessToken = app.jwt.sign({ sub: user.id });
-    const refreshToken = await createRefreshToken(user.id);
+      const user = await registerUser(parsed.data);
+      const accessToken = app.jwt.sign({ sub: user.id });
+      const refreshToken = await createRefreshToken(user.id);
 
-    reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-    return { accessToken, user: { id: user.id, username: user.username } };
+      reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+      return { accessToken, user: { id: user.id, username: user.username } };
   });
 
-  app.post("/login", async (request, reply) => {
-    const parsed = loginSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: parsed.error.flatten() });
-    }
+  app.post(
+    "/login",
+    { config: { rateLimit: { max: 8, timeWindow: "10 minutes" } } },
+    async (request, reply) => {
+      const parsed = loginSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: parsed.error.flatten() });
+      }
 
-    const user = await validateCredentials(parsed.data);
-    if (!user) {
-      return reply.code(401).send({ error: "Неверный email или пароль" });
-    }
+      const user = await validateCredentials(parsed.data);
+      if (!user) {
+        return reply.code(401).send({ error: "Неверные данные для входа" });
+      }
 
-    const accessToken = app.jwt.sign({ sub: user.id });
-    const refreshToken = await createRefreshToken(user.id);
+      const accessToken = app.jwt.sign({ sub: user.id });
+      const refreshToken = await createRefreshToken(user.id);
 
-    reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-    return { accessToken, user: { id: user.id, username: user.username } };
+      reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+      return { accessToken, user: { id: user.id, username: user.username } };
   });
 
   app.post("/refresh", async (request, reply) => {

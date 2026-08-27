@@ -6,7 +6,7 @@ type User = { id: string; username: string };
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (identifier: string, password: string) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -42,9 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
 
-  const login = async (email: string, password: string) => {
-    const res = await api.post("/auth/login", { email, password });
-    if (!res.ok) throw new Error("Неверный email или пароль");
+  const login = async (identifier: string, password: string) => {
+    const res = await api.post("/auth/login", { identifier, password });
+    if (!res.ok) throw new Error("Неверные данные для входа");
     const data = await res.json();
     setAccessToken(data.accessToken);
     setUser(data.user);

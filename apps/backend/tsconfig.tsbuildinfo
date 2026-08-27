@@ -1,1 +1,1 @@
-{"root":["./src/index.ts"],"version":"6.0.3"}
+{"root":["./src/index.ts","./src/db/client.ts","./src/db/migrate.ts","./src/db/schema/index.ts","./src/db/schema/refresh-tokens.ts","./src/db/schema/users.ts","./src/plugins/jwt.ts","./src/routes/auth.ts","./src/schemas/auth.ts","./src/services/auth.service.ts","./src/types/fastify.d.ts"],"version":"6.0.3"}
