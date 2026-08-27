@@ -2,12 +2,16 @@ import { z } from "zod";
 
 export const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8).max(72),
+  password: z
+    .string()
+    .min(8, "минимум 8 символов")
+    .max(72)
+    .regex(/[.!@$#%^&*\-_=+]/, "должен содержать хотя бы один спецсимвол: . ! @ $ # % ^ & * - _ = +"),
   username: z
     .string()
     .min(3)
     .max(32)
-    .regex(/^[a-zA-Zа-яА-ЯёЁ0-9_]+$/, "только буквы, цифры и подчёркивание"),
+    .regex(/^[a-zA-Z0-9_]+$/, "только латиница, цифры и подчёркивание"),
 });
 
 export const loginSchema = z.object({
