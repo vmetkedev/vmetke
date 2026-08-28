@@ -6,6 +6,6 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   username: varchar("username", { length: 32 }).notNull().unique(),
   displayName: varchar("display_name", { length: 100 }),
-  avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  bio: varchar('bio', { length: 500 }),
 });

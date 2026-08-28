@@ -4,7 +4,6 @@ CREATE TABLE "users" (
 	"password_hash" text NOT NULL,
 	"username" varchar(32) NOT NULL,
 	"display_name" varchar(100),
-	"avatar_url" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "users_email_unique" UNIQUE("email"),
 	CONSTRAINT "users_username_unique" UNIQUE("username")

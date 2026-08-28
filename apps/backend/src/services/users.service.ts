@@ -1,0 +1,40 @@
+import { eq, and, count } from "drizzle-orm";
+import { db } from "../db/client.js";
+import { users, follows } from "../db/schema/index.js";
+
+export async function getUserProfile(username: string, viewerId: string) {
+  const [user] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.username, username));
+
+  if (!user) return null;
+
+  const [{ followersCount }] = await db
+    .select({ followersCount: count() })
+    .from(follows)
+    .where(eq(follows.followingId, user.id));
+
+  const [{ followingCount }] = await db
+    .select({ followingCount: count() })
+    .from(follows)
+    .where(eq(follows.followerId, user.id));
+
+  const [followRow] = await db
+    .select()
+    .from(follows)
+    .where(and(eq(follows.followerId, viewerId), eq(follows.followingId, user.id)));
+
+  return {
+    ...user,
+    followersCount,
+    followingCount,
+    isFollowedByMe: !!followRow,
+    isMe: user.id === viewerId,
+  };
+}
