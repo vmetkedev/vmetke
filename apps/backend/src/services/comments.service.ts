@@ -1,10 +1,14 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { comments, users } from "../db/schema/index.js";
+import { comments, users, posts } from "../db/schema/index.js";
 import { NotOwnerError, NotFoundError } from "./posts.service.js";
+import { createNotification } from "./notifications.service.js";
 
 export async function createComment(postId: string, authorId: string, content: string) {
   const [inserted] = await db.insert(comments).values({ postId, authorId, content }).returning();
+
+  const [post] = await db.select({ authorId: posts.authorId }).from(posts).where(eq(posts.id, postId));
+  if (post) await createNotification(post.authorId, authorId, "comment", postId);
 
   const [full] = await db
     .select({

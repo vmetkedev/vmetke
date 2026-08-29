@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import { fetchFeed, type Post } from "../lib/posts";
 import { PostComposer } from "../components/PostComposer";
 import { PostCard } from "../components/PostCard";
+import { Bell } from "lucide-react";
+import { fetchNotifications } from "../lib/notifications";
 
 export default function FeedPage() {
   const { user, logout } = useAuth();
@@ -14,6 +16,15 @@ export default function FeedPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchUsername, setSearchUsername] = useState("");
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const load = () => fetchNotifications().then((data) => setUnreadCount(data.unreadCount));
+    load();
+    const interval = setInterval(load, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -57,9 +68,19 @@ export default function FeedPage() {
     <div className="max-w-2xl mx-auto p-8 space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-semibold">Привет, {user?.username}</h1>
-        <button onClick={logout} className="text-sm text-gray-500">
-          Выйти
-        </button>
+        <div className="flex items-center gap-4">
+          <Link to="/notifications" className="relative text-gray-600">
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </Link>
+          <button onClick={logout} className="text-sm text-gray-500">
+            Выйти
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex gap-2">

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { follows } from "../db/schema/index.js";
+import { createNotification } from "./notifications.service.js";
 
 export class SelfFollowError extends Error {}
 
@@ -9,10 +10,15 @@ export async function followUser(followerId: string, followingId: string) {
     throw new SelfFollowError("Нельзя подписаться на самого себя");
   }
 
-  await db
+  const result = await db
     .insert(follows)
     .values({ followerId, followingId })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning();
+
+  if (result.length > 0) {
+    await createNotification(followingId, followerId, "follow");
+  }
 }
 
 export async function unfollowUser(followerId: string, followingId: string) {
