@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { posts, follows, users } from "../db/schema/index.js";
+import { posts, follows, users, likes, comments } from "../db/schema/index.js";
 import type { FeedQuery } from "../schemas/posts.js";
 
 export async function createPost(authorId: string, content: string) {
@@ -23,6 +23,40 @@ function decodeCursor(cursor?: string) {
 
 function encodeCursor(createdAt: Date, id: string) {
   return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id })).toString("base64");
+}
+
+async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: string) {
+  if (rows.length === 0) return rows.map((r) => ({ ...r, likesCount: 0, commentsCount: 0, isLikedByMe: false }));
+
+  const postIds = rows.map((r) => r.id);
+
+  const likeCounts = await db
+    .select({ postId: likes.postId, count: sql<number>`count(*)::int` })
+    .from(likes)
+    .where(inArray(likes.postId, postIds))
+    .groupBy(likes.postId);
+
+  const commentCounts = await db
+    .select({ postId: comments.postId, count: sql<number>`count(*)::int` })
+    .from(comments)
+    .where(inArray(comments.postId, postIds))
+    .groupBy(comments.postId);
+
+  const myLikes = await db
+    .select({ postId: likes.postId })
+    .from(likes)
+    .where(and(inArray(likes.postId, postIds), eq(likes.userId, viewerId)));
+
+  const likeMap = new Map(likeCounts.map((l) => [l.postId, l.count]));
+  const commentMap = new Map(commentCounts.map((c) => [c.postId, c.count]));
+  const likedSet = new Set(myLikes.map((l) => l.postId));
+
+  return rows.map((r) => ({
+    ...r,
+    likesCount: likeMap.get(r.id) ?? 0,
+    commentsCount: commentMap.get(r.id) ?? 0,
+    isLikedByMe: likedSet.has(r.id),
+  }));
 }
 
 export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
@@ -60,13 +94,15 @@ export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
     .orderBy(desc(posts.createdAt), desc(posts.id))
     .limit(limit);
 
+  const withEngagement = await attachEngagement(rows, userId);
+
   const nextCursor =
     rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
 
-  return { posts: rows, nextCursor };
+  return { posts: withEngagement, nextCursor };
 }
 
-export async function getUserPosts(authorId: string, { cursor, limit }: FeedQuery) {
+export async function getUserPosts(authorId: string, viewerId: string, { cursor, limit }: FeedQuery) {
   const decoded = decodeCursor(cursor);
 
   const rows = await db
@@ -96,8 +132,10 @@ export async function getUserPosts(authorId: string, { cursor, limit }: FeedQuer
     .orderBy(desc(posts.createdAt), desc(posts.id))
     .limit(limit);
 
+  const withEngagement = await attachEngagement(rows, viewerId);
+
   const nextCursor =
     rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
 
-  return { posts: rows, nextCursor };
+  return { posts: withEngagement, nextCursor };
 }

@@ -22,6 +22,13 @@
       "when": 1787886833500,
       "tag": "0002_square_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787889847605,
+      "tag": "0003_sticky_tarot",
+      "breakpoints": true
     }
   ]
 }

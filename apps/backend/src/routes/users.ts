@@ -28,7 +28,7 @@ export default async function usersRoutes(app: FastifyInstance) {
     const profile = await getUserProfile(paramsParsed.data.username, payload.sub);
     if (!profile) return reply.code(404).send({ error: "Пользователь не найден" });
 
-    const result = await getUserPosts(profile.id, queryParsed.data);
+    const result = await getUserPosts(profile.id, payload.sub, queryParsed.data);
     return result;
   });
 }
