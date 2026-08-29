@@ -69,3 +69,20 @@ export async function createComment(postId: string, content: string): Promise<Co
   const data = await res.json();
   return data.comment;
 }
+
+export async function updatePost(postId: string, content: string): Promise<Post> {
+  const res = await api.patch(`/posts/${postId}`, { content });
+  if (!res.ok) throw new Error("Не удалось отредактировать пост");
+  const data = await res.json();
+  return data.post;
+}
+
+export async function deletePost(postId: string) {
+  const res = await api.delete(`/posts/${postId}`);
+  if (!res.ok) throw new Error("Не удалось удалить пост");
+}
+
+export async function deleteComment(commentId: string) {
+  const res = await api.delete(`/posts/comments/${commentId}`);
+  if (!res.ok) throw new Error("Не удалось удалить комментарий");
+}

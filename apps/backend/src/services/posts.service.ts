@@ -139,3 +139,27 @@ export async function getUserPosts(authorId: string, viewerId: string, { cursor,
 
   return { posts: withEngagement, nextCursor };
 }
+
+export class NotOwnerError extends Error {}
+export class NotFoundError extends Error {}
+
+export async function updatePost(postId: string, userId: string, content: string) {
+  const [post] = await db.select().from(posts).where(eq(posts.id, postId));
+  if (!post) throw new NotFoundError("Пост не найден");
+  if (post.authorId !== userId) throw new NotOwnerError("Нельзя редактировать чужой пост");
+
+  const [updated] = await db
+    .update(posts)
+    .set({ content })
+    .where(eq(posts.id, postId))
+    .returning();
+  return updated;
+}
+
+export async function deletePost(postId: string, userId: string) {
+  const [post] = await db.select().from(posts).where(eq(posts.id, postId));
+  if (!post) throw new NotFoundError("Пост не найден");
+  if (post.authorId !== userId) throw new NotOwnerError("Нельзя удалить чужой пост");
+
+  await db.delete(posts).where(eq(posts.id, postId));
+}

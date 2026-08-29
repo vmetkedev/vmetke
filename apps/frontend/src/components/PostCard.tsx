@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Heart, MessageCircle } from "lucide-react";
+import { Heart, MessageCircle, Pencil, Trash2, Check, X } from "lucide-react";
 import {
   type Post,
   type Comment,
@@ -8,7 +8,11 @@ import {
   unlikePost,
   fetchComments,
   createComment,
+  updatePost,
+  deletePost,
+  deleteComment,
 } from "../lib/posts";
+import { useAuth } from "../auth/AuthContext";
 
 function formatDate(iso: string) {
   const date = new Date(iso);
@@ -20,7 +24,14 @@ function formatDate(iso: string) {
   });
 }
 
-export function PostCard({ post: initialPost }: { post: Post }) {
+export function PostCard({
+  post: initialPost,
+  onDeleted,
+}: {
+  post: Post;
+  onDeleted?: (postId: string) => void;
+}) {
+  const { user } = useAuth();
   const [post, setPost] = useState(initialPost);
   const [likeLoading, setLikeLoading] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -28,6 +39,11 @@ export function PostCard({ post: initialPost }: { post: Post }) {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(post.content);
+  const [saving, setSaving] = useState(false);
+
+  const isOwnPost = user?.id === post.author.id;
 
   const toggleLike = async () => {
     setLikeLoading(true);
@@ -83,16 +99,81 @@ export function PostCard({ post: initialPost }: { post: Post }) {
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    await deleteComment(commentId);
+    setComments((prev) => prev.filter((c) => c.id !== commentId));
+    setPost((p) => ({ ...p, commentsCount: p.commentsCount - 1 }));
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim()) return;
+    setSaving(true);
+    try {
+      const updated = await updatePost(post.id, editContent.trim());
+      setPost(updated as Post);
+      setIsEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!confirm("Удалить пост?")) return;
+    await deletePost(post.id);
+    onDeleted?.(post.id);
+  };
+
   return (
     <div className="bg-white p-4 rounded-lg shadow">
       <div className="flex items-center justify-between mb-1.5">
         <Link to={`/u/${post.author.username}`} className="font-medium text-sm hover:underline">
           {post.author.displayName || post.author.username}
         </Link>
-        <span className="text-xs text-gray-400">{formatDate(post.createdAt)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{formatDate(post.createdAt)}</span>
+          {isOwnPost && !isEditing && (
+            <>
+              <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-gray-600">
+                <Pencil size={14} />
+              </button>
+              <button onClick={handleDeletePost} className="text-gray-400 hover:text-red-500">
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <p className="text-sm whitespace-pre-wrap wrap-break-word">{post.content}</p>
+      {isEditing ? (
+        <div className="space-y-2">
+          <textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            rows={3}
+            className="w-full border rounded px-2 py-1.5 text-sm resize-none"
+          />
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => {
+                setIsEditing(false);
+                setEditContent(post.content);
+              }}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X size={16} />
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving}
+              className="text-green-600 hover:text-green-700 disabled:opacity-50"
+            >
+              <Check size={16} />
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm whitespace-pre-wrap wrap-break-word">{post.content}</p>
+      )}
 
       <div className="flex items-center gap-4 mt-3 pt-2 border-t">
         <button
@@ -118,11 +199,21 @@ export function PostCard({ post: initialPost }: { post: Post }) {
             <p className="text-xs text-gray-400">Загрузка...</p>
           ) : (
             comments.map((c) => (
-              <div key={c.id} className="text-sm">
-                <Link to={`/u/${c.author.username}`} className="font-medium hover:underline">
-                  {c.author.displayName || c.author.username}
-                </Link>
-                <span className="text-gray-700 ml-1.5">{c.content}</span>
+              <div key={c.id} className="flex items-start justify-between text-sm group">
+                <div>
+                  <Link to={`/u/${c.author.username}`} className="font-medium hover:underline">
+                    {c.author.displayName || c.author.username}
+                  </Link>
+                  <span className="text-gray-700 ml-1.5">{c.content}</span>
+                </div>
+                {user?.id === c.author.id && (
+                  <button
+                    onClick={() => handleDeleteComment(c.id)}
+                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 ml-2 shrink-0"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             ))
           )}
