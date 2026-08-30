@@ -6,6 +6,7 @@ export const posts = pgTable("posts", {
   authorId: uuid("author_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title"),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

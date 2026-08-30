@@ -3,10 +3,13 @@ import { db } from "../db/client.js";
 import { posts, follows, users, likes, comments } from "../db/schema/index.js";
 import type { FeedQuery } from "../schemas/posts.js";
 
-export async function createPost(authorId: string, content: string) {
+export class NotOwnerError extends Error {}
+export class NotFoundError extends Error {}
+
+export async function createPost(authorId: string, title: string, content: string) {
   const [post] = await db
     .insert(posts)
-    .values({ authorId, content })
+    .values({ authorId, title, content })
     .returning();
   return post;
 }
@@ -24,6 +27,18 @@ function decodeCursor(cursor?: string) {
 function encodeCursor(createdAt: Date, id: string) {
   return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id })).toString("base64");
 }
+
+const postSelectFields = {
+  id: posts.id,
+  title: posts.title,
+  content: posts.content,
+  createdAt: posts.createdAt,
+  author: {
+    id: users.id,
+    username: users.username,
+    displayName: users.displayName,
+  },
+};
 
 async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: string) {
   if (rows.length === 0) return rows.map((r) => ({ ...r, likesCount: 0, commentsCount: 0, isLikedByMe: false }));
@@ -68,16 +83,7 @@ export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
   const decoded = decodeCursor(cursor);
 
   const rows = await db
-    .select({
-      id: posts.id,
-      content: posts.content,
-      createdAt: posts.createdAt,
-      author: {
-        id: users.id,
-        username: users.username,
-        displayName: users.displayName,
-      },
-    })
+    .select(postSelectFields)
     .from(posts)
     .innerJoin(users, eq(posts.authorId, users.id))
     .where(
@@ -95,7 +101,6 @@ export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
     .limit(limit);
 
   const withEngagement = await attachEngagement(rows, userId);
-
   const nextCursor =
     rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
 
@@ -106,16 +111,7 @@ export async function getUserPosts(authorId: string, viewerId: string, { cursor,
   const decoded = decodeCursor(cursor);
 
   const rows = await db
-    .select({
-      id: posts.id,
-      content: posts.content,
-      createdAt: posts.createdAt,
-      author: {
-        id: users.id,
-        username: users.username,
-        displayName: users.displayName,
-      },
-    })
+    .select(postSelectFields)
     .from(posts)
     .innerJoin(users, eq(posts.authorId, users.id))
     .where(
@@ -133,27 +129,33 @@ export async function getUserPosts(authorId: string, viewerId: string, { cursor,
     .limit(limit);
 
   const withEngagement = await attachEngagement(rows, viewerId);
-
   const nextCursor =
     rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
 
   return { posts: withEngagement, nextCursor };
 }
 
-export class NotOwnerError extends Error {}
-export class NotFoundError extends Error {}
+export async function getPostById(postId: string, viewerId: string) {
+  const [row] = await db
+    .select(postSelectFields)
+    .from(posts)
+    .innerJoin(users, eq(posts.authorId, users.id))
+    .where(eq(posts.id, postId));
 
-export async function updatePost(postId: string, userId: string, content: string) {
+  if (!row) return null;
+
+  const [withEngagement] = await attachEngagement([row], viewerId);
+  return withEngagement;
+}
+
+export async function updatePost(postId: string, userId: string, title: string, content: string) {
   const [post] = await db.select().from(posts).where(eq(posts.id, postId));
   if (!post) throw new NotFoundError("Пост не найден");
   if (post.authorId !== userId) throw new NotOwnerError("Нельзя редактировать чужой пост");
 
-  const [updated] = await db
-    .update(posts)
-    .set({ content })
-    .where(eq(posts.id, postId))
-    .returning();
-  return updated;
+  await db.update(posts).set({ title, content }).where(eq(posts.id, postId));
+
+  return getPostById(postId, userId);
 }
 
 export async function deletePost(postId: string, userId: string) {

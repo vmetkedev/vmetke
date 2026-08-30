@@ -5,6 +5,7 @@ import { createCommentSchema } from "../schemas/comments.js";
 import {
   createPost,
   getFeed,
+  getPostById,
   updatePost,
   deletePost,
   NotOwnerError,
@@ -25,24 +26,30 @@ function handleOwnershipError(err: unknown, reply: any) {
 export default async function postsRoutes(app: FastifyInstance) {
   app.post("/", { preHandler: [app.authenticate] }, async (request, reply) => {
     const parsed = createPostSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: parsed.error.flatten() });
-    }
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
     const payload = request.user as { sub: string };
-    const post = await createPost(payload.sub, parsed.data.content);
+    const post = await createPost(payload.sub, parsed.data.title, parsed.data.content);
     return reply.code(201).send({ post });
   });
 
   app.get("/feed", { preHandler: [app.authenticate] }, async (request, reply) => {
     const parsed = feedQuerySchema.safeParse(request.query);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: parsed.error.flatten() });
-    }
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
     const payload = request.user as { sub: string };
     const result = await getFeed(payload.sub, parsed.data);
     return result;
+  });
+
+  app.get("/:postId", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = postIdParamSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
+
+    const payload = request.user as { sub: string };
+    const post = await getPostById(parsed.data.postId, payload.sub);
+    if (!post) return reply.code(404).send({ error: "Пост не найден" });
+    return { post };
   });
 
   app.patch("/:postId", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -54,7 +61,7 @@ export default async function postsRoutes(app: FastifyInstance) {
 
     const payload = request.user as { sub: string };
     try {
-      const post = await updatePost(paramsParsed.data.postId, payload.sub, bodyParsed.data.content);
+      const post = await updatePost(paramsParsed.data.postId, payload.sub, bodyParsed.data.title, bodyParsed.data.content);
       return { post };
     } catch (err) {
       return handleOwnershipError(err, reply);

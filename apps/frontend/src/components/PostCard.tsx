@@ -14,6 +14,8 @@ import {
 } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
 
+const PREVIEW_LENGTH = 500;
+
 function formatDate(iso: string) {
   const date = new Date(iso);
   return date.toLocaleString("ru-RU", {
@@ -27,9 +29,11 @@ function formatDate(iso: string) {
 export function PostCard({
   post: initialPost,
   onDeleted,
+  linkTitle = true,
 }: {
   post: Post;
   onDeleted?: (postId: string) => void;
+  linkTitle?: boolean;
 }) {
   const { user } = useAuth();
   const [post, setPost] = useState(initialPost);
@@ -40,6 +44,7 @@ export function PostCard({
   const [newComment, setNewComment] = useState("");
   const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(post.title || "");
   const [editContent, setEditContent] = useState(post.content);
   const [saving, setSaving] = useState(false);
 
@@ -54,11 +59,8 @@ export function PostCard({
       likesCount: p.likesCount + (wasLiked ? -1 : 1),
     }));
     try {
-      if (wasLiked) {
-        await unlikePost(post.id);
-      } else {
-        await likePost(post.id);
-      }
+      if (wasLiked) await unlikePost(post.id);
+      else await likePost(post.id);
     } catch {
       setPost((p) => ({
         ...p,
@@ -87,7 +89,6 @@ export function PostCard({
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
-
     setCommentSubmitting(true);
     try {
       const comment = await createComment(post.id, newComment.trim());
@@ -106,11 +107,11 @@ export function PostCard({
   };
 
   const handleSaveEdit = async () => {
-    if (!editContent.trim()) return;
+    if (!editTitle.trim() || !editContent.trim()) return;
     setSaving(true);
     try {
-      const updated = await updatePost(post.id, editContent.trim());
-      setPost(updated as Post);
+      const updated = await updatePost(post.id, editTitle.trim(), editContent.trim());
+      setPost(updated);
       setIsEditing(false);
     } finally {
       setSaving(false);
@@ -146,6 +147,12 @@ export function PostCard({
 
       {isEditing ? (
         <div className="space-y-2">
+          <input
+            type="text"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className="w-full border rounded px-2 py-1.5 text-sm font-medium"
+          />
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
@@ -156,37 +163,49 @@ export function PostCard({
             <button
               onClick={() => {
                 setIsEditing(false);
+                setEditTitle(post.title || "");
                 setEditContent(post.content);
               }}
               className="text-gray-500 hover:text-gray-700"
             >
               <X size={16} />
             </button>
-            <button
-              onClick={handleSaveEdit}
-              disabled={saving}
-              className="text-green-600 hover:text-green-700 disabled:opacity-50"
-            >
+            <button onClick={handleSaveEdit} disabled={saving} className="text-green-600 hover:text-green-700 disabled:opacity-50">
               <Check size={16} />
             </button>
           </div>
         </div>
       ) : (
-        <p className="text-sm whitespace-pre-wrap wrap-break-word">{post.content}</p>
+        <>
+          {linkTitle ? (
+            <Link to={`/post/${post.id}`} className="block font-semibold text-sm mb-1 hover:underline">
+              {post.title || "Без названия"}
+            </Link>
+          ) : (
+            <h2 className="font-semibold text-base mb-1">{post.title || "Без названия"}</h2>
+          )}
+          <p className="text-sm whitespace-pre-wrap wrap-break-word">
+            {linkTitle && post.content.length > PREVIEW_LENGTH
+              ? `${post.content.slice(0, PREVIEW_LENGTH)}…`
+              : post.content}
+          </p>
+          {linkTitle && post.content.length > PREVIEW_LENGTH && (
+            <Link to={`/post/${post.id}`} className="text-xs text-blue-600 hover:underline mt-1 inline-block">
+              Читать далее
+            </Link>
+          )}
+        </>
       )}
 
       <div className="flex items-center gap-4 mt-3 pt-2 border-t">
         <button
           onClick={toggleLike}
           disabled={likeLoading}
-          className={`flex items-center gap-1 text-sm ${
-            post.isLikedByMe ? "text-red-500" : "text-gray-500"
-          } disabled:opacity-50`}
+          className={`flex items-center gap-1 text-sm ${post.isLikedByMe ? "text-red-500" : "text-gray-500"} disabled:opacity-50`}
         >
           <Heart size={16} fill={post.isLikedByMe ? "currentColor" : "none"} />
           {post.likesCount}
         </button>
-
         <button onClick={toggleComments} className="flex items-center gap-1 text-sm text-gray-500">
           <MessageCircle size={16} />
           {post.commentsCount}

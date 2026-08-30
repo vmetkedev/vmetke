@@ -2,6 +2,7 @@ import { api } from "./api";
 
 export type Post = {
   id: string;
+  title: string | null;
   content: string;
   createdAt: string;
   likesCount: number;
@@ -11,7 +12,6 @@ export type Post = {
     id: string;
     username: string;
     displayName: string | null;
-    avatarUrl: string | null;
   };
 };
 
@@ -27,11 +27,30 @@ export async function fetchFeed(cursor?: string): Promise<FeedResponse> {
   return res.json();
 }
 
-export async function createPost(content: string): Promise<Post> {
-  const res = await api.post("/posts", { content });
+export async function fetchPost(postId: string): Promise<Post> {
+  const res = await api.get(`/posts/${postId}`);
+  if (!res.ok) throw new Error("Пост не найден");
+  const data = await res.json();
+  return data.post;
+}
+
+export async function createPost(title: string, content: string): Promise<Post> {
+  const res = await api.post("/posts", { title, content });
   if (!res.ok) throw new Error("Не удалось опубликовать пост");
   const data = await res.json();
   return data.post;
+}
+
+export async function updatePost(postId: string, title: string, content: string): Promise<Post> {
+  const res = await api.patch(`/posts/${postId}`, { title, content });
+  if (!res.ok) throw new Error("Не удалось отредактировать пост");
+  const data = await res.json();
+  return data.post;
+}
+
+export async function deletePost(postId: string) {
+  const res = await api.delete(`/posts/${postId}`);
+  if (!res.ok) throw new Error("Не удалось удалить пост");
 }
 
 export async function likePost(postId: string) {
@@ -44,6 +63,11 @@ export async function unlikePost(postId: string) {
   if (!res.ok) throw new Error("Не удалось убрать лайк");
 }
 
+export async function deleteComment(commentId: string) {
+  const res = await api.delete(`/posts/comments/${commentId}`);
+  if (!res.ok) throw new Error("Не удалось удалить комментарий");
+}
+
 export type Comment = {
   id: string;
   content: string;
@@ -52,7 +76,6 @@ export type Comment = {
     id: string;
     username: string;
     displayName: string | null;
-    avatarUrl: string | null;
   };
 };
 
@@ -68,21 +91,4 @@ export async function createComment(postId: string, content: string): Promise<Co
   if (!res.ok) throw new Error("Не удалось отправить комментарий");
   const data = await res.json();
   return data.comment;
-}
-
-export async function updatePost(postId: string, content: string): Promise<Post> {
-  const res = await api.patch(`/posts/${postId}`, { content });
-  if (!res.ok) throw new Error("Не удалось отредактировать пост");
-  const data = await res.json();
-  return data.post;
-}
-
-export async function deletePost(postId: string) {
-  const res = await api.delete(`/posts/${postId}`);
-  if (!res.ok) throw new Error("Не удалось удалить пост");
-}
-
-export async function deleteComment(commentId: string) {
-  const res = await api.delete(`/posts/comments/${commentId}`);
-  if (!res.ok) throw new Error("Не удалось удалить комментарий");
 }

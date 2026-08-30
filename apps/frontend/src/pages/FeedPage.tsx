@@ -1,30 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { Link } from "react-router";
+import { Bell, SquarePen } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { fetchFeed, type Post } from "../lib/posts";
-import { PostComposer } from "../components/PostComposer";
-import { PostCard } from "../components/PostCard";
-import { Bell } from "lucide-react";
 import { fetchNotifications } from "../lib/notifications";
+import { PostCard } from "../components/PostCard";
+import { SearchDropdown } from "../components/SearchDropdown";
 
 export default function FeedPage() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchUsername, setSearchUsername] = useState("");
-
   const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const load = () => fetchNotifications().then((data) => setUnreadCount(data.unreadCount));
-    load();
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
-  }, []);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -44,6 +34,13 @@ export default function FeedPage() {
     loadInitial();
   }, [loadInitial]);
 
+  useEffect(() => {
+    const load = () => fetchNotifications().then((data) => setUnreadCount(data.unreadCount));
+    load();
+    const interval = setInterval(load, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const loadMore = async () => {
     if (!cursor) return;
     setLoadingMore(true);
@@ -58,18 +55,13 @@ export default function FeedPage() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = searchUsername.trim();
-    if (trimmed) navigate(`/u/${trimmed}`);
-  };
-
   return (
     <div className="max-w-2xl mx-auto p-8 space-y-4">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-semibold">Привет, {user?.username}</h1>
         <div className="flex items-center gap-4">
-          <Link to="/notifications" className="relative text-gray-600">
+          <SearchDropdown />
+          <Link to="/notifications" className="relative flex items-center text-gray-600">
             <Bell size={20} />
             {unreadCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
@@ -77,26 +69,14 @@ export default function FeedPage() {
               </span>
             )}
           </Link>
+          <Link to="/new-post" className="flex items-center text-gray-600 hover:text-gray-800">
+            <SquarePen size={20} />
+          </Link>
           <button onClick={logout} className="text-sm text-gray-500">
             Выйти
           </button>
         </div>
       </div>
-
-      <form onSubmit={handleSearch} className="flex gap-2">
-        <input
-          type="text"
-          value={searchUsername}
-          onChange={(e) => setSearchUsername(e.target.value)}
-          placeholder="Перейти к пользователю (username)"
-          className="flex-1 border rounded px-3 py-1.5 text-sm"
-        />
-        <button type="submit" className="text-sm text-blue-600 px-3">
-          Найти
-        </button>
-      </form>
-
-      <PostComposer onPosted={() => loadInitial()} />
 
       {error && <p className="text-red-600 text-sm">{error}</p>}
 

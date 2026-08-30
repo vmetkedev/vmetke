@@ -4,6 +4,8 @@ import RegisterPage from "./pages/RegisterPage";
 import FeedPage from "./pages/FeedPage";
 import ProfilePage from "./pages/ProfilePage";
 import NotificationsPage from "./pages/NotificationsPage";
+import PostPage from "./pages/PostPage";
+import NewPostPage from "./pages/NewPostPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
@@ -11,30 +13,11 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <FeedPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/u/:username"
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/notifications"
-        element={
-          <ProtectedRoute>
-            <NotificationsPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
+      <Route path="/u/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+      <Route path="/post/:postId" element={<ProtectedRoute><PostPage /></ProtectedRoute>} />
+      <Route path="/new-post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
     </Routes>
   );
 }
