@@ -29,7 +29,7 @@ export function PostComposer({ onPosted }: { onPosted: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-4 rounded-lg shadow space-y-2">
+    <form onSubmit={handleSubmit} className="system-dark:text-gray-100 p-4 rounded-lg shadow space-y-2">
       {error && <p className="text-red-600 text-sm">{error}</p>}
       <input
         type="text"
@@ -44,7 +44,7 @@ export function PostComposer({ onPosted }: { onPosted: () => void }) {
         onChange={(e) => setContent(e.target.value)}
         placeholder="Что нового?"
         maxLength={MAX_CONTENT}
-        rows={10}
+        rows={20}
         className="w-full border rounded px-3 py-2 resize-y text-sm"
       />
       <div className="flex justify-between items-center">

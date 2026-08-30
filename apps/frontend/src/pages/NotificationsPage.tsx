@@ -7,6 +7,7 @@ import {
   deleteNotification,
   type Notification,
 } from "../lib/notifications";
+import { AppLayout } from "../components/AppLayout";
 
 const POLL_INTERVAL_MS = 10000;
 
@@ -65,39 +66,41 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8 space-y-3">
-      <h1 className="text-xl font-semibold">Уведомления</h1>
-
-      {loading ? (
-        <p className="text-gray-500 text-center py-8">Загрузка...</p>
-      ) : notifications.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">Пока нет уведомлений.</p>
-      ) : (
-        <div className="space-y-2">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              className={`flex items-center gap-3 p-3 rounded-lg shadow-sm group ${
-                n.read ? "bg-white" : "bg-blue-50"
-              }`}
-            >
-              {ICONS[n.type]}
-              <Link to={`/u/${n.actor.username}`} className="flex-1 text-sm hover:underline">
-                <span className="font-medium">{n.actor.displayName || n.actor.username}</span>{" "}
-                {LABELS[n.type]}
-              </Link>
-              <span className="text-xs text-gray-400 shrink-0">{formatDate(n.createdAt)}</span>
-              <button
-                onClick={() => handleDelete(n.id)}
-                className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 shrink-0"
-                aria-label="Удалить уведомление"
+    <AppLayout>
+      <div className="max-w-2xl mx-auto p-8 space-y-3">
+        <h1 className="text-xl font-semibold system-dark:text-gray-100">Уведомления</h1>
+    
+        {loading ? (
+          <p className="text-gray-500 text-center py-8">Загрузка...</p>
+        ) : notifications.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">Пока нет уведомлений.</p>
+        ) : (
+          <div className="space-y-2">
+            {notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`flex items-center gap-3 p-3 rounded-lg shadow-sm group ${
+                  n.read ? "bg-white system-dark:bg-gray-800" : "bg-blue-50 system-dark:bg-blue-950"
+                }`}
               >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+                {ICONS[n.type]}
+                <Link to={`/u/${n.actor.username}`} className="flex-1 text-sm hover:underline system-dark:text-gray-200">
+                  <span className="font-medium">{n.actor.displayName || n.actor.username}</span>{" "}
+                  {LABELS[n.type]}
+                </Link>
+                <span className="text-xs text-gray-400 shrink-0">{formatDate(n.createdAt)}</span>
+                <button
+                  onClick={() => handleDelete(n.id)}
+                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 shrink-0"
+                  aria-label="Удалить уведомление"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </AppLayout>
   );
 }

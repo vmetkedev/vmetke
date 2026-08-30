@@ -1,17 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Heart, MessageCircle, Pencil, Trash2, Check, X } from "lucide-react";
-import {
-  type Post,
-  type Comment,
-  likePost,
-  unlikePost,
-  fetchComments,
-  createComment,
-  updatePost,
-  deletePost,
-  deleteComment,
-} from "../lib/posts";
+import { type Post, likePost, unlikePost, updatePost, deletePost } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
 
 const PREVIEW_LENGTH = 500;
@@ -38,11 +28,6 @@ export function PostCard({
   const { user } = useAuth();
   const [post, setPost] = useState(initialPost);
   const [likeLoading, setLikeLoading] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [newComment, setNewComment] = useState("");
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(post.title || "");
   const [editContent, setEditContent] = useState(post.content);
@@ -72,40 +57,6 @@ export function PostCard({
     }
   };
 
-  const toggleComments = async () => {
-    const next = !showComments;
-    setShowComments(next);
-    if (next && comments.length === 0) {
-      setCommentsLoading(true);
-      try {
-        const data = await fetchComments(post.id);
-        setComments(data);
-      } finally {
-        setCommentsLoading(false);
-      }
-    }
-  };
-
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    setCommentSubmitting(true);
-    try {
-      const comment = await createComment(post.id, newComment.trim());
-      setComments((prev) => [...prev, comment]);
-      setNewComment("");
-      setPost((p) => ({ ...p, commentsCount: p.commentsCount + 1 }));
-    } finally {
-      setCommentSubmitting(false);
-    }
-  };
-
-  const handleDeleteComment = async (commentId: string) => {
-    await deleteComment(commentId);
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
-    setPost((p) => ({ ...p, commentsCount: p.commentsCount - 1 }));
-  };
-
   const handleSaveEdit = async () => {
     if (!editTitle.trim() || !editContent.trim()) return;
     setSaving(true);
@@ -125,19 +76,19 @@ export function PostCard({
   };
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow">
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
       <div className="flex items-center justify-between mb-1.5">
-        <Link to={`/u/${post.author.username}`} className="font-medium text-sm hover:underline">
+        <Link to={`/u/${post.author.username}`} className="font-medium text-sm hover:underline dark:text-gray-100">
           {post.author.displayName || post.author.username}
         </Link>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">{formatDate(post.createdAt)}</span>
-          {isOwnPost && !isEditing && (
+          <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(post.createdAt)}</span>
+          {!linkTitle && isOwnPost && !isEditing && (
             <>
-              <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setIsEditing(true)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
                 <Pencil size={14} />
               </button>
-              <button onClick={handleDeletePost} className="text-gray-400 hover:text-red-500">
+              <button onClick={handleDeletePost} className="text-gray-400 dark:text-gray-500 hover:text-red-500">
                 <Trash2 size={14} />
               </button>
             </>
@@ -151,13 +102,13 @@ export function PostCard({
             type="text"
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
-            className="w-full border rounded px-2 py-1.5 text-sm font-medium"
+            className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm font-medium"
           />
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            rows={3}
-            className="w-full border rounded px-2 py-1.5 text-sm resize-none"
+            rows={6}
+            className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm resize-y"
           />
           <div className="flex gap-2 justify-end">
             <button
@@ -178,13 +129,13 @@ export function PostCard({
       ) : (
         <>
           {linkTitle ? (
-            <Link to={`/post/${post.id}`} className="block font-semibold text-sm mb-1 hover:underline">
+            <Link to={`/post/${post.id}`} className="block font-semibold text-sm mb-1 hover:underline dark:text-gray-100">
               {post.title || "Без названия"}
             </Link>
           ) : (
-            <h2 className="font-semibold text-base mb-1">{post.title || "Без названия"}</h2>
+            <h2 className="font-semibold text-base mb-1 dark:text-gray-100">{post.title || "Без названия"}</h2>
           )}
-          <p className="text-sm whitespace-pre-wrap wrap-break-word">
+          <p className="text-sm whitespace-pre-wrap wrap-break-word dark:text-gray-200">
             {linkTitle && post.content.length > PREVIEW_LENGTH
               ? `${post.content.slice(0, PREVIEW_LENGTH)}…`
               : post.content}
@@ -197,63 +148,28 @@ export function PostCard({
         </>
       )}
 
-      <div className="flex items-center gap-4 mt-3 pt-2 border-t">
+      <div className="flex items-center gap-4 mt-3 pt-2 border-t dark:border-gray-700">
         <button
           onClick={toggleLike}
           disabled={likeLoading}
-          className={`flex items-center gap-1 text-sm ${post.isLikedByMe ? "text-red-500" : "text-gray-500"} disabled:opacity-50`}
+          className={`flex items-center gap-1 text-sm ${post.isLikedByMe ? "text-red-500" : "text-gray-500 dark:text-gray-400"} disabled:opacity-50`}
         >
           <Heart size={16} fill={post.isLikedByMe ? "currentColor" : "none"} />
           {post.likesCount}
         </button>
-        <button onClick={toggleComments} className="flex items-center gap-1 text-sm text-gray-500">
-          <MessageCircle size={16} />
-          {post.commentsCount}
-        </button>
-      </div>
 
-      {showComments && (
-        <div className="mt-3 pt-3 border-t space-y-2">
-          {commentsLoading ? (
-            <p className="text-xs text-gray-400">Загрузка...</p>
-          ) : (
-            comments.map((c) => (
-              <div key={c.id} className="flex items-start justify-between text-sm group">
-                <div>
-                  <Link to={`/u/${c.author.username}`} className="font-medium hover:underline">
-                    {c.author.displayName || c.author.username}
-                  </Link>
-                  <span className="text-gray-700 ml-1.5">{c.content}</span>
-                </div>
-                {user?.id === c.author.id && (
-                  <button
-                    onClick={() => handleDeleteComment(c.id)}
-                    className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 ml-2 shrink-0"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            ))
-          )}
-          <form onSubmit={handleCommentSubmit} className="flex gap-2 pt-1">
-            <input
-              type="text"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Написать комментарий..."
-              className="flex-1 border rounded px-2 py-1 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={commentSubmitting || !newComment.trim()}
-              className="text-sm text-blue-600 disabled:opacity-50"
-            >
-              Отправить
-            </button>
-          </form>
-        </div>
-      )}
+        {linkTitle ? (
+          <Link to={`/post/${post.id}`} className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+            <MessageCircle size={16} />
+            {post.commentsCount}
+          </Link>
+        ) : (
+          <span className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+            <MessageCircle size={16} />
+            {post.commentsCount}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -24,9 +24,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-semibold">Вход в vmetke</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 system-dark:bg-gray-900">
+      <form onSubmit={handleSubmit} className="bg-white system-dark:bg-gray-800 p-8 rounded-lg shadow w-full max-w-sm space-y-4">
+        <h1 className="text-xl font-semibold system-dark:text-gray-100">Вход в vmetke</h1>
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         <div className="relative">
@@ -35,7 +35,7 @@ export default function LoginPage() {
             placeholder="Email или имя пользователя"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            className="w-full border rounded px-3 py-2 pr-10"
+            className="w-full border system-dark:border-gray-600 system-dark:bg-gray-700 system-dark:text-gray-100 rounded px-3 py-2 pr-10"
             required
           />
           <FieldHint
@@ -50,7 +50,7 @@ export default function LoginPage() {
             placeholder="Пароль"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border rounded px-3 py-2 pr-16"
+            className="w-full border system-dark:border-gray-600 system-dark:bg-gray-700 system-dark:text-gray-100 rounded px-3 py-2 pr-16"
             required
           />
           <button
@@ -71,8 +71,8 @@ export default function LoginPage() {
         <button type="submit" className="w-full bg-blue-600 text-white rounded py-2">
           Войти
         </button>
-        <p className="text-sm text-center">
-          Нет аккаунта? <Link to="/register" className="text-blue-600">Зарегистрироваться</Link>
+        <p className="text-sm text-center system-dark:text-gray-300">
+          Нет аккаунта? <Link to="/register" className="text-blue-600 system-dark:text-blue-400">Зарегистрироваться</Link>
         </p>
       </form>
     </div>

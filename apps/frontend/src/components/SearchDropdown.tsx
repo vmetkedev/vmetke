@@ -55,7 +55,7 @@ export function SearchDropdown() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-20 p-3">
+        <div className="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 z-20 p-3">
           <div className="flex items-center gap-2 mb-2">
             <input
               autoFocus
@@ -63,9 +63,9 @@ export function SearchDropdown() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск..."
-              className="flex-1 border rounded px-2 py-1.5 text-sm"
+              className="flex-1 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm"
             />
-            <button onClick={closeAndReset} className="text-gray-400 hover:text-gray-600">
+            <button onClick={closeAndReset} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
               <X size={16} />
             </button>
           </div>

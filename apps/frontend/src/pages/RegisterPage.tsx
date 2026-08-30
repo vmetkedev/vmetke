@@ -34,9 +34,9 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-semibold">Регистрация в vmetke</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 system-dark:bg-gray-900">
+      <form onSubmit={handleSubmit} className="bg-white system-dark:bg-gray-800 p-8 rounded-lg shadow w-full max-w-sm space-y-4">
+        <h1 className="text-xl font-semibold system-dark:text-gray-100">Регистрация в vmetke</h1>
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         <div className="relative">
@@ -45,7 +45,7 @@ export default function RegisterPage() {
             placeholder="Имя пользователя"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full border rounded px-3 py-2 pr-10"
+            className="w-full border system-dark:border-gray-600 system-dark:bg-gray-700 system-dark:text-gray-100 rounded px-3 py-2 pr-10"
             required
           />
           <FieldHint
@@ -60,7 +60,7 @@ export default function RegisterPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border rounded px-3 py-2 pr-10"
+            className="w-full border system-dark:border-gray-600 system-dark:bg-gray-700 system-dark:text-gray-100 rounded px-3 py-2 pr-10"
             required
           />
           <FieldHint
@@ -76,7 +76,7 @@ export default function RegisterPage() {
               placeholder="Пароль"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border rounded px-3 py-2 pr-9"
+              className="w-full border system-dark:border-gray-600 system-dark:bg-gray-700 system-dark:text-gray-100 rounded px-3 py-2 pr-9"
               required
             />
             <button
@@ -99,7 +99,7 @@ export default function RegisterPage() {
               placeholder="Повторите пароль"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full border rounded px-3 py-2 pr-9"
+              className="w-full border system-dark:border-gray-600 system-dark:bg-gray-700 system-dark:text-gray-100 rounded px-3 py-2 pr-9"
               required
             />
             <button
@@ -122,8 +122,8 @@ export default function RegisterPage() {
         <button type="submit" className="w-full bg-blue-600 text-white rounded py-2">
           Зарегистрироваться
         </button>
-        <p className="text-sm text-center">
-          Уже есть аккаунт? <Link to="/login" className="text-blue-600">Войти</Link>
+        <p className="text-sm text-center system-dark:text-gray-300">
+          Уже есть аккаунт? <Link to="/login" className="text-blue-600 system-dark:text-blue-400">Войти</Link>
         </p>
       </form>
     </div>
