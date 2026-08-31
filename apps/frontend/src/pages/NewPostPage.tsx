@@ -8,7 +8,7 @@ export default function NewPostPage() {
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto p-8">
-        <h1 className="text-xl font-semibold mb-4 system-dark:text-gray-100">Новый пост</h1>
+        <h1 className="text-xl font-semibold mb-4 dark:text-gray-100">Новый пост</h1>
         <PostComposer onPosted={() => navigate("/")} />
       </div>
     </AppLayout>

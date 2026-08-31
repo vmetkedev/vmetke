@@ -46,7 +46,7 @@ export default function PostPage() {
     }
   };
 
-  if (loading) return <AppLayout><p className="p-8 text-center text-gray-500">Загрузка...</p></AppLayout>;
+  if (loading) return <AppLayout><p className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</p></AppLayout>;
   if (error || !post)
     return <AppLayout><p className="p-8 text-center text-red-600">{error || "Пост не найден"}</p></AppLayout>;
 
@@ -56,8 +56,8 @@ export default function PostPage() {
         <PostCard post={post} linkTitle={false} onDeleted={() => navigate("/")} />
 
         {profile && (
-          <div className="bg-white p-4 rounded-lg shadow flex items-center justify-between">
-            <Link to={`/u/${profile.username}`} className="text-sm font-medium hover:underline">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex items-center justify-between">
+            <Link to={`/u/${profile.username}`} className="text-sm font-medium hover:underline dark:text-gray-100">
               {profile.displayName || profile.username}
             </Link>
             {!profile.isMe && (
@@ -65,7 +65,9 @@ export default function PostPage() {
                 onClick={handleFollowToggle}
                 disabled={followLoading}
                 className={`text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
-                  profile.isFollowedByMe ? "border text-gray-700" : "bg-blue-600 text-white"
+                  profile.isFollowedByMe
+                    ? "border dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    : "bg-blue-600 text-white"
                 }`}
               >
                 {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}

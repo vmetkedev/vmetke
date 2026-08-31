@@ -62,18 +62,18 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) return <AppLayout><p className="p-8 text-center text-gray-500 system-dark:text-gray-400">Загрузка...</p></AppLayout>;
+  if (loading) return <AppLayout><p className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</p></AppLayout>;
   if (error || !profile)
     return <AppLayout><p className="p-8 text-center text-red-600">{error || "Пользователь не найден"}</p></AppLayout>;
   
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto p-8 space-y-4">
-        <div className="bg-white system-dark:bg-gray-800 p-6 rounded-lg shadow">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-xl font-semibold system-dark:text-gray-100">{profile.displayName || profile.username}</h1>
-              <p className="text-gray-500 system-dark:text-gray-400 text-sm">@{profile.username}</p>
+              <h1 className="text-xl font-semibold dark:text-gray-100">{profile.displayName || profile.username}</h1>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">@{profile.username}</p>
             </div>
             {!profile.isMe && (
               <button
@@ -87,7 +87,7 @@ export default function ProfilePage() {
               </button>
             )}
           </div>
-        <div className="flex gap-4 text-sm text-gray-500 system-dark:text-gray-400 mt-3">
+          <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400 mt-3">
             <span>{profile.followersCount} подписчиков</span>
             <span>{profile.followingCount} подписок</span>
           </div>
