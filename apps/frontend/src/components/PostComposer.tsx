@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPost } from "../lib/posts";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 30000;
@@ -9,6 +10,7 @@ export function PostComposer({ onPosted }: { onPosted: () => void }) {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,14 +41,20 @@ export function PostComposer({ onPosted }: { onPosted: () => void }) {
         maxLength={MAX_TITLE}
         className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 text-sm font-medium"
       />
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="Что нового?"
-        maxLength={MAX_CONTENT}
-        rows={10}
-        className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 resize-y text-sm"
-      />
+
+      <div>
+        <MarkdownToolbar textareaRef={textareaRef} value={content} onChange={setContent} />
+        <textarea
+          ref={textareaRef}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Что нового? Поддерживается **жирный**, *курсив*, `код`, ## заголовки, > цитаты, списки, [ссылки](url)"
+          maxLength={MAX_CONTENT}
+          rows={10}
+          className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-b px-3 py-2 resize-y text-sm"
+        />
+      </div>
+
       <div className="flex justify-between items-center">
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {content.length}/{MAX_CONTENT}

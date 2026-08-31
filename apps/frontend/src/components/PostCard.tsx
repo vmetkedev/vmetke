@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Heart, MessageCircle, Pencil, Trash2, Check, X } from "lucide-react";
 import { type Post, likePost, unlikePost, updatePost, deletePost } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
+import { renderMarkdown } from "../lib/markdown";
 
 const PREVIEW_LENGTH = 500;
 
@@ -135,16 +136,23 @@ export function PostCard({
           ) : (
             <h2 className="font-semibold text-base mb-1 dark:text-gray-100">{post.title || "Без названия"}</h2>
           )}
-          <p className="text-sm whitespace-pre-wrap wrap-break-word dark:text-gray-200">
-            {linkTitle && post.content.length > PREVIEW_LENGTH
-              ? `${post.content.slice(0, PREVIEW_LENGTH)}…`
-              : post.content}
-          </p>
-          {linkTitle && post.content.length > PREVIEW_LENGTH && (
-            <Link to={`/post/${post.id}`} className="text-xs text-blue-600 hover:underline mt-1 inline-block">
-              Читать далее
-            </Link>
-          )}
+          {(() => {
+            const isTruncated = linkTitle && post.content.length > PREVIEW_LENGTH;
+            const displayText = isTruncated ? `${post.content.slice(0, PREVIEW_LENGTH)}…` : post.content;
+            return (
+              <>
+                <div
+                  className="text-sm dark:text-gray-200 [&_a]:wrap-break-word"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }}
+                />
+                {isTruncated && (
+                  <Link to={`/post/${post.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">
+                    Читать далее
+                  </Link>
+                )}
+              </>
+            );
+          })()}
         </>
       )}
 
