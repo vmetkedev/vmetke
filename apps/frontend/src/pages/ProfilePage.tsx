@@ -76,13 +76,15 @@ export default function ProfilePage() {
               <p className="text-gray-500 dark:text-gray-400 text-sm">@{profile.username}</p>
             </div>
             {!profile.isMe && (
-              <button
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-                className={`text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
-                  profile.isFollowedByMe ? "border text-gray-700" : "bg-blue-600 text-white"
-                }`}
-              >
+            <button
+              onClick={handleFollowToggle}
+              disabled={followLoading}
+              className={`text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
+                profile.isFollowedByMe
+                  ? "border dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                  : "bg-blue-600 text-white"
+              }`}
+            >
                 {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}
               </button>
             )}
@@ -94,7 +96,7 @@ export default function ProfilePage() {
         </div>
 
         {posts.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">Постов пока нет.</p>
+          <p className="text-gray-500 dark:text-gray-400 text-center py-8">Постов пока нет.</p>
         ) : (
           <div className="space-y-3">
             {posts.map((post) => (

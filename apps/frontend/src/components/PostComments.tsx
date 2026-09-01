@@ -83,7 +83,7 @@ export function PostComments({
         <button
           type="submit"
           disabled={submitting || !newComment.trim()}
-          className="text-sm text-blue-600 disabled:opacity-50 mt-2"
+          className="text-sm text-blue-600 dark:text-blue-400 disabled:opacity-50 mt-2"
         >
           Отправить
         </button>

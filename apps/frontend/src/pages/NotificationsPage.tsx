@@ -72,9 +72,9 @@ export default function NotificationsPage() {
     
         {loading ? (
           <p className="text-gray-500 text-center py-8">Загрузка...</p>
-        ) : notifications.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">Пока нет уведомлений.</p>
-        ) : (
+          ) : notifications.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Пока нет уведомлений.</p>
+          ) : (
           <div className="space-y-2">
             {notifications.map((n) => (
               <div
@@ -88,7 +88,7 @@ export default function NotificationsPage() {
                   <span className="font-medium">{n.actor.displayName || n.actor.username}</span>{" "}
                   {LABELS[n.type]}
                 </Link>
-                <span className="text-xs text-gray-400 shrink-0">{formatDate(n.createdAt)}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">{formatDate(n.createdAt)}</span>
                 <button
                   onClick={() => handleDelete(n.id)}
                   className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 shrink-0"

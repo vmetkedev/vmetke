@@ -47,7 +47,7 @@ export default function BookmarksPage() {
       <div className="max-w-2xl mx-auto p-8 space-y-4">
         <h1 className="text-xl font-semibold dark:text-gray-100">Избранное</h1>
 
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
 
         {loading ? (
           <p className="text-gray-500 dark:text-gray-400 text-center py-8">Загрузка...</p>

@@ -45,12 +45,12 @@ export default function FeedPage() {
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto p-8 space-y-4">
-        {error && <p className="text-red-600 text-sm">{error}</p>}
+        {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
 
         {loading ? (
-          <p className="text-gray-500 text-center py-8">Загрузка...</p>
+          <p className="text-gray-500 dark:text-gray-400 text-center py-8">Загрузка...</p>
         ) : posts.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">Пока пусто. Напишите первый пост!</p>
+          <p className="text-gray-500 dark:text-gray-400 text-center py-8">Пока пусто. Напишите первый пост!</p>
         ) : (
           <div className="space-y-3">
             {posts.map((post) => (
@@ -67,7 +67,7 @@ export default function FeedPage() {
           <button
             onClick={loadMore}
             disabled={loadingMore}
-            className="w-full text-sm text-blue-600 py-2 disabled:opacity-50"
+            className="w-full text-sm text-blue-600 dark:text-blue-400 py-2 disabled:opacity-50"
           >
             {loadingMore ? "Загрузка..." : "Показать ещё"}
           </button>
