@@ -5,3 +5,4 @@ export * from "./follows.js";
 export * from "./likes.js";
 export * from "./comments.js";
 export * from "./notifications.js";
+export * from "./bookmarks.js";

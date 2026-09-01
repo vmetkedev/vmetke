@@ -43,6 +43,13 @@
       "when": 1788020002728,
       "tag": "0005_glamorous_gunslinger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788233205028,
+      "tag": "0006_legal_kingpin",
+      "breakpoints": true
     }
   ]
 }

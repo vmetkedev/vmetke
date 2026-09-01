@@ -1,16 +1,13 @@
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { posts, follows, users, likes, comments } from "../db/schema/index.js";
+import { posts, follows, users, likes, comments, bookmarks } from "../db/schema/index.js";
 import type { FeedQuery } from "../schemas/posts.js";
 
 export class NotOwnerError extends Error {}
 export class NotFoundError extends Error {}
 
 export async function createPost(authorId: string, title: string, content: string) {
-  const [post] = await db
-    .insert(posts)
-    .values({ authorId, title, content })
-    .returning();
+  const [post] = await db.insert(posts).values({ authorId, title, content }).returning();
   return post;
 }
 
@@ -33,6 +30,7 @@ const postSelectFields = {
   title: posts.title,
   content: posts.content,
   createdAt: posts.createdAt,
+  viewsCount: posts.views,
   author: {
     id: users.id,
     username: users.username,
@@ -41,7 +39,8 @@ const postSelectFields = {
 };
 
 async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: string) {
-  if (rows.length === 0) return rows.map((r) => ({ ...r, likesCount: 0, commentsCount: 0, isLikedByMe: false }));
+  if (rows.length === 0)
+    return rows.map((r) => ({ ...r, likesCount: 0, commentsCount: 0, isLikedByMe: false, isBookmarkedByMe: false }));
 
   const postIds = rows.map((r) => r.id);
 
@@ -62,24 +61,27 @@ async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: s
     .from(likes)
     .where(and(inArray(likes.postId, postIds), eq(likes.userId, viewerId)));
 
+  const myBookmarks = await db
+    .select({ postId: bookmarks.postId })
+    .from(bookmarks)
+    .where(and(inArray(bookmarks.postId, postIds), eq(bookmarks.userId, viewerId)));
+
   const likeMap = new Map(likeCounts.map((l) => [l.postId, l.count]));
   const commentMap = new Map(commentCounts.map((c) => [c.postId, c.count]));
   const likedSet = new Set(myLikes.map((l) => l.postId));
+  const bookmarkedSet = new Set(myBookmarks.map((b) => b.postId));
 
   return rows.map((r) => ({
     ...r,
     likesCount: likeMap.get(r.id) ?? 0,
     commentsCount: commentMap.get(r.id) ?? 0,
     isLikedByMe: likedSet.has(r.id),
+    isBookmarkedByMe: bookmarkedSet.has(r.id),
   }));
 }
 
 export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
-  const followingIds = db
-    .select({ id: follows.followingId })
-    .from(follows)
-    .where(eq(follows.followerId, userId));
-
+  const followingIds = db.select({ id: follows.followingId }).from(follows).where(eq(follows.followerId, userId));
   const decoded = decodeCursor(cursor);
 
   const rows = await db
@@ -101,9 +103,7 @@ export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
     .limit(limit);
 
   const withEngagement = await attachEngagement(rows, userId);
-  const nextCursor =
-    rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
-
+  const nextCursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
   return { posts: withEngagement, nextCursor };
 }
 
@@ -129,13 +129,15 @@ export async function getUserPosts(authorId: string, viewerId: string, { cursor,
     .limit(limit);
 
   const withEngagement = await attachEngagement(rows, viewerId);
-  const nextCursor =
-    rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
-
+  const nextCursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
   return { posts: withEngagement, nextCursor };
 }
 
-export async function getPostById(postId: string, viewerId: string) {
+export async function getPostById(postId: string, viewerId: string, countView: boolean) {
+  if (countView) {
+    await db.update(posts).set({ views: sql`${posts.views} + 1` }).where(eq(posts.id, postId));
+  }
+
   const [row] = await db
     .select(postSelectFields)
     .from(posts)
@@ -154,8 +156,7 @@ export async function updatePost(postId: string, userId: string, title: string, 
   if (post.authorId !== userId) throw new NotOwnerError("Нельзя редактировать чужой пост");
 
   await db.update(posts).set({ title, content }).where(eq(posts.id, postId));
-
-  return getPostById(postId, userId);
+  return getPostById(postId, userId, false);
 }
 
 export async function deletePost(postId: string, userId: string) {

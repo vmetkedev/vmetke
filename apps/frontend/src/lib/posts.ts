@@ -7,7 +7,9 @@ export type Post = {
   createdAt: string;
   likesCount: number;
   commentsCount: number;
+  viewsCount: number;
   isLikedByMe: boolean;
+  isBookmarkedByMe: boolean;
   author: {
     id: string;
     username: string;
@@ -91,4 +93,14 @@ export async function createComment(postId: string, content: string): Promise<Co
   if (!res.ok) throw new Error("Не удалось отправить комментарий");
   const data = await res.json();
   return data.comment;
+}
+
+export async function bookmarkPost(postId: string) {
+  const res = await api.post(`/posts/${postId}/bookmark`);
+  if (!res.ok) throw new Error("Не удалось добавить в избранное");
+}
+
+export async function unbookmarkPost(postId: string) {
+  const res = await api.delete(`/posts/${postId}/bookmark`);
+  if (!res.ok) throw new Error("Не удалось убрать из избранного");
 }

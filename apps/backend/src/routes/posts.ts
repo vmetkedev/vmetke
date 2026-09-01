@@ -12,6 +12,7 @@ import {
   NotFoundError,
 } from "../services/posts.service.js";
 import { likePost, unlikePost } from "../services/likes.service.js";
+import { bookmarkPost, unbookmarkPost } from "../services/bookmarks.service.js";
 import { createComment, getPostComments, deleteComment } from "../services/comments.service.js";
 
 const postIdParamSchema = z.object({ postId: z.string().uuid() });
@@ -38,8 +39,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
     const payload = request.user as { sub: string };
-    const result = await getFeed(payload.sub, parsed.data);
-    return result;
+    return getFeed(payload.sub, parsed.data);
   });
 
   app.get("/:postId", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -47,7 +47,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
     const payload = request.user as { sub: string };
-    const post = await getPostById(parsed.data.postId, payload.sub);
+    const post = await getPostById(parsed.data.postId, payload.sub, true);
     if (!post) return reply.code(404).send({ error: "Пост не найден" });
     return { post };
   });
@@ -96,6 +96,24 @@ export default async function postsRoutes(app: FastifyInstance) {
 
     const payload = request.user as { sub: string };
     await unlikePost(parsed.data.postId, payload.sub);
+    return { success: true };
+  });
+
+  app.post("/:postId/bookmark", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = postIdParamSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
+
+    const payload = request.user as { sub: string };
+    await bookmarkPost(parsed.data.postId, payload.sub);
+    return { success: true };
+  });
+
+  app.delete("/:postId/bookmark", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = postIdParamSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
+
+    const payload = request.user as { sub: string };
+    await unbookmarkPost(parsed.data.postId, payload.sub);
     return { success: true };
   });
 

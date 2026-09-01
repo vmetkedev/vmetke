@@ -27,12 +27,7 @@ function isTableSeparator(line: string): boolean {
 }
 
 function splitTableRow(line: string): string[] {
-  return line
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 }
 
 export function renderMarkdown(raw: string): string {
@@ -51,6 +46,24 @@ export function renderMarkdown(raw: string): string {
   while (i < lines.length) {
     const line = lines[i];
 
+    const fenceMatch = line.match(/^```(\w*)\s*$/);
+    if (fenceMatch) {
+      closeList();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !/^```\s*$/.test(lines[i])) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      i++; // пропустить закрывающую ```
+      html.push(
+        `<pre class="bg-gray-100 dark:bg-gray-900 rounded p-3 my-2 overflow-x-auto text-xs"><code>${escapeHtml(
+          codeLines.join("\n")
+        )}</code></pre>`
+      );
+      continue;
+    }
+
     if (isTableRow(line) && isTableSeparator(lines[i + 1] || "")) {
       closeList();
       const headerCells = splitTableRow(line);
@@ -63,9 +76,7 @@ export function renderMarkdown(raw: string): string {
       while (i < lines.length && isTableRow(lines[i])) {
         const cells = splitTableRow(lines[i]);
         html.push("<tr>");
-        for (const cell of cells) {
-          html.push(`<td class="border dark:border-gray-600 px-2 py-1">${inline(cell)}</td>`);
-        }
+        for (const cell of cells) html.push(`<td class="border dark:border-gray-600 px-2 py-1">${inline(cell)}</td>`);
         html.push("</tr>");
         i++;
       }

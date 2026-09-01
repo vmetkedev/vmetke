@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { Heart, MessageCircle, Pencil, Trash2, Check, X } from "lucide-react";
-import { type Post, likePost, unlikePost, updatePost, deletePost } from "../lib/posts";
-import { useAuth } from "../auth/AuthContext";
+import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark } from "lucide-react";
+import {
+  type Post,
+  likePost,
+  unlikePost,
+  updatePost,
+  deletePost,
+  bookmarkPost,
+  unbookmarkPost,
+} from "../lib/posts";
 import { renderMarkdown } from "../lib/markdown";
+import { estimateReadingMinutes } from "../lib/readingTime";
+import { useAuth } from "../auth/AuthContext";
 
 const PREVIEW_LENGTH = 500;
 
@@ -29,32 +38,40 @@ export function PostCard({
   const { user } = useAuth();
   const [post, setPost] = useState(initialPost);
   const [likeLoading, setLikeLoading] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(post.title || "");
   const [editContent, setEditContent] = useState(post.content);
   const [saving, setSaving] = useState(false);
 
   const isOwnPost = user?.id === post.author.id;
+  const readingMinutes = estimateReadingMinutes(post.content);
 
   const toggleLike = async () => {
     setLikeLoading(true);
     const wasLiked = post.isLikedByMe;
-    setPost((p) => ({
-      ...p,
-      isLikedByMe: !wasLiked,
-      likesCount: p.likesCount + (wasLiked ? -1 : 1),
-    }));
+    setPost((p) => ({ ...p, isLikedByMe: !wasLiked, likesCount: p.likesCount + (wasLiked ? -1 : 1) }));
     try {
       if (wasLiked) await unlikePost(post.id);
       else await likePost(post.id);
     } catch {
-      setPost((p) => ({
-        ...p,
-        isLikedByMe: wasLiked,
-        likesCount: p.likesCount + (wasLiked ? 1 : -1),
-      }));
+      setPost((p) => ({ ...p, isLikedByMe: wasLiked, likesCount: p.likesCount + (wasLiked ? 1 : -1) }));
     } finally {
       setLikeLoading(false);
+    }
+  };
+
+  const toggleBookmark = async () => {
+    setBookmarkLoading(true);
+    const wasBookmarked = post.isBookmarkedByMe;
+    setPost((p) => ({ ...p, isBookmarkedByMe: !wasBookmarked }));
+    try {
+      if (wasBookmarked) await unbookmarkPost(post.id);
+      else await bookmarkPost(post.id);
+    } catch {
+      setPost((p) => ({ ...p, isBookmarkedByMe: wasBookmarked }));
+    } finally {
+      setBookmarkLoading(false);
     }
   };
 
@@ -83,7 +100,7 @@ export function PostCard({
           {post.author.displayName || post.author.username}
         </Link>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(post.createdAt)}</span>
+          {!linkTitle && <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(post.createdAt)}</span>}
           {!linkTitle && isOwnPost && !isEditing && (
             <>
               <button onClick={() => setIsEditing(true)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
@@ -130,19 +147,29 @@ export function PostCard({
       ) : (
         <>
           {linkTitle ? (
-            <Link to={`/post/${post.id}`} className="block font-semibold text-sm mb-1 hover:underline dark:text-gray-100">
+            <Link to={`/post/${post.id}`} className="block font-bold text-lg mb-1 hover:underline dark:text-gray-100">
               {post.title || "Без названия"}
             </Link>
           ) : (
-            <h2 className="font-semibold text-base mb-1 dark:text-gray-100">{post.title || "Без названия"}</h2>
+            <h2 className="font-bold text-xl mb-1 dark:text-gray-100">{post.title || "Без названия"}</h2>
           )}
+
+          <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 mb-2">
+            <span className="flex items-center gap-1">
+              <Clock size={13} /> {readingMinutes} мин
+            </span>
+            <span className="flex items-center gap-1">
+              <Eye size={13} /> {post.viewsCount}
+            </span>
+          </div>
+
           {(() => {
             const isTruncated = linkTitle && post.content.length > PREVIEW_LENGTH;
             const displayText = isTruncated ? `${post.content.slice(0, PREVIEW_LENGTH)}…` : post.content;
             return (
               <>
                 <div
-                  className="text-sm dark:text-gray-200 [&_a]:wrap-break-word"
+                  className="text-sm text-gray-700 dark:text-gray-300 [&_a]:wrap-break-word"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }}
                 />
                 {isTruncated && (
@@ -177,6 +204,17 @@ export function PostCard({
             {post.commentsCount}
           </span>
         )}
+
+        <button
+          onClick={toggleBookmark}
+          disabled={bookmarkLoading}
+          className={`flex items-center gap-1 text-sm ${post.isBookmarkedByMe ? "text-yellow-500" : "text-gray-500 dark:text-gray-400"} disabled:opacity-50`}
+          aria-label={post.isBookmarkedByMe ? "Убрать из избранного" : "Добавить в избранное"}
+        >
+          <Bookmark size={16} fill={post.isBookmarkedByMe ? "currentColor" : "none"} />
+        </button>
+
+        {linkTitle && <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">{formatDate(post.createdAt)}</span>}
       </div>
     </div>
   );

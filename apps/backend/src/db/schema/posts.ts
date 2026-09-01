@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, integer, timestamp } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
 export const posts = pgTable("posts", {
@@ -8,5 +8,6 @@ export const posts = pgTable("posts", {
     .references(() => users.id, { onDelete: "cascade" }),
   title: text("title"),
   content: text("content").notNull(),
+  views: integer("views").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
