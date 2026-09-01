@@ -1,0 +1,6 @@
+[Unit]
+Description=vmetke database backup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vmetke-backup.sh
