@@ -18,6 +18,23 @@ function inline(rawText: string): string {
     );
 }
 
+function isTableRow(line: string): boolean {
+  return /^\|.+\|$/.test(line.trim());
+}
+
+function isTableSeparator(line: string): boolean {
+  return /^\|(\s*:?-+:?\s*\|)+$/.test(line.trim());
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
 export function renderMarkdown(raw: string): string {
   const lines = raw.split("\n");
   const html: string[] = [];
@@ -30,7 +47,32 @@ export function renderMarkdown(raw: string): string {
     }
   };
 
-  for (const line of lines) {
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (isTableRow(line) && isTableSeparator(lines[i + 1] || "")) {
+      closeList();
+      const headerCells = splitTableRow(line);
+      html.push('<table class="border-collapse my-2 w-full text-sm"><thead><tr>');
+      for (const cell of headerCells) {
+        html.push(`<th class="border dark:border-gray-600 px-2 py-1 text-left bg-gray-50 dark:bg-gray-700">${inline(cell)}</th>`);
+      }
+      html.push("</tr></thead><tbody>");
+      i += 2;
+      while (i < lines.length && isTableRow(lines[i])) {
+        const cells = splitTableRow(lines[i]);
+        html.push("<tr>");
+        for (const cell of cells) {
+          html.push(`<td class="border dark:border-gray-600 px-2 py-1">${inline(cell)}</td>`);
+        }
+        html.push("</tr>");
+        i++;
+      }
+      html.push("</tbody></table>");
+      continue;
+    }
+
     const heading = line.match(/^(#{1,3})\s+(.*)/);
     const quote = line.match(/^>\s+(.*)/);
     const ulItem = line.match(/^-\s+(.*)/);
@@ -64,6 +106,8 @@ export function renderMarkdown(raw: string): string {
       closeList();
       html.push(`<p class="my-1">${inline(line)}</p>`);
     }
+
+    i++;
   }
   closeList();
 
