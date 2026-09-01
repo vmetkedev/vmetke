@@ -166,3 +166,37 @@ export async function deletePost(postId: string, userId: string) {
 
   await db.delete(posts).where(eq(posts.id, postId));
 }
+
+export async function getBookmarkedPosts(userId: string, { cursor, limit }: FeedQuery) {
+  const decoded = decodeCursor(cursor);
+
+  const rows = await db
+    .select({
+      ...postSelectFields,
+      bookmarkedAt: bookmarks.createdAt,
+    })
+    .from(bookmarks)
+    .innerJoin(posts, eq(bookmarks.postId, posts.id))
+    .innerJoin(users, eq(posts.authorId, users.id))
+    .where(
+      and(
+        eq(bookmarks.userId, userId),
+        decoded
+          ? or(
+              lt(bookmarks.createdAt, decoded.createdAt),
+              and(eq(bookmarks.createdAt, decoded.createdAt), lt(posts.id, decoded.id))
+            )
+          : undefined
+      )
+    )
+    .orderBy(desc(bookmarks.createdAt), desc(posts.id))
+    .limit(limit);
+
+  const stripped = rows.map(({ bookmarkedAt, ...rest }) => rest);
+  const withEngagement = await attachEngagement(stripped, userId);
+
+  const nextCursor =
+    rows.length === limit ? encodeCursor(rows[rows.length - 1].bookmarkedAt, rows[rows.length - 1].id) : null;
+
+  return { posts: withEngagement, nextCursor };
+}

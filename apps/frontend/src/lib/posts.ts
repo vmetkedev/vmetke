@@ -104,3 +104,10 @@ export async function unbookmarkPost(postId: string) {
   const res = await api.delete(`/posts/${postId}/bookmark`);
   if (!res.ok) throw new Error("Не удалось убрать из избранного");
 }
+
+export async function fetchBookmarks(cursor?: string): Promise<FeedResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const res = await api.get(`/posts/bookmarks${query}`);
+  if (!res.ok) throw new Error("Не удалось загрузить закладки");
+  return res.json();
+}

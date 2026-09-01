@@ -6,6 +6,7 @@ import ProfilePage from "./pages/ProfilePage";
 import NotificationsPage from "./pages/NotificationsPage";
 import PostPage from "./pages/PostPage";
 import NewPostPage from "./pages/NewPostPage";
+import BookmarksPage from "./pages/BookmarksPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
       <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
       <Route path="/post/:postId" element={<ProtectedRoute><PostPage /></ProtectedRoute>} />
       <Route path="/new-post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
+      <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
     </Routes>
   );
 }

@@ -6,6 +6,7 @@ import {
   createPost,
   getFeed,
   getPostById,
+  getBookmarkedPosts,
   updatePost,
   deletePost,
   NotOwnerError,
@@ -40,6 +41,14 @@ export default async function postsRoutes(app: FastifyInstance) {
 
     const payload = request.user as { sub: string };
     return getFeed(payload.sub, parsed.data);
+  });
+
+  app.get("/bookmarks", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = feedQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+
+    const payload = request.user as { sub: string };
+    return getBookmarkedPosts(payload.sub, parsed.data);
   });
 
   app.get("/:postId", { preHandler: [app.authenticate] }, async (request, reply) => {
