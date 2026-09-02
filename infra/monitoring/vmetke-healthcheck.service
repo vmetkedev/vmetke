@@ -1,0 +1,6 @@
+[Unit]
+Description=vmetke backend health check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vmetke-healthcheck.sh
