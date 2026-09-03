@@ -1,0 +1,6 @@
+[Unit]
+Description=vmetke expired refresh token cleanup
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vmetke-cleanup-tokens.sh
