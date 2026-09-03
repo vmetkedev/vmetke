@@ -2,7 +2,7 @@ import { eq, and, count } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, follows } from "../db/schema/index.js";
 
-export async function getUserProfile(username: string, viewerId: string) {
+export async function getUserProfile(username: string, viewerId: string | null) {
   const [user] = await db
     .select({
       id: users.id,
@@ -25,16 +25,20 @@ export async function getUserProfile(username: string, viewerId: string) {
     .from(follows)
     .where(eq(follows.followerId, user.id));
 
-  const [followRow] = await db
-    .select()
-    .from(follows)
-    .where(and(eq(follows.followerId, viewerId), eq(follows.followingId, user.id)));
+  let isFollowedByMe = false;
+  if (viewerId) {
+    const [followRow] = await db
+      .select()
+      .from(follows)
+      .where(and(eq(follows.followerId, viewerId), eq(follows.followingId, user.id)));
+    isFollowedByMe = !!followRow;
+  }
 
   return {
     ...user,
     followersCount,
     followingCount,
-    isFollowedByMe: !!followRow,
-    isMe: user.id === viewerId,
+    isFollowedByMe,
+    isMe: viewerId === user.id,
   };
 }

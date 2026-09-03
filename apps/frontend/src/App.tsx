@@ -14,10 +14,10 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/" element={<ProtectedRoute><FeedPage /></ProtectedRoute>} />
+      <Route path="/" element={<FeedPage />} />
+      <Route path="/post/:postId" element={<PostPage />} />
       <Route path="/u/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-      <Route path="/post/:postId" element={<ProtectedRoute><PostPage /></ProtectedRoute>} />
       <Route path="/new-post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
       <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
     </Routes>

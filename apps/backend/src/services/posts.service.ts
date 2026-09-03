@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { posts, follows, users, likes, comments, bookmarks } from "../db/schema/index.js";
+import { posts, users, likes, comments, bookmarks } from "../db/schema/index.js";
 import type { FeedQuery } from "../schemas/posts.js";
 
 export class NotOwnerError extends Error {}
@@ -38,9 +38,8 @@ const postSelectFields = {
   },
 };
 
-async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: string) {
-  if (rows.length === 0)
-    return rows.map((r) => ({ ...r, likesCount: 0, commentsCount: 0, isLikedByMe: false, isBookmarkedByMe: false }));
+async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: string | null) {
+  if (rows.length === 0) return [];
 
   const postIds = rows.map((r) => r.id);
 
@@ -56,20 +55,24 @@ async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: s
     .where(inArray(comments.postId, postIds))
     .groupBy(comments.postId);
 
-  const myLikes = await db
-    .select({ postId: likes.postId })
-    .from(likes)
-    .where(and(inArray(likes.postId, postIds), eq(likes.userId, viewerId)));
-
-  const myBookmarks = await db
-    .select({ postId: bookmarks.postId })
-    .from(bookmarks)
-    .where(and(inArray(bookmarks.postId, postIds), eq(bookmarks.userId, viewerId)));
-
   const likeMap = new Map(likeCounts.map((l) => [l.postId, l.count]));
   const commentMap = new Map(commentCounts.map((c) => [c.postId, c.count]));
-  const likedSet = new Set(myLikes.map((l) => l.postId));
-  const bookmarkedSet = new Set(myBookmarks.map((b) => b.postId));
+
+  let likedSet = new Set<string>();
+  let bookmarkedSet = new Set<string>();
+
+  if (viewerId) {
+    const myLikes = await db
+      .select({ postId: likes.postId })
+      .from(likes)
+      .where(and(inArray(likes.postId, postIds), eq(likes.userId, viewerId)));
+    const myBookmarks = await db
+      .select({ postId: bookmarks.postId })
+      .from(bookmarks)
+      .where(and(inArray(bookmarks.postId, postIds), eq(bookmarks.userId, viewerId)));
+    likedSet = new Set(myLikes.map((l) => l.postId));
+    bookmarkedSet = new Set(myBookmarks.map((b) => b.postId));
+  }
 
   return rows.map((r) => ({
     ...r,
@@ -80,8 +83,7 @@ async function attachEngagement<T extends { id: string }>(rows: T[], viewerId: s
   }));
 }
 
-export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
-  const followingIds = db.select({ id: follows.followingId }).from(follows).where(eq(follows.followerId, userId));
+export async function getFeed(viewerId: string | null, { cursor, limit }: FeedQuery) {
   const decoded = decodeCursor(cursor);
 
   const rows = await db
@@ -89,25 +91,22 @@ export async function getFeed(userId: string, { cursor, limit }: FeedQuery) {
     .from(posts)
     .innerJoin(users, eq(posts.authorId, users.id))
     .where(
-      and(
-        or(inArray(posts.authorId, followingIds), eq(posts.authorId, userId)),
-        decoded
-          ? or(
-              lt(posts.createdAt, decoded.createdAt),
-              and(eq(posts.createdAt, decoded.createdAt), lt(posts.id, decoded.id))
-            )
-          : undefined
-      )
+      decoded
+        ? or(
+            lt(posts.createdAt, decoded.createdAt),
+            and(eq(posts.createdAt, decoded.createdAt), lt(posts.id, decoded.id))
+          )
+        : undefined
     )
     .orderBy(desc(posts.createdAt), desc(posts.id))
     .limit(limit);
 
-  const withEngagement = await attachEngagement(rows, userId);
+  const withEngagement = await attachEngagement(rows, viewerId);
   const nextCursor = rows.length === limit ? encodeCursor(rows[rows.length - 1].createdAt, rows[rows.length - 1].id) : null;
   return { posts: withEngagement, nextCursor };
 }
 
-export async function getUserPosts(authorId: string, viewerId: string, { cursor, limit }: FeedQuery) {
+export async function getUserPosts(authorId: string, viewerId: string | null, { cursor, limit }: FeedQuery) {
   const decoded = decodeCursor(cursor);
 
   const rows = await db
@@ -133,7 +132,7 @@ export async function getUserPosts(authorId: string, viewerId: string, { cursor,
   return { posts: withEngagement, nextCursor };
 }
 
-export async function getPostById(postId: string, viewerId: string, countView: boolean) {
+export async function getPostById(postId: string, viewerId: string | null, countView: boolean) {
   if (countView) {
     await db.update(posts).set({ views: sql`${posts.views} + 1` }).where(eq(posts.id, postId));
   }
@@ -150,31 +149,11 @@ export async function getPostById(postId: string, viewerId: string, countView: b
   return withEngagement;
 }
 
-export async function updatePost(postId: string, userId: string, title: string, content: string) {
-  const [post] = await db.select().from(posts).where(eq(posts.id, postId));
-  if (!post) throw new NotFoundError("Пост не найден");
-  if (post.authorId !== userId) throw new NotOwnerError("Нельзя редактировать чужой пост");
-
-  await db.update(posts).set({ title, content }).where(eq(posts.id, postId));
-  return getPostById(postId, userId, false);
-}
-
-export async function deletePost(postId: string, userId: string) {
-  const [post] = await db.select().from(posts).where(eq(posts.id, postId));
-  if (!post) throw new NotFoundError("Пост не найден");
-  if (post.authorId !== userId) throw new NotOwnerError("Нельзя удалить чужой пост");
-
-  await db.delete(posts).where(eq(posts.id, postId));
-}
-
 export async function getBookmarkedPosts(userId: string, { cursor, limit }: FeedQuery) {
   const decoded = decodeCursor(cursor);
 
   const rows = await db
-    .select({
-      ...postSelectFields,
-      bookmarkedAt: bookmarks.createdAt,
-    })
+    .select({ ...postSelectFields, bookmarkedAt: bookmarks.createdAt })
     .from(bookmarks)
     .innerJoin(posts, eq(bookmarks.postId, posts.id))
     .innerJoin(users, eq(posts.authorId, users.id))
@@ -194,9 +173,25 @@ export async function getBookmarkedPosts(userId: string, { cursor, limit }: Feed
 
   const stripped = rows.map(({ bookmarkedAt, ...rest }) => rest);
   const withEngagement = await attachEngagement(stripped, userId);
-
   const nextCursor =
     rows.length === limit ? encodeCursor(rows[rows.length - 1].bookmarkedAt, rows[rows.length - 1].id) : null;
 
   return { posts: withEngagement, nextCursor };
+}
+
+export async function updatePost(postId: string, userId: string, title: string, content: string) {
+  const [post] = await db.select().from(posts).where(eq(posts.id, postId));
+  if (!post) throw new NotFoundError("Пост не найден");
+  if (post.authorId !== userId) throw new NotOwnerError("Нельзя редактировать чужой пост");
+
+  await db.update(posts).set({ title, content }).where(eq(posts.id, postId));
+  return getPostById(postId, userId, false);
+}
+
+export async function deletePost(postId: string, userId: string) {
+  const [post] = await db.select().from(posts).where(eq(posts.id, postId));
+  if (!post) throw new NotFoundError("Пост не найден");
+  if (post.authorId !== userId) throw new NotOwnerError("Нельзя удалить чужой пост");
+
+  await db.delete(posts).where(eq(posts.id, postId));
 }

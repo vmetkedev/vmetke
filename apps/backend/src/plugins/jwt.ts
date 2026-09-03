@@ -18,4 +18,15 @@ export default fp(async (app: FastifyInstance) => {
       }
     }
   );
+
+  app.decorate(
+    "optionalAuthenticate",
+    async (request: FastifyRequest) => {
+      try {
+        await request.jwtVerify();
+      } catch {
+        // не авторизован — это нормально, просто request.user останется пустым
+      }
+    }
+  );
 });

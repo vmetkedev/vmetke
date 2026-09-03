@@ -6,15 +6,31 @@ import { fetchNotifications } from "../lib/notifications";
 import { SearchDropdown } from "./SearchDropdown";
 
 export function AppHeader() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    if (!user) return;
     const load = () => fetchNotifications().then((data) => setUnreadCount(data.unreadCount));
     load();
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
+
+  if (!user) {
+    return (
+      <header className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
+        <div className="max-w-2xl mx-auto px-8 py-4 flex justify-between items-center">
+          <Link to="/" className="text-xl font-semibold text-blue-600 dark:text-blue-400">
+            Vmetke
+          </Link>
+          <Link to="/login" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            Вход
+          </Link>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">

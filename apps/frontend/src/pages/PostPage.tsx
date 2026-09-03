@@ -5,8 +5,10 @@ import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "..
 import { PostCard } from "../components/PostCard";
 import { PostComments } from "../components/PostComments";
 import { AppLayout } from "../components/AppLayout";
+import { useAuth } from "../auth/AuthContext";
 
 export default function PostPage() {
+  const { user } = useAuth();
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
   const [post, setPost] = useState<Post | null>(null);
@@ -14,6 +16,7 @@ export default function PostPage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (!postId) return;
@@ -28,6 +31,7 @@ export default function PostPage() {
   }, [postId]);
 
   const handleFollowToggle = async () => {
+    if (!user) return navigate("/login");
     if (!profile) return;
     setFollowLoading(true);
     try {

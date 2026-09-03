@@ -39,12 +39,12 @@ export default async function postsRoutes(app: FastifyInstance) {
     }
   );
 
-  app.get("/feed", { preHandler: [app.authenticate] }, async (request, reply) => {
+  app.get("/feed", { preHandler: [app.optionalAuthenticate] }, async (request, reply) => {
     const parsed = feedQuerySchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user as { sub: string };
-    return getFeed(payload.sub, parsed.data);
+    const payload = request.user as { sub: string } | undefined;
+    return getFeed(payload?.sub ?? null, parsed.data);
   });
 
   app.get("/bookmarks", { preHandler: [app.authenticate] }, async (request, reply) => {
@@ -55,12 +55,12 @@ export default async function postsRoutes(app: FastifyInstance) {
     return getBookmarkedPosts(payload.sub, parsed.data);
   });
 
-  app.get("/:postId", { preHandler: [app.authenticate] }, async (request, reply) => {
+  app.get("/:postId", { preHandler: [app.optionalAuthenticate] }, async (request, reply) => {
     const parsed = postIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-    const payload = request.user as { sub: string };
-    const post = await getPostById(parsed.data.postId, payload.sub, true);
+    const payload = request.user as { sub: string } | undefined;
+    const post = await getPostById(parsed.data.postId, payload?.sub ?? null, true);
     if (!post) return reply.code(404).send({ error: "Пост не найден" });
     return { post };
   });
@@ -134,7 +134,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     return { success: true };
   });
 
-  app.get("/:postId/comments", { preHandler: [app.authenticate] }, async (request, reply) => {
+  app.get("/:postId/comments", async (request, reply) => {
     const parsed = postIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 

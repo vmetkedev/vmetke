@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark } from "lucide-react";
 import {
   type Post,
@@ -47,7 +47,10 @@ export function PostCard({
   const isOwnPost = user?.id === post.author.id;
   const readingMinutes = estimateReadingMinutes(post.content);
 
+  const navigate = useNavigate();
+
   const toggleLike = async () => {
+    if (!user) return navigate("/login");
     setLikeLoading(true);
     const wasLiked = post.isLikedByMe;
     setPost((p) => ({ ...p, isLikedByMe: !wasLiked, likesCount: p.likesCount + (wasLiked ? -1 : 1) }));
@@ -62,6 +65,7 @@ export function PostCard({
   };
 
   const toggleBookmark = async () => {
+    if (!user) return navigate("/login");
     setBookmarkLoading(true);
     const wasBookmarked = post.isBookmarkedByMe;
     setPost((p) => ({ ...p, isBookmarkedByMe: !wasBookmarked }));

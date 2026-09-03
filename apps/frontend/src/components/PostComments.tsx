@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { fetchComments, createComment, deleteComment, type Comment } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
@@ -17,6 +17,8 @@ export function PostComments({
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const navigate = useNavigate();
+
   useEffect(() => {
     fetchComments(postId)
       .then(setComments)
@@ -25,6 +27,7 @@ export function PostComments({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return navigate("/login");
     if (!newComment.trim()) return;
     setSubmitting(true);
     try {
