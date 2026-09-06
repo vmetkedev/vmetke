@@ -22,13 +22,51 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run lint
-        run: |
-          pnpm --filter backend lint
-          pnpm --filter frontend lint
+      - name: Lint
+        run: pnpm -r lint
 
       - name: Typecheck
         run: pnpm -r typecheck
 
-      - name: Build (проверка, что всё собирается)
+      - name: Build
         run: pnpm -r build
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: vmetke_app
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: vmetke_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vmetke_app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://vmetke_app:test_password@localhost:5432/vmetke_test
+      JWT_ACCESS_SECRET: ci_test_access_secret
+      JWT_REFRESH_SECRET: ci_test_refresh_secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        run: pnpm --filter backend drizzle-kit migrate
+
+      - name: Run backend tests
+        run: pnpm --filter backend test
