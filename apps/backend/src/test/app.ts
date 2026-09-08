@@ -8,6 +8,8 @@ import authRoutes from "../routes/auth.js";
 import postsRoutes from "../routes/posts.js";
 import followsRoutes from "../routes/follows.js";
 import usersRoutes from "../routes/users.js";
+import notificationsRoutes from "../routes/notifications.js";
+import searchRoutes from "../routes/search.js";
 
 export async function buildTestApp() {
   const app = Fastify({ logger: false });
@@ -22,6 +24,8 @@ export async function buildTestApp() {
   await app.register(postsRoutes, { prefix: "/api/posts" });
   await app.register(followsRoutes, { prefix: "/api/follows" });
   await app.register(usersRoutes, { prefix: "/api/users" });
+  await app.register(notificationsRoutes, { prefix: "/api/notifications" });
+  await app.register(searchRoutes, { prefix: "/api/search" });
 
   await app.ready();
   return app;
