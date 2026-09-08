@@ -102,8 +102,12 @@ export default async function postsRoutes(app: FastifyInstance) {
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
       const payload = request.user as { sub: string };
-      await likePost(parsed.data.postId, payload.sub);
-      return { success: true };
+      try {
+        await likePost(parsed.data.postId, payload.sub);
+        return { success: true };
+      } catch (err) {
+        return handleOwnershipError(err, reply);
+      }
     }
   );
 
