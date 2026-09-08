@@ -43,6 +43,13 @@
       "when": 1788233205028,
       "tag": "0006_legal_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788840537337,
+      "tag": "0007_add_bio_to_users",
+      "breakpoints": true
     }
   ]
 }
