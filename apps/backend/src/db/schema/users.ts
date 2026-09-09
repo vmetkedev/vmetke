@@ -8,4 +8,5 @@ export const users = pgTable("users", {
   displayName: varchar("display_name", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   bio: varchar('bio', { length: 500 }),
+  deletedAt: timestamp("deleted_at"),
 });
