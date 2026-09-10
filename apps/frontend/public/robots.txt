@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /settings
+Disallow: /notifications
+Disallow: /bookmarks
+Disallow: /new-post
+Disallow: /login
+Disallow: /register
+
+Sitemap: https://vmetke.ru/sitemap.xml
