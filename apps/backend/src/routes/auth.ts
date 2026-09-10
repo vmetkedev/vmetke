@@ -6,6 +6,8 @@ import {
   createRefreshToken,
   rotateRefreshToken,
   revokeRefreshToken,
+  EmailTakenError,
+  UsernameTakenError,
 } from "../services/auth.service.js";
 
 import { eq } from "drizzle-orm";
@@ -31,13 +33,20 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: parsed.error.flatten() });
       }
 
-      const user = await registerUser(parsed.data);
-      const accessToken = app.jwt.sign({ sub: user.id });
-      const refreshToken = await createRefreshToken(user.id);
+      try {
+        const user = await registerUser(parsed.data);
+        const accessToken = app.jwt.sign({ sub: user.id });
+        const refreshToken = await createRefreshToken(user.id);
 
-      reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-      return { accessToken, user: { id: user.id, username: user.username } };
-  });
+        reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
+        return { accessToken, user: { id: user.id, username: user.username } };
+      } catch (err) {
+        if (err instanceof EmailTakenError) return reply.code(409).send({ error: err.message });
+        if (err instanceof UsernameTakenError) return reply.code(409).send({ error: err.message });
+        throw err;
+      }
+    }
+  );
 
   app.post(
     "/login",
@@ -58,7 +67,8 @@ export default async function authRoutes(app: FastifyInstance) {
 
       reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
       return { accessToken, user: { id: user.id, username: user.username } };
-  });
+    }
+  );
 
   app.post("/refresh", async (request, reply) => {
     const rawToken = request.cookies[REFRESH_COOKIE_NAME];

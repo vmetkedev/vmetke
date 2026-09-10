@@ -7,19 +7,35 @@ import type { RegisterInput, LoginInput } from "../schemas/auth.js";
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
 
+export class EmailTakenError extends Error {}
+export class UsernameTakenError extends Error {}
+
 export async function registerUser(input: RegisterInput) {
   const passwordHash = await bcrypt.hash(input.password, 10);
 
-  const [user] = await db
-    .insert(users)
-    .values({
-      email: input.email,
-      username: input.username,
-      passwordHash,
-    })
-    .returning();
+  try {
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: input.email,
+        username: input.username,
+        passwordHash,
+      })
+      .returning();
 
-  return user;
+    return user;
+  } catch (err) {
+    const pgError = (err as { cause?: { code?: string; constraint_name?: string } })?.cause;
+    if (pgError?.code === "23505") {
+      if (pgError.constraint_name === "users_email_unique") {
+        throw new EmailTakenError("Этот email уже зарегистрирован");
+      }
+      if (pgError.constraint_name === "users_username_unique") {
+        throw new UsernameTakenError("Этот username уже занят");
+      }
+    }
+    throw err;
+  }
 }
 
 export async function validateCredentials(input: LoginInput) {
