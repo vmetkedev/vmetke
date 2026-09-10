@@ -15,6 +15,7 @@ export async function getUserProfile(username: string, viewerId: string | null) 
       displayName: users.displayName,
       createdAt: users.createdAt,
       deletedAt: users.deletedAt,
+      avatarColor: users.avatarColor,
     })
     .from(users)
     .where(eq(users.username, username));
@@ -50,6 +51,10 @@ export async function getUserProfile(username: string, viewerId: string | null) 
   };
 }
 
+export async function updateAvatarColor(userId: string, avatarColor: number) {
+  await db.update(users).set({ avatarColor }).where(eq(users.id, userId));
+}
+
 export async function deleteAccount(userId: string, password: string) {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) throw new UserNotFoundError("Пользователь не найден");
@@ -58,7 +63,6 @@ export async function deleteAccount(userId: string, password: string) {
   if (!valid) throw new InvalidPasswordError("Неверный пароль");
 
   const dummyHash = await bcrypt.hash(crypto.randomUUID(), 10);
-
   const anonymizedUsername = `deleted_${user.id.replace(/-/g, "").slice(0, 24)}`;
 
   await db
@@ -68,6 +72,7 @@ export async function deleteAccount(userId: string, password: string) {
       username: anonymizedUsername,
       displayName: null,
       bio: null,
+      avatarColor: null,
       passwordHash: dummyHash,
       deletedAt: new Date(),
     })
@@ -96,6 +101,7 @@ export async function exportUserData(userId: string) {
       username: profile.username,
       displayName: profile.displayName,
       bio: profile.bio,
+      avatarColor: profile.avatarColor,
       createdAt: profile.createdAt,
     },
     posts: userPosts,

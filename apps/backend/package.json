@@ -10,7 +10,8 @@
     "migrate": "node dist/db/migrate.js",
     "test": "vitest run",
     "lint": "oxlint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate:test": "dotenv -e .env.test -- drizzle-kit migrate"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",
@@ -31,6 +32,7 @@
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^24.13.3",
+    "dotenv-cli": "^11.0.0",
     "drizzle-kit": "^0.31.10",
     "oxlint": "^1.75.0",
     "tsx": "^4.23.12",

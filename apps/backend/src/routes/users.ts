@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
   getUserProfile,
+  updateAvatarColor,
   deleteAccount,
   exportUserData,
   InvalidPasswordError,
@@ -9,11 +10,21 @@ import {
 } from "../services/users.service.js";
 import { getUserPosts } from "../services/posts.service.js";
 import { feedQuerySchema } from "../schemas/posts.js";
+import { updateAvatarSchema } from "../schemas/users.js";
 
 const usernameParamSchema = z.object({ username: z.string() });
 const deleteAccountSchema = z.object({ password: z.string().min(1, "пароль обязателен") });
 
 export default async function usersRoutes(app: FastifyInstance) {
+  app.patch("/me/avatar", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = updateAvatarSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
+
+    const payload = request.user as { sub: string };
+    await updateAvatarColor(payload.sub, parsed.data.avatarColor);
+    return { success: true };
+  });
+
   app.get("/me/export", { preHandler: [app.authenticate] }, async (request, reply) => {
     const payload = request.user as { sub: string };
     const data = await exportUserData(payload.sub);
