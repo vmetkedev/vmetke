@@ -8,6 +8,7 @@ export async function searchUsers(query: string, limit: number) {
       id: users.id,
       username: users.username,
       displayName: users.displayName,
+      avatarColor: users.avatarColor,
     })
     .from(users)
     .where(or(ilike(users.username, `%${query}%`), ilike(users.displayName, `%${query}%`)))
@@ -25,6 +26,7 @@ export async function searchPosts(query: string, limit: number) {
         id: users.id,
         username: users.username,
         displayName: users.displayName,
+        avatarColor: users.avatarColor,
       },
     })
     .from(posts)

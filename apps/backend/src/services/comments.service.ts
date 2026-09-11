@@ -19,6 +19,7 @@ export async function createComment(postId: string, authorId: string, content: s
         id: users.id,
         username: users.username,
         displayName: users.displayName,
+        avatarColor: users.avatarColor,
       },
     })
     .from(comments)
@@ -38,6 +39,7 @@ export async function getPostComments(postId: string) {
         id: users.id,
         username: users.username,
         displayName: users.displayName,
+        avatarColor: users.avatarColor,
       },
     })
     .from(comments)

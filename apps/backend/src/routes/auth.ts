@@ -39,7 +39,10 @@ export default async function authRoutes(app: FastifyInstance) {
         const refreshToken = await createRefreshToken(user.id);
 
         reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-        return { accessToken, user: { id: user.id, username: user.username } };
+        return {
+          accessToken,
+          user: { id: user.id, username: user.username, avatarColor: user.avatarColor },
+        };
       } catch (err) {
         if (err instanceof EmailTakenError) return reply.code(409).send({ error: err.message });
         if (err instanceof UsernameTakenError) return reply.code(409).send({ error: err.message });
@@ -66,7 +69,10 @@ export default async function authRoutes(app: FastifyInstance) {
       const refreshToken = await createRefreshToken(user.id);
 
       reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
-      return { accessToken, user: { id: user.id, username: user.username } };
+      return {
+        accessToken,
+        user: { id: user.id, username: user.username, avatarColor: user.avatarColor },
+      };
     }
   );
 
@@ -92,7 +98,7 @@ export default async function authRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: [app.authenticate] }, async (request) => {
     const payload = request.user as { sub: string };
     const [user] = await db
-      .select({ id: users.id, username: users.username })
+      .select({ id: users.id, username: users.username, avatarColor: users.avatarColor })
       .from(users)
       .where(eq(users.id, payload.sub));
 

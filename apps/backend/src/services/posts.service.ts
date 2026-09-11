@@ -35,6 +35,7 @@ const postSelectFields = {
     id: users.id,
     username: users.username,
     displayName: users.displayName,
+    avatarColor: users.avatarColor,
   },
 };
 

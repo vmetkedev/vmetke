@@ -27,6 +27,7 @@ export async function getNotifications(userId: string, limit = 30) {
         id: users.id,
         username: users.username,
         displayName: users.displayName,
+        avatarColor: users.avatarColor,
       },
     })
     .from(notifications)
