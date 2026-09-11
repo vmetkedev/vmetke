@@ -69,6 +69,7 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -e
             cd /var/www/vmetke/backend
             node dist/db/migrate.js
             systemctl restart vmetke-backend
