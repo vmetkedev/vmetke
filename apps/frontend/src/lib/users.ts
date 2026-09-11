@@ -5,6 +5,7 @@ export type UserProfile = {
   id: string;
   username: string;
   displayName: string | null;
+  avatarColor: number | null;
   createdAt: string;
   followersCount: number;
   followingCount: number;
@@ -37,4 +38,9 @@ export async function followUser(userId: string) {
 export async function unfollowUser(userId: string) {
   const res = await api.delete(`/follows/${userId}`);
   if (!res.ok) throw new Error("Не удалось отписаться");
+}
+
+export async function updateAvatarColor(avatarColor: number) {
+  const res = await api.patch("/users/me/avatar", { avatarColor });
+  if (!res.ok) throw new Error("Не удалось обновить аватар");
 }

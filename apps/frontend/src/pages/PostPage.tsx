@@ -6,6 +6,7 @@ import { PostCard } from "../components/PostCard";
 import { PostComments } from "../components/PostComments";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../auth/AuthContext";
+import { Avatar } from "../components/Avatar";
 
 export default function PostPage() {
   const { user } = useAuth();
@@ -16,7 +17,6 @@ export default function PostPage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
 
   useEffect(() => {
     if (!postId) return;
@@ -61,7 +61,16 @@ export default function PostPage() {
 
         {profile && (
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex items-center justify-between">
-            <Link to={`/u/${profile.username}`} className="text-sm font-medium hover:underline dark:text-gray-100">
+            <Link
+              to={`/u/${profile.username}`}
+              className="flex items-center gap-2 text-sm font-medium hover:underline dark:text-gray-100"
+            >
+              <Avatar
+                username={profile.username}
+                displayName={profile.displayName}
+                avatarColor={profile.avatarColor}
+                size="sm"
+              />
               {profile.displayName || profile.username}
             </Link>
             {!profile.isMe && (

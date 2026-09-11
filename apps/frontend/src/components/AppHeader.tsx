@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Bell, SquarePen, Bookmark } from "lucide-react";
+import { Bell, SquarePen, Bookmark, Settings } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { fetchNotifications } from "../lib/notifications";
 import { SearchDropdown } from "./SearchDropdown";
+import { Avatar } from "./Avatar";
 
 export function AppHeader() {
   const { user, logout } = useAuth();
@@ -53,6 +54,12 @@ export function AppHeader() {
           </Link>
           <Link to="/new-post" className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
             <SquarePen size={20} />
+          </Link>
+          <Link to="/settings" className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
+            <Settings size={20} />
+          </Link>
+          <Link to={`/u/${user.username}`} className="flex items-center">
+            <Avatar username={user.username} avatarColor={user.avatarColor} size="sm" />
           </Link>
           <button onClick={logout} className="text-sm text-gray-500 dark:text-gray-400">
             Выйти

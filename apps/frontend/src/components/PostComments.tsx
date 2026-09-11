@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { Trash2 } from "lucide-react";
 import { fetchComments, createComment, deleteComment, type Comment } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
+import { Avatar } from "./Avatar";
 
 export function PostComments({
   postId,
@@ -49,19 +50,27 @@ export function PostComments({
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
       <h3 className="text-sm font-medium dark:text-gray-100">Комментарии</h3>
-        {loading ? (
-          <p className="text-xs text-gray-400 dark:text-gray-500">Загрузка...</p>
-        ) : comments.length === 0 ? (
-          <p className="text-xs text-gray-400 dark:text-gray-500">Пока нет комментариев.</p>
-        ) : (
+      {loading ? (
+        <p className="text-xs text-gray-400 dark:text-gray-500">Загрузка...</p>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-gray-400 dark:text-gray-500">Пока нет комментариев.</p>
+      ) : (
         <div className="space-y-2">
           {comments.map((c) => (
             <div key={c.id} className="flex items-start justify-between text-sm group">
-              <div>
-                <Link to={`/u/${c.author.username}`} className="font-medium hover:underline dark:text-gray-100">
-                  {c.author.displayName || c.author.username}
-                </Link>
-                <span className="text-gray-700 dark:text-gray-300 ml-1.5">{c.content}</span>
+              <div className="flex items-start gap-2">
+                <Avatar
+                  username={c.author.username}
+                  displayName={c.author.displayName}
+                  avatarColor={c.author.avatarColor}
+                  size="sm"
+                />
+                <div>
+                  <Link to={`/u/${c.author.username}`} className="font-medium hover:underline dark:text-gray-100">
+                    {c.author.displayName || c.author.username}
+                  </Link>
+                  <span className="text-gray-700 dark:text-gray-300 ml-1.5">{c.content}</span>
+                </div>
               </div>
               {user?.id === c.author.id && (
                 <button

@@ -3,18 +3,40 @@ import { useNavigate } from "react-router";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../auth/AuthContext";
 import { exportAccountData, deleteAccount } from "../lib/account";
+import { updateAvatarColor } from "../lib/users";
+import { Avatar } from "../components/Avatar";
+import { AVATAR_PALETTE } from "../lib/avatarPalette";
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [password, setPassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const handleAvatarSelect = async (colorIndex: number) => {
+    if (!user || colorIndex === user.avatarColor) return;
+    setAvatarSaving(true);
+    setAvatarError(null);
+    const previous = user.avatarColor;
+    updateUser({ avatarColor: colorIndex });
+    try {
+      await updateAvatarColor(colorIndex);
+    } catch (err) {
+      updateUser({ avatarColor: previous });
+      setAvatarError((err as Error).message);
+    } finally {
+      setAvatarSaving(false);
+    }
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -54,6 +76,31 @@ export default function SettingsPage() {
     <AppLayout>
       <div className="max-w-2xl mx-auto p-8 space-y-6">
         <h1 className="text-xl font-semibold dark:text-gray-100">Настройки аккаунта</h1>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-3">
+          <h2 className="font-medium dark:text-gray-100">Аватар</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Выберите цвет для своего аватара.</p>
+          {avatarError && <p className="text-sm text-red-600">{avatarError}</p>}
+          <div className="flex items-center gap-3 flex-wrap">
+            {user && (
+              <Avatar username={user.username} avatarColor={user.avatarColor} size="lg" />
+            )}
+            <div className="flex flex-wrap gap-2">
+              {AVATAR_PALETTE.map((color, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleAvatarSelect(index)}
+                  disabled={avatarSaving}
+                  aria-label={`Цвет ${index + 1}`}
+                  className={`w-8 h-8 rounded-full disabled:opacity-50 ${
+                    user?.avatarColor === index ? "ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-gray-800" : ""
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
 
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-3">
           <h2 className="font-medium dark:text-gray-100">Экспорт данных</h2>

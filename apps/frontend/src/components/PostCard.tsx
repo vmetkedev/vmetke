@@ -13,6 +13,7 @@ import {
 import { renderMarkdown } from "../lib/markdown";
 import { estimateReadingMinutes } from "../lib/readingTime";
 import { useAuth } from "../auth/AuthContext";
+import { Avatar } from "./Avatar";
 
 const PREVIEW_LENGTH = 500;
 
@@ -100,7 +101,16 @@ export function PostCard({
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
       <div className="flex items-center justify-between mb-1.5">
-        <Link to={`/u/${post.author.username}`} className="font-medium text-sm hover:underline dark:text-gray-100">
+        <Link
+          to={`/u/${post.author.username}`}
+          className="flex items-center gap-2 font-medium text-sm hover:underline dark:text-gray-100"
+        >
+          <Avatar
+            username={post.author.username}
+            displayName={post.author.displayName}
+            avatarColor={post.author.avatarColor}
+            size="sm"
+          />
           {post.author.displayName || post.author.username}
         </Link>
         <div className="flex items-center gap-2">

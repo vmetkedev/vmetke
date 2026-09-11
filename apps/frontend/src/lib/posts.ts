@@ -14,6 +14,7 @@ export type Post = {
     id: string;
     username: string;
     displayName: string | null;
+    avatarColor: number | null;
   };
 };
 
@@ -78,6 +79,7 @@ export type Comment = {
     id: string;
     username: string;
     displayName: string | null;
+    avatarColor: number | null;
   };
 };
 

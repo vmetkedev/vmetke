@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, setAccessToken } from "../lib/api";
 
-type User = { id: string; username: string };
+type User = { id: string; username: string; avatarColor: number | null };
 
 type AuthContextValue = {
   user: User | null;
@@ -9,6 +9,7 @@ type AuthContextValue = {
   login: (identifier: string, password: string) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (partial: Partial<User>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-
   const login = async (identifier: string, password: string) => {
     const res = await api.post("/auth/login", { identifier, password });
     if (!res.ok) throw new Error("Неверные данные для входа");
@@ -64,8 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateUser = (partial: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...partial } : prev));
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
