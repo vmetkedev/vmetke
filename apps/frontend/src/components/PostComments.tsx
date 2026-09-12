@@ -65,11 +65,11 @@ export function PostComments({
                   avatarColor={c.author.avatarColor}
                   size="sm"
                 />
-                <div>
+                <div className="min-w-0">
                   <Link to={`/u/${c.author.username}`} className="font-medium hover:underline dark:text-gray-100">
                     {c.author.displayName || c.author.username}
                   </Link>
-                  <span className="text-gray-700 dark:text-gray-300 ml-1.5">{c.content}</span>
+                  <span className="text-gray-700 dark:text-gray-300 ml-1.5 wrap-anywhere">{c.content}</span>
                 </div>
               </div>
               {user?.id === c.author.id && (

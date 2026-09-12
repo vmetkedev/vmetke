@@ -99,11 +99,11 @@ export function PostCard({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow overflow-hidden">
       <div className="flex items-center justify-between mb-1.5">
         <Link
           to={`/u/${post.author.username}`}
-          className="flex items-center gap-2 font-medium text-sm hover:underline dark:text-gray-100"
+          className="flex items-center gap-2 font-medium text-sm hover:underline dark:text-gray-100 min-w-0"
         >
           <Avatar
             username={post.author.username}
@@ -111,9 +111,9 @@ export function PostCard({
             avatarColor={post.author.avatarColor}
             size="sm"
           />
-          {post.author.displayName || post.author.username}
+          <span className="truncate">{post.author.displayName || post.author.username}</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {!linkTitle && <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(post.createdAt)}</span>}
           {!linkTitle && isOwnPost && !isEditing && (
             <>
@@ -161,11 +161,11 @@ export function PostCard({
       ) : (
         <>
           {linkTitle ? (
-            <Link to={`/post/${post.id}`} className="block font-bold text-lg mb-1 hover:underline dark:text-gray-100">
+            <Link to={`/post/${post.id}`} className="block font-bold text-lg mb-1 hover:underline dark:text-gray-100 wrap-break-word">
               {post.title || "Без названия"}
             </Link>
           ) : (
-            <h2 className="font-bold text-xl mb-1 dark:text-gray-100">{post.title || "Без названия"}</h2>
+            <h2 className="font-bold text-xl mb-1 dark:text-gray-100 wrap-break-word">{post.title || "Без названия"}</h2>
           )}
 
           <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 mb-2">
@@ -183,7 +183,7 @@ export function PostCard({
             return (
               <>
                 <div
-                  className="text-sm text-gray-700 dark:text-gray-300 [&_a]:wrap-break-word"
+                  className="text-sm text-gray-700 dark:text-gray-300 wrap-anywhere"
                   dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }}
                 />
                 {isTruncated && (
