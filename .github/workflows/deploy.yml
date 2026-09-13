@@ -29,6 +29,9 @@ jobs:
       - name: Install backend production dependencies
         run: pnpm --filter backend deploy --prod ./deploy-backend
 
+      - name: Fix permissions for deploy artifacts
+        run: chmod -R a+rX deploy-backend
+
       - name: Copy frontend to server
         uses: appleboy/scp-action@v0.1.7
         with:
