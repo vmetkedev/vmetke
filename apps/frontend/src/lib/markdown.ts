@@ -26,9 +26,15 @@ function isTableSeparator(line: string): boolean {
   return /^\|(\s*:?-+:?\s*\|)+$/.test(line.trim());
 }
 
+function isHorizontalRule(line: string): boolean {
+  return /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line.trim());
+}
+
 function splitTableRow(line: string): string[] {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 }
+
+const HEADING_SIZE_CLASSES = ["text-2xl", "text-xl", "text-lg"];
 
 export function renderMarkdown(raw: string): string {
   const lines = raw.split("\n");
@@ -84,6 +90,13 @@ export function renderMarkdown(raw: string): string {
       continue;
     }
 
+    if (isHorizontalRule(line)) {
+      closeList();
+      html.push('<hr class="border-gray-300 dark:border-gray-600 my-4" />');
+      i++;
+      continue;
+    }
+
     const heading = line.match(/^(#{1,3})\s+(.*)/);
     const quote = line.match(/^>\s+(.*)/);
     const ulItem = line.match(/^-\s+(.*)/);
@@ -92,7 +105,8 @@ export function renderMarkdown(raw: string): string {
     if (heading) {
       closeList();
       const level = heading[1].length;
-      html.push(`<h${level + 2} class="font-semibold mt-2 mb-1">${inline(heading[2])}</h${level + 2}>`);
+      const sizeClass = HEADING_SIZE_CLASSES[level - 1] ?? "text-lg";
+      html.push(`<h${level + 2} class="${sizeClass} font-bold mt-3 mb-1">${inline(heading[2])}</h${level + 2}>`);
     } else if (quote) {
       closeList();
       html.push(`<blockquote class="border-l-2 pl-3 italic text-gray-600 dark:text-gray-400 my-1">${inline(quote[1])}</blockquote>`);

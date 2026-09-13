@@ -161,11 +161,11 @@ export function PostCard({
       ) : (
         <>
           {linkTitle ? (
-            <Link to={`/post/${post.id}`} className="block font-bold text-lg mb-1 hover:underline dark:text-gray-100 wrap-break-word">
+            <Link to={`/post/${post.id}`} className="block font-bold text-2xl mb-1 hover:underline dark:text-gray-100 wrap-break-word">
               {post.title || "Без названия"}
             </Link>
           ) : (
-            <h2 className="font-bold text-xl mb-1 dark:text-gray-100 wrap-break-word">{post.title || "Без названия"}</h2>
+            <h2 className="font-bold text-3xl mb-1 dark:text-gray-100 wrap-break-word">{post.title || "Без названия"}</h2>
           )}
 
           <div className="flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500 mb-2">

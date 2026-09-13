@@ -1,20 +1,25 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { createPost } from "../lib/posts";
-import { MarkdownToolbar } from "./MarkdownToolbar";
+import { useAuth } from "../auth/AuthContext";
+import { Avatar } from "./Avatar";
+import { BlockEditor } from "./editor/BlockEditor";
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 30000;
 
 export function PostComposer({ onPosted }: { onPosted: () => void }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return;
+    if (content.length > MAX_CONTENT) {
+      setError(`Максимум ${MAX_CONTENT} символов`);
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -31,42 +36,40 @@ export function PostComposer({ onPosted }: { onPosted: () => void }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-2">
+    <div className="space-y-4">
       {error && <p className="text-red-600 text-sm">{error}</p>}
+
+      {user && (
+        <div className="flex items-center gap-2">
+          <Avatar username={user.username} avatarColor={user.avatarColor} size="sm" />
+          <span className="text-sm font-medium dark:text-gray-100">{user.username}</span>
+          <span className="text-sm text-gray-400 dark:text-gray-500">Новый пост</span>
+        </div>
+      )}
+
       <input
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Заголовок"
         maxLength={MAX_TITLE}
-        className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 text-sm font-medium"
+        className="w-full bg-transparent text-3xl font-bold placeholder-gray-300 dark:placeholder-gray-600 dark:text-gray-100 focus:outline-none"
       />
 
-      <div>
-        <MarkdownToolbar textareaRef={textareaRef} value={content} onChange={setContent} />
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Что нового? Поддерживается **жирный**, *курсив*, `код`, ## заголовки, > цитаты, списки, [ссылки](url)"
-          maxLength={MAX_CONTENT}
-          rows={10}
-          className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded-b px-3 py-2 resize-y text-sm"
-        />
-      </div>
+      <BlockEditor content={content} onChange={setContent} />
 
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
         <span className="text-xs text-gray-400 dark:text-gray-500">
           {content.length}/{MAX_CONTENT}
         </span>
         <button
-          type="submit"
+          onClick={handleSubmit}
           disabled={submitting || !title.trim() || !content.trim()}
           className="bg-blue-600 text-white rounded px-4 py-1.5 text-sm disabled:opacity-50"
         >
           {submitting ? "Публикация..." : "Опубликовать"}
         </button>
       </div>
-    </form>
+    </div>
   );
 }
