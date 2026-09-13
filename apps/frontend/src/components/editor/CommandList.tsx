@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Heading, Quote, List, ListOrdered, Minus } from "lucide-react";
+import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon } from "lucide-react";
 import type { Editor, Range } from "@tiptap/core";
 
 export type CommandItem = {
@@ -32,6 +32,18 @@ export const COMMAND_ITEMS: CommandItem[] = [
     icon: ListOrdered,
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).toggleOrderedList().run(),
+  },
+  {
+    title: "Изображение",
+    icon: ImageIcon,
+    command: ({ editor, range }) => {
+      const url = window.prompt("Ссылка на изображение:");
+      if (!url || !url.trim()) {
+        editor.chain().focus().deleteRange(range).run();
+        return;
+      }
+      editor.chain().focus().deleteRange(range).setImage({ src: url.trim() }).run();
+    },
   },
   {
     title: "Разделитель",

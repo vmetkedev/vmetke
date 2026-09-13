@@ -7,5 +7,5 @@
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@12.4.1"
 }

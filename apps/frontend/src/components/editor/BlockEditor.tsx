@@ -1,6 +1,7 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import Image from "@tiptap/extension-image";
 import { Markdown } from "tiptap-markdown";
 import { SlashCommandExtension } from "./SlashCommandExtension";
 
@@ -15,6 +16,9 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+      }),
+      Image.configure({
+        HTMLAttributes: { class: "max-w-full rounded my-2" },
       }),
       Markdown.configure({
         html: false,

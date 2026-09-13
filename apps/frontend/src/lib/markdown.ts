@@ -13,6 +13,10 @@ function inline(rawText: string): string {
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
     .replace(
+      /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
+      '<img src="$2" alt="$1" class="max-w-full rounded my-2" loading="lazy" />'
+    )
+    .replace(
       /\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">$1</a>'
     );
@@ -28,6 +32,12 @@ function isTableSeparator(line: string): boolean {
 
 function isHorizontalRule(line: string): boolean {
   return /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line.trim());
+}
+
+function matchImageLine(line: string): { alt: string; url: string } | null {
+  const match = line.trim().match(/^!\[([^\]]*)\]\((https?:\/\/\S+)\)$/);
+  if (!match) return null;
+  return { alt: match[1], url: match[2] };
 }
 
 function splitTableRow(line: string): string[] {
@@ -93,6 +103,16 @@ export function renderMarkdown(raw: string): string {
     if (isHorizontalRule(line)) {
       closeList();
       html.push('<hr class="border-gray-300 dark:border-gray-600 my-4" />');
+      i++;
+      continue;
+    }
+
+    const image = matchImageLine(line);
+    if (image) {
+      closeList();
+      html.push(
+        `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" class="max-w-full rounded my-2" loading="lazy" />`
+      );
       i++;
       continue;
     }
