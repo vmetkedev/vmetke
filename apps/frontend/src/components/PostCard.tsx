@@ -14,6 +14,7 @@ import { renderMarkdown } from "../lib/markdown";
 import { estimateReadingMinutes } from "../lib/readingTime";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
+import { BlockEditor } from "./editor/BlockEditor";
 
 const PREVIEW_LENGTH = 500;
 
@@ -136,12 +137,9 @@ export function PostCard({
             onChange={(e) => setEditTitle(e.target.value)}
             className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm font-medium"
           />
-          <textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            rows={6}
-            className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm resize-y"
-          />
+          <div className="border dark:border-gray-600 rounded px-2 py-1.5">
+            <BlockEditor content={editContent} onChange={setEditContent} />
+          </div>
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => {

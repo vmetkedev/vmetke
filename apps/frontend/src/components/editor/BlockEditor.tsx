@@ -1,9 +1,19 @@
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import { createLowlight, common } from "lowlight";
 import { Markdown } from "tiptap-markdown";
 import { SlashCommandExtension } from "./SlashCommandExtension";
+import { CodeBlockComponent } from "./CodeBlockComponent";
+import { TableToolbar } from "./TableToolbar";
+
+const lowlight = createLowlight(common);
 
 type BlockEditorProps = {
   content: string;
@@ -16,7 +26,17 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
+        codeBlock: false,
       }),
+      CodeBlockLowlight.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(CodeBlockComponent);
+        },
+      }).configure({ lowlight }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       Image.configure({
         HTMLAttributes: { class: "max-w-full rounded my-2" },
       }),
@@ -45,10 +65,16 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
           "[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-gray-600 dark:[&_blockquote]:text-gray-400 [&_blockquote]:my-1 " +
           "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1 " +
           "[&_hr]:border-gray-300 dark:[&_hr]:border-gray-600 [&_hr]:my-4 " +
-          "[&_code]:bg-gray-100 dark:[&_code]:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:text-xs",
+          "[&_code]:bg-gray-100 dark:[&_code]:bg-gray-900 [&_code]:rounded [&_code]:px-1 [&_code]:text-xs " +
+          "[&_pre]:bg-gray-100 dark:[&_pre]:bg-gray-900 [&_pre]:rounded [&_pre]:p-3 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:px-0",
       },
     },
   });
 
-  return <EditorContent editor={editor} />;
+  return (
+    <>
+      {editor && <TableToolbar editor={editor} />}
+      <EditorContent editor={editor} />
+    </>
+  );
 }

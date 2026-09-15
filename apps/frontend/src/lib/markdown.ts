@@ -1,9 +1,65 @@
+import hljs from "highlight.js/lib/core";
+import javascript from "highlight.js/lib/languages/javascript";
+import typescript from "highlight.js/lib/languages/typescript";
+import python from "highlight.js/lib/languages/python";
+import bash from "highlight.js/lib/languages/bash";
+import json from "highlight.js/lib/languages/json";
+import css from "highlight.js/lib/languages/css";
+import xml from "highlight.js/lib/languages/xml";
+import sql from "highlight.js/lib/languages/sql";
+import go from "highlight.js/lib/languages/go";
+import rust from "highlight.js/lib/languages/rust";
+import java from "highlight.js/lib/languages/java";
+import cpp from "highlight.js/lib/languages/cpp";
+import csharp from "highlight.js/lib/languages/csharp";
+import php from "highlight.js/lib/languages/php";
+import yaml from "highlight.js/lib/languages/yaml";
+import markdownLang from "highlight.js/lib/languages/markdown";
+
+hljs.registerLanguage("javascript", javascript);
+hljs.registerLanguage("js", javascript);
+hljs.registerLanguage("typescript", typescript);
+hljs.registerLanguage("ts", typescript);
+hljs.registerLanguage("python", python);
+hljs.registerLanguage("py", python);
+hljs.registerLanguage("bash", bash);
+hljs.registerLanguage("sh", bash);
+hljs.registerLanguage("json", json);
+hljs.registerLanguage("css", css);
+hljs.registerLanguage("html", xml);
+hljs.registerLanguage("xml", xml);
+hljs.registerLanguage("sql", sql);
+hljs.registerLanguage("go", go);
+hljs.registerLanguage("rust", rust);
+hljs.registerLanguage("java", java);
+hljs.registerLanguage("cpp", cpp);
+hljs.registerLanguage("c", cpp);
+hljs.registerLanguage("csharp", csharp);
+hljs.registerLanguage("cs", csharp);
+hljs.registerLanguage("php", php);
+hljs.registerLanguage("yaml", yaml);
+hljs.registerLanguage("yml", yaml);
+hljs.registerLanguage("markdown", markdownLang);
+hljs.registerLanguage("md", markdownLang);
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function highlightCode(code: string, lang: string): string {
+  const language = lang.toLowerCase();
+  if (language && hljs.getLanguage(language)) {
+    try {
+      return hljs.highlight(code, { language }).value;
+    } catch {
+      // упадём в обычный escape ниже
+    }
+  }
+  return escapeHtml(code);
 }
 
 function inline(rawText: string): string {
@@ -65,6 +121,7 @@ export function renderMarkdown(raw: string): string {
     const fenceMatch = line.match(/^```(\w*)\s*$/);
     if (fenceMatch) {
       closeList();
+      const lang = fenceMatch[1] || "";
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !/^```\s*$/.test(lines[i])) {
@@ -72,10 +129,12 @@ export function renderMarkdown(raw: string): string {
         i++;
       }
       i++; // пропустить закрывающую ```
+      const highlighted = highlightCode(codeLines.join("\n"), lang);
+      const langLabel = lang
+        ? `<span class="absolute top-1.5 right-2 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">${escapeHtml(lang)}</span>`
+        : "";
       html.push(
-        `<pre class="bg-gray-100 dark:bg-gray-900 rounded p-3 my-2 overflow-x-auto text-xs"><code>${escapeHtml(
-          codeLines.join("\n")
-        )}</code></pre>`
+        `<div class="relative">${langLabel}<pre class="hljs bg-gray-100 dark:bg-gray-900 rounded p-3 my-2 overflow-x-auto text-xs"><code>${highlighted}</code></pre></div>`
       );
       continue;
     }

@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon } from "lucide-react";
+import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code } from "lucide-react";
 import type { Editor, Range } from "@tiptap/core";
 
 export type CommandItem = {
@@ -44,6 +44,18 @@ export const COMMAND_ITEMS: CommandItem[] = [
       }
       editor.chain().focus().deleteRange(range).setImage({ src: url.trim() }).run();
     },
+  },
+  {
+    title: "Таблица",
+    icon: Table2,
+    command: ({ editor, range }) =>
+      editor.chain().focus().deleteRange(range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+  },
+  {
+    title: "Код",
+    icon: Code,
+    command: ({ editor, range }) =>
+      editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
   },
   {
     title: "Разделитель",

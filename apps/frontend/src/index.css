@@ -1,3 +1,145 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant system-dark (@media (prefers-color-scheme: dark));
 @import "tailwindcss";
+
+/* ===== Плейсхолдер пустого редактора (TipTap) ===== */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}
+.dark .ProseMirror p.is-editor-empty:first-child::before {
+  color: #4b5563;
+}
+
+/* ===== Подсветка синтаксиса (highlight.js) — светлая тема ===== */
+.hljs-comment,
+.hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #d73a49;
+}
+.hljs-number,
+.hljs-literal {
+  color: #005cc5;
+}
+.hljs-string,
+.hljs-doctag {
+  color: #032f62;
+}
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: #6f42c1;
+  font-weight: bold;
+}
+.hljs-type,
+.hljs-class .hljs-title {
+  color: #22863a;
+}
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: #005cc5;
+}
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #e36209;
+}
+.hljs-meta {
+  color: #6a737d;
+}
+.hljs-deletion {
+  background: #ffeef0;
+  color: #b31d28;
+}
+.hljs-addition {
+  background: #f0fff4;
+  color: #22863a;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* ===== Подсветка синтаксиса — тёмная тема ===== */
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #8b949e;
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-subst {
+  color: #ff7b72;
+}
+.dark .hljs-number,
+.dark .hljs-literal {
+  color: #79c0ff;
+}
+.dark .hljs-string,
+.dark .hljs-doctag {
+  color: #a5d6ff;
+}
+.dark .hljs-title,
+.dark .hljs-section,
+.dark .hljs-selector-id {
+  color: #d2a8ff;
+}
+.dark .hljs-type,
+.dark .hljs-class .hljs-title {
+  color: #7ee787;
+}
+.dark .hljs-tag,
+.dark .hljs-name,
+.dark .hljs-attribute {
+  color: #79c0ff;
+}
+.dark .hljs-built_in,
+.dark .hljs-builtin-name {
+  color: #ffa657;
+}
+.dark .hljs-meta {
+  color: #8b949e;
+}
+.dark .hljs-deletion {
+  background: #67060c;
+  color: #ffdcd7;
+}
+.dark .hljs-addition {
+  background: #033a16;
+  color: #aff5b4;
+}
+
+/* ===== Таблицы в редакторе (TipTap ProseMirror) ===== */
+.ProseMirror table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  width: 100%;
+  font-size: 0.875rem;
+}
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #d1d5db;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  min-width: 3em;
+}
+.dark .ProseMirror th,
+.dark .ProseMirror td {
+  border-color: #4b5563;
+}
+.ProseMirror th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+.dark .ProseMirror th {
+  background: #374151;
+}
