@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code } from "lucide-react";
+import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code, Sigma } from "lucide-react";
 import type { Editor, Range } from "@tiptap/core";
 
 export type CommandItem = {
@@ -56,6 +56,17 @@ export const COMMAND_ITEMS: CommandItem[] = [
     icon: Code,
     command: ({ editor, range }) =>
       editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
+  },
+  {
+    title: "Формула",
+    icon: Sigma,
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({ type: "formula", attrs: { latex: "" } })
+        .run(),
   },
   {
     title: "Разделитель",

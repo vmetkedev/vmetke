@@ -6,6 +6,7 @@ import { AuthProvider } from "./auth/AuthContext";
 import { ThemeProvider } from "./theme/ThemeContext";
 import App from "./App";
 import "./index.css";
+import "katex/dist/katex.min.css";
 
 const queryClient = new QueryClient();
 

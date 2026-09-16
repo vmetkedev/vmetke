@@ -12,6 +12,7 @@ import { Markdown } from "tiptap-markdown";
 import { SlashCommandExtension } from "./SlashCommandExtension";
 import { CodeBlockComponent } from "./CodeBlockComponent";
 import { TableToolbar } from "./TableToolbar";
+import { FormulaExtension } from "./FormulaExtension";
 
 const lowlight = createLowlight(common);
 
@@ -37,6 +38,7 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
       TableRow,
       TableHeader,
       TableCell,
+      FormulaExtension,
       Image.configure({
         HTMLAttributes: { class: "max-w-full rounded my-2" },
       }),

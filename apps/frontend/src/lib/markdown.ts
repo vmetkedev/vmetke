@@ -1,3 +1,4 @@
+import katex from "katex";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -136,6 +137,26 @@ export function renderMarkdown(raw: string): string {
       html.push(
         `<div class="relative">${langLabel}<pre class="hljs bg-gray-100 dark:bg-gray-900 rounded p-3 my-2 overflow-x-auto text-xs"><code>${highlighted}</code></pre></div>`
       );
+      continue;
+    }
+
+    if (/^\$\$\s*$/.test(line)) {
+      closeList();
+      const mathLines: string[] = [];
+      i++;
+      while (i < lines.length && !/^\$\$\s*$/.test(lines[i])) {
+        mathLines.push(lines[i]);
+        i++;
+      }
+      i++; // пропустить закрывающую $$
+      const latex = mathLines.join("\n");
+      let mathHtml: string;
+      try {
+        mathHtml = katex.renderToString(latex, { throwOnError: true, displayMode: true });
+      } catch {
+        mathHtml = `<span class="text-red-500 text-xs">Ошибка в формуле: ${escapeHtml(latex)}</span>`;
+      }
+      html.push(`<div class="my-2 text-center overflow-x-auto">${mathHtml}</div>`);
       continue;
     }
 
