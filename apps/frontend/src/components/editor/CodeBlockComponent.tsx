@@ -36,7 +36,7 @@ export function CodeBlockComponent({ node, updateAttributes }: NodeViewProps) {
         ))}
       </select>
       <pre className="bg-gray-100 dark:bg-gray-900 rounded p-3 pt-6 overflow-x-auto text-xs">
-        <NodeViewContent as="code" />
+        <NodeViewContent />
       </pre>
     </NodeViewWrapper>
   );
