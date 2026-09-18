@@ -13,8 +13,63 @@ import { SlashCommandExtension } from "./SlashCommandExtension";
 import { CodeBlockComponent } from "./CodeBlockComponent";
 import { TableToolbar } from "./TableToolbar";
 import { FormulaExtension } from "./FormulaExtension";
+import { InlineFormulaExtension } from "./InlineFormulaExtension";
+import { SpoilerExtension } from "./SpoilerExtension";
+import { AnchorExtension } from "./AnchorExtension";
 
 const lowlight = createLowlight(common);
+
+function fixInlineFormulas(editor: any) {
+  const { state } = editor;
+  const { doc, schema } = state;
+  const matches: { from: number; to: number; latex: string }[] = [];
+
+  doc.descendants((node: any, pos: number) => {
+    if (!node.isText) return;
+    const text = node.text || "";
+    const regex = /\$([^$\n]+)\$/g;
+    let m;
+    while ((m = regex.exec(text))) {
+      matches.push({ from: pos + m.index, to: pos + m.index + m[0].length, latex: m[1] });
+    }
+  });
+
+  if (matches.length === 0) return;
+
+  const tr = state.tr;
+  for (let idx = matches.length - 1; idx >= 0; idx--) {
+    const { from, to, latex } = matches[idx];
+    const inlineNode = schema.nodes.inlineFormula.create({ latex });
+    tr.replaceWith(from, to, inlineNode);
+  }
+  editor.view.dispatch(tr);
+}
+
+function fixFormulaParagraphs(editor: any) {
+  const { state } = editor;
+  const { doc, schema } = state;
+  const replacements: { pos: number; nodeSize: number; latex: string }[] = [];
+
+  doc.descendants((node: any, pos: number) => {
+    if (node.type.name === "paragraph" && node.childCount === 1 && node.firstChild?.isText) {
+      const text = node.textContent.trim();
+      const match = text.match(/^\$\$\s*([\s\S]+?)\s*\$\$$/);
+      if (match) {
+        replacements.push({ pos, nodeSize: node.nodeSize, latex: match[1] });
+      }
+    }
+  });
+
+  if (replacements.length === 0) return;
+
+  const tr = state.tr;
+  for (let idx = replacements.length - 1; idx >= 0; idx--) {
+    const { pos, nodeSize, latex } = replacements[idx];
+    const formulaNode = schema.nodes.formula.create({ latex });
+    tr.replaceWith(pos, pos + nodeSize, formulaNode);
+  }
+  editor.view.dispatch(tr);
+}
 
 type BlockEditorProps = {
   content: string;
@@ -39,6 +94,9 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
       TableHeader,
       TableCell,
       FormulaExtension,
+      InlineFormulaExtension,
+      SpoilerExtension,
+      AnchorExtension,
       Image.configure({
         HTMLAttributes: { class: "max-w-full rounded my-2" },
       }),
@@ -52,6 +110,12 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
       SlashCommandExtension,
     ],
     content,
+    onCreate: ({ editor }) => {
+      setTimeout(() => {
+        fixFormulaParagraphs(editor);
+        fixInlineFormulas(editor);
+      }, 0);
+    },
     onUpdate: ({ editor }) => {
       const markdown = (editor.storage as any).markdown.getMarkdown();
       onChange(markdown);

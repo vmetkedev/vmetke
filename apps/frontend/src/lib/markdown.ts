@@ -64,8 +64,20 @@ function highlightCode(code: string, lang: string): string {
 }
 
 function inline(rawText: string): string {
-  const escaped = escapeHtml(rawText);
-  return escaped
+  const formulaPlaceholders: string[] = [];
+  const withPlaceholders = rawText.replace(/\$([^$\n]+)\$/g, (_, latex) => {
+    let renderedHtml: string;
+    try {
+      renderedHtml = katex.renderToString(latex, { throwOnError: true, displayMode: false });
+    } catch {
+      renderedHtml = '<span class="text-red-500 text-xs">Ошибка в формуле</span>';
+    }
+    formulaPlaceholders.push(renderedHtml);
+    return `\u0000FORMULA${formulaPlaceholders.length - 1}\u0000`;
+  });
+
+  const escaped = escapeHtml(withPlaceholders);
+  let result = escaped
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
@@ -73,10 +85,14 @@ function inline(rawText: string): string {
       /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
       '<img src="$2" alt="$1" class="max-w-full rounded my-2" loading="lazy" />'
     )
+    .replace(/\{#([a-zA-Z0-9_-]+)\}/g, '<a id="$1" class="scroll-mt-20"></a>')
     .replace(
       /\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">$1</a>'
     );
+
+  result = result.replace(/\u0000FORMULA(\d+)\u0000/g, (_, idx) => formulaPlaceholders[Number(idx)]);
+  return result;
 }
 
 function isTableRow(line: string): boolean {
@@ -140,6 +156,26 @@ export function renderMarkdown(raw: string): string {
       continue;
     }
 
+    const spoilerStart = line.match(/^:::\s*spoiler\s*(.*)$/);
+    if (spoilerStart) {
+      closeList();
+      const title = spoilerStart[1].trim() || "Спойлер";
+      const innerLines: string[] = [];
+      i++;
+      let depth = 1;
+      while (i < lines.length && depth > 0) {
+        if (/^:::\s*spoiler\b/.test(lines[i])) depth++;
+        else if (/^:::\s*$/.test(lines[i])) depth--;
+        if (depth > 0) innerLines.push(lines[i]);
+        i++;
+      }
+      const innerHtml = renderMarkdown(innerLines.join("\n"));
+      html.push(
+        `<details class="my-1 border dark:border-gray-600 rounded overflow-hidden"><summary class="px-3 py-1.5 bg-gray-50 dark:bg-gray-900 cursor-pointer text-sm font-medium dark:text-gray-100">${inline(title)}</summary><div class="p-2">${innerHtml}</div></details>`
+      );
+      continue;
+    }
+
     if (/^\$\$\s*$/.test(line)) {
       closeList();
       const mathLines: string[] = [];
@@ -156,7 +192,7 @@ export function renderMarkdown(raw: string): string {
       } catch {
         mathHtml = `<span class="text-red-500 text-xs">Ошибка в формуле: ${escapeHtml(latex)}</span>`;
       }
-      html.push(`<div class="my-2 text-center overflow-x-auto">${mathHtml}</div>`);
+      html.push(`<div class="my-1 text-center overflow-x-auto">${mathHtml}</div>`);
       continue;
     }
 

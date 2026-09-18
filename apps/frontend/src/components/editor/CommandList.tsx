@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code, Sigma } from "lucide-react";
+import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code, Sigma, EyeOff, Anchor as AnchorIcon } from "lucide-react";
 import type { Editor, Range } from "@tiptap/core";
 
 export type CommandItem = {
@@ -67,6 +67,49 @@ export const COMMAND_ITEMS: CommandItem[] = [
         .deleteRange(range)
         .insertContent({ type: "formula", attrs: { latex: "" } })
         .run(),
+  },
+  {
+    title: "Формула (в строке)",
+    icon: Sigma,
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({ type: "inlineFormula", attrs: { latex: "" } })
+        .run(),
+  },
+  {
+    title: "Спойлер",
+    icon: EyeOff,
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({
+          type: "spoiler",
+          attrs: { title: "Спойлер" },
+          content: [{ type: "paragraph" }],
+        })
+        .run(),
+  },
+  {
+    title: "Якорь",
+    icon: AnchorIcon,
+    command: ({ editor, range }) => {
+      const name = window.prompt("Имя якоря (латиница/цифры/дефис):");
+      if (!name || !name.trim()) {
+        editor.chain().focus().deleteRange(range).run();
+        return;
+      }
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent({ type: "anchor", attrs: { name: name.trim() } })
+        .run();
+    },
   },
   {
     title: "Разделитель",

@@ -23,9 +23,9 @@ export function FormulaComponent({ node, updateAttributes }: NodeViewProps) {
   }
 
   return (
-    <NodeViewWrapper className="my-2">
+    <NodeViewWrapper className="my-1">
       {editing ? (
-        <div className="p-2 bg-gray-50 dark:bg-gray-900 rounded border dark:border-gray-700">
+        <div className="p-1.5 bg-gray-50 dark:bg-gray-900 rounded border dark:border-gray-700">
           <input
             autoFocus
             value={draft}
@@ -48,7 +48,7 @@ export function FormulaComponent({ node, updateAttributes }: NodeViewProps) {
             setDraft((node.attrs.latex as string) || "");
             setEditing(true);
           }}
-          className="p-2 text-center cursor-text overflow-x-auto rounded hover:bg-gray-50 dark:hover:bg-gray-900"
+          className="p-1 text-center cursor-text overflow-x-auto rounded hover:bg-gray-50 dark:hover:bg-gray-900"
         >
           {error ? (
             <span className="text-red-500 text-xs">Ошибка в формуле</span>
