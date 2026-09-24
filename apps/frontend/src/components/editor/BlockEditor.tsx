@@ -16,6 +16,7 @@ import { FormulaExtension } from "./FormulaExtension";
 import { InlineFormulaExtension } from "./InlineFormulaExtension";
 import { SpoilerExtension } from "./SpoilerExtension";
 import { AnchorExtension } from "./AnchorExtension";
+import { MentionExtension } from "./MentionExtension";
 
 const lowlight = createLowlight(common);
 
@@ -97,6 +98,7 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
       InlineFormulaExtension,
       SpoilerExtension,
       AnchorExtension,
+      MentionExtension,
       Image.configure({
         HTMLAttributes: { class: "max-w-full rounded my-2" },
       }),

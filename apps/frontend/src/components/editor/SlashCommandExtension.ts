@@ -1,6 +1,7 @@
 import { Extension } from "@tiptap/core";
 import Suggestion from "@tiptap/suggestion";
 import { slashSuggestion } from "./slashSuggestion";
+import { PluginKey } from "@tiptap/pm/state";
 
 export const SlashCommandExtension = Extension.create({
   name: "slashCommand",
@@ -10,6 +11,7 @@ export const SlashCommandExtension = Extension.create({
       suggestion: {
         char: "/",
         startOfLine: false,
+        pluginKey: new PluginKey("slashCommandSuggestion"),
         items: slashSuggestion.items,
         render: slashSuggestion.render,
         command: ({ editor, range, props }: any) => {
