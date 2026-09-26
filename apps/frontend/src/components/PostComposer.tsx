@@ -1,12 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPost } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
 import { BlockEditor } from "./editor/BlockEditor";
 import { MarkdownToolbar } from "./MarkdownToolbar";
+import { useDraftAutosave } from "../hooks/useDraftAutosave";
+import { DraftRestoreBanner } from "./editor/DraftRestoreBanner";
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 30000;
+const DRAFT_STORAGE_KEY = "vmetke:draft:new-post";
 
 type PostComposerProps = {
   onPosted: () => void;
@@ -20,7 +23,26 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restoreCounter, setRestoreCounter] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { hasDraft, draftSavedAt, saveDraft, restoreDraft, discardDraft } = useDraftAutosave({
+    storageKey: DRAFT_STORAGE_KEY,
+  });
+
+  // автосохранение при любом изменении заголовка или текста
+  useEffect(() => {
+    saveDraft(title, content);
+  }, [title, content, saveDraft]);
+
+  const handleRestore = () => {
+    const restored = restoreDraft();
+    if (restored) {
+      setTitle(restored.title);
+      setContent(restored.content);
+      setRestoreCounter((c) => c + 1); // форс ремаунт BlockEditor в режиме wysiwyg
+    }
+  };
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return;
@@ -33,6 +55,7 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
     setError(null);
     try {
       await createPost(title.trim(), content.trim());
+      discardDraft();
       setTitle("");
       setContent("");
       onPosted();
@@ -45,6 +68,10 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
 
   return (
     <div className="space-y-4">
+      {hasDraft && draftSavedAt && (
+        <DraftRestoreBanner savedAt={draftSavedAt} onRestore={handleRestore} onDiscard={discardDraft} />
+      )}
+
       {error && <p className="text-red-600 text-sm">{error}</p>}
 
       {user && (
@@ -65,7 +92,7 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
       />
 
       {mode === "wysiwyg" ? (
-        <BlockEditor key={editorKey} content={content} onChange={setContent} />
+        <BlockEditor key={`${editorKey}-${restoreCounter}`} content={content} onChange={setContent} />
       ) : (
         <>
           <textarea
