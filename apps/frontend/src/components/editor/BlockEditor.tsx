@@ -17,7 +17,6 @@ import { InlineFormulaExtension } from "./InlineFormulaExtension";
 import { SpoilerExtension } from "./SpoilerExtension";
 import { AnchorExtension } from "./AnchorExtension";
 import { MentionExtension } from "./MentionExtension";
-import Underline from "@tiptap/extension-underline";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 
@@ -139,7 +138,6 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
       Placeholder.configure({
         placeholder: placeholder || "Текст публикации",
       }),
-      Underline,
       Subscript,
       Superscript,
     ],
