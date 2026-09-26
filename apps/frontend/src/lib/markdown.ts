@@ -76,7 +76,21 @@ function inline(rawText: string): string {
     return `\u0000FORMULA${formulaPlaceholders.length - 1}\u0000`;
   });
 
-  const escaped = escapeHtml(withPlaceholders);
+  // CommonMark backslash-escapes (\*, \~, \[, \] и т.д.) — символы, введённые буквально,
+  // а не как разметка; tiptap-markdown сериализует их так, чтобы при повторном парсинге
+  // они не стали настоящей разметкой. Прячем их в плейсхолдеры ДО прогона markdown-регэкспов,
+  // иначе escapeHtml() потом оставит "\*" буквально, либо (если просто вырезать "\") символ
+  // случайно станет реальной разметкой.
+  const escapedCharPlaceholders: string[] = [];
+  const withEscapesProtected = withPlaceholders.replace(
+    /\\([!"#$%&'()*+,./:;<=>?@[\]^_`{|}~\\-])/g,
+    (_, char) => {
+      escapedCharPlaceholders.push(char);
+      return `\u0000ESCAPED${escapedCharPlaceholders.length - 1}\u0000`;
+    }
+  );
+
+  const escaped = escapeHtml(withEscapesProtected);
   const withUnescapedTags = escaped
     .replace(/&lt;u&gt;/g, "<u>")
     .replace(/&lt;\/u&gt;/g, "</u>")
@@ -104,6 +118,10 @@ function inline(rawText: string): string {
     );
 
   result = result.replace(/\u0000FORMULA(\d+)\u0000/g, (_, idx) => formulaPlaceholders[Number(idx)]);
+  result = result.replace(
+    /\u0000ESCAPED(\d+)\u0000/g,
+    (_, idx) => escapeHtml(escapedCharPlaceholders[Number(idx)])
+  );
   return result;
 }
 
