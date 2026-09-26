@@ -77,8 +77,16 @@ function inline(rawText: string): string {
   });
 
   const escaped = escapeHtml(withPlaceholders);
-  let result = escaped
+  const withUnescapedTags = escaped
+    .replace(/&lt;u&gt;/g, "<u>")
+    .replace(/&lt;\/u&gt;/g, "</u>")
+    .replace(/&lt;sub&gt;/g, "<sub>")
+    .replace(/&lt;\/sub&gt;/g, "</sub>")
+    .replace(/&lt;sup&gt;/g, "<sup>")
+    .replace(/&lt;\/sup&gt;/g, "</sup>");
+  let result = withUnescapedTags
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/~~(.+?)~~/g, "<del>$1</del>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
     .replace(

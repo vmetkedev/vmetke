@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useRef } from "react";
 import { Link, useNavigate } from "react-router";
-import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark } from "lucide-react";
+import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark, Settings } from "lucide-react";
 import {
   type Post,
   likePost,
@@ -15,6 +16,8 @@ import { estimateReadingMinutes } from "../lib/readingTime";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
 import { BlockEditor } from "./editor/BlockEditor";
+import { EditorSettingsModal } from "./editor/EditorSettingsModal";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 
 const PREVIEW_LENGTH = 500;
 
@@ -45,6 +48,10 @@ export function PostCard({
   const [editTitle, setEditTitle] = useState(post.title || "");
   const [editContent, setEditContent] = useState(post.content);
   const [saving, setSaving] = useState(false);
+  const [editMode, setEditMode] = useState<"wysiwyg" | "markdown">("wysiwyg");
+  const [editEditorKey, setEditEditorKey] = useState(0);
+  const [showEditorSettings, setShowEditorSettings] = useState(false);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwnPost = user?.id === post.author.id;
   const readingMinutes = estimateReadingMinutes(post.content);
@@ -137,15 +144,49 @@ export function PostCard({
             onChange={(e) => setEditTitle(e.target.value)}
             className="w-full border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm font-medium"
           />
-          <div className="border dark:border-gray-600 rounded px-2 py-1.5">
-            <BlockEditor content={editContent} onChange={setEditContent} />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowEditorSettings(true)}
+              title="Настройки редактора"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <Settings size={16} />
+            </button>
           </div>
+          {editMode === "wysiwyg" ? (
+            <div className="border dark:border-gray-600 rounded px-2 py-1.5">
+              <BlockEditor key={editEditorKey} content={editContent} onChange={setEditContent} />
+            </div>
+          ) : (
+            <div className="border dark:border-gray-600 rounded px-2 py-1.5">
+              <textarea
+                ref={editTextareaRef}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="w-full min-h-40 bg-transparent text-sm font-mono dark:text-gray-100 focus:outline-none resize-y"
+              />
+              <MarkdownToolbar textareaRef={editTextareaRef} content={editContent} onChange={setEditContent} />
+            </div>
+          )}
+          {showEditorSettings && (
+            <EditorSettingsModal
+              currentMode={editMode}
+              onSave={(m) => {
+                setEditMode(m);
+                setEditEditorKey((k) => k + 1);
+              }}
+              onClose={() => setShowEditorSettings(false)}
+            />
+          )}
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => {
                 setIsEditing(false);
                 setEditTitle(post.title || "");
                 setEditContent(post.content);
+                setEditMode("wysiwyg");
+                setEditEditorKey((k) => k + 1);
               }}
               className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
