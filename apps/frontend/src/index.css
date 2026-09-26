@@ -2,6 +2,14 @@
 @custom-variant system-dark (@media (prefers-color-scheme: dark));
 @import "tailwindcss";
 
+a,
+[role="button"],
+button:not(:disabled),
+[onclick],
+.clickable {
+  cursor: pointer;
+}
+
 /* ===== Плейсхолдер пустого редактора (TipTap) ===== */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);

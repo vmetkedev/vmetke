@@ -7,7 +7,7 @@ import { MarkdownToolbar } from "./MarkdownToolbar";
 import { useDraftAutosave } from "../hooks/useDraftAutosave";
 import { DraftRestoreBanner } from "./editor/DraftRestoreBanner";
 
-const MAX_TITLE = 200;
+const MAX_TITLE = 100;
 const MAX_CONTENT = 30000;
 const DRAFT_STORAGE_KEY = "vmetke:draft:new-post";
 
@@ -107,9 +107,7 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
       )}
 
       <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
-        <span className="text-xs text-gray-400 dark:text-gray-500">
-          {content.length}/{MAX_CONTENT}
-        </span>
+        <span />
         <button
           onClick={handleSubmit}
           disabled={submitting || !title.trim() || !content.trim()}
