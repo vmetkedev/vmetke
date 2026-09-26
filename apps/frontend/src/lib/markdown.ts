@@ -89,6 +89,10 @@ function inline(rawText: string): string {
     .replace(
       /\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">$1</a>'
+    )
+    .replace(
+      /(?<![a-zA-Z0-9_.])@([a-zA-Z0-9_]+)/g,
+      '<a href="/u/$1" class="text-blue-600 dark:text-blue-400 font-medium hover:underline">@$1</a>'
     );
 
   result = result.replace(/\u0000FORMULA(\d+)\u0000/g, (_, idx) => formulaPlaceholders[Number(idx)]);

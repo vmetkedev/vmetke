@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code, Sigma, EyeOff, Anchor as AnchorIcon } from "lucide-react";
+import { Heading, Quote, List, ListOrdered, Minus, Image as ImageIcon, Table2, Code, Sigma, Superscript, EyeOff, Anchor as AnchorIcon, AtSign } from "lucide-react";
 import type { Editor, Range } from "@tiptap/core";
 
 export type CommandItem = {
@@ -69,8 +69,13 @@ export const COMMAND_ITEMS: CommandItem[] = [
         .run(),
   },
   {
+    title: "Персона",
+    icon: AtSign,
+    command: ({ editor, range }) => editor.chain().focus().deleteRange(range).insertContent("@").run(),
+  },
+  {
     title: "Формула (в строке)",
-    icon: Sigma,
+    icon: Superscript,
     command: ({ editor, range }) =>
       editor
         .chain()

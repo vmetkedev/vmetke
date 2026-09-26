@@ -8,6 +8,8 @@ import PostPage from "./pages/PostPage";
 import NewPostPage from "./pages/NewPostPage";
 import BookmarksPage from "./pages/BookmarksPage";
 import SettingsPage from "./pages/SettingsPage";
+import MarkdownHelpPage from "./pages/help/MarkdownHelpPage";
+import WysiwygHelpPage from "./pages/help/WysiwygHelpPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
@@ -22,6 +24,8 @@ export default function App() {
       <Route path="/new-post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
       <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/docs/help/markdown" element={<MarkdownHelpPage />} />
+      <Route path="/docs/help/wysiwyg" element={<WysiwygHelpPage />} />
     </Routes>
   );
 }

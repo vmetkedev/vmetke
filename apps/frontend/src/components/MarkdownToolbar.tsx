@@ -1,104 +1,172 @@
-import { Bold, Italic, Heading2, Quote, Code, Link2, List, ListOrdered } from "lucide-react";
 import type { RefObject } from "react";
+import { ToolbarDropdown } from "./editor/ToolbarDropdown";
+import {
+  Type,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Subscript as SubscriptIcon,
+  Superscript as SuperscriptIcon,
+  Eraser,
+  Heading,
+  Quote,
+  List,
+  ListOrdered,
+  Image as ImageIcon,
+  Table2,
+  Minus,
+  Code,
+  Sigma,
+  Superscript,
+  EyeOff,
+  Anchor as AnchorIcon,
+  AtSign,
+} from "lucide-react";
 
-type Wrap = { before: string; after: string; placeholder: string };
-type LinePrefix = { prefix: string; placeholder: string };
+type Wrap = (selectedText: string) => { text: string; cursorOffset?: number };
 
-const WRAP_ACTIONS: Record<string, Wrap> = {
-  bold: { before: "**", after: "**", placeholder: "жирный текст" },
-  italic: { before: "*", after: "*", placeholder: "курсив" },
-  code: { before: "`", after: "`", placeholder: "код" },
-};
-
-const LINE_ACTIONS: Record<string, LinePrefix> = {
-  heading: { prefix: "## ", placeholder: "Заголовок" },
-  quote: { prefix: "> ", placeholder: "цитата" },
-  ul: { prefix: "- ", placeholder: "пункт списка" },
-  ol: { prefix: "1. ", placeholder: "пункт списка" },
-};
-
-export function MarkdownToolbar({
-  textareaRef,
-  value,
-  onChange,
+function ToolbarButton({
+  icon: Icon,
+  label,
+  onClick,
 }: {
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
-  value: string;
-  onChange: (next: string) => void;
+  icon: React.ComponentType<{ size?: number }>;
+  label: string;
+  onClick: () => void;
 }) {
-  const applyWrap = (key: keyof typeof WRAP_ACTIONS) => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const { before, after, placeholder } = WRAP_ACTIONS[key];
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = value.slice(start, end) || placeholder;
-    const next = value.slice(0, start) + before + selected + after + value.slice(end);
-    onChange(next);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+    >
+      <Icon size={18} />
+    </button>
+  );
+}
+
+function ToolbarTextButton({ text, label, onClick }: { text: string; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className="px-2 py-1 rounded text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
+    >
+      {text}
+    </button>
+  );
+}
+
+type MarkdownToolbarProps = {
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  content: string;
+  onChange: (value: string) => void;
+};
+
+export function MarkdownToolbar({ textareaRef, content, onChange }: MarkdownToolbarProps) {
+  const apply = (wrap: Wrap) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart ?? content.length;
+    const end = textarea.selectionEnd ?? content.length;
+    const selected = content.slice(start, end);
+
+    const { text, cursorOffset } = wrap(selected);
+    const newContent = content.slice(0, start) + text + content.slice(end);
+    onChange(newContent);
+
     requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(start + before.length, start + before.length + selected.length);
+      textarea.focus();
+      const cursor = start + (cursorOffset ?? text.length);
+      textarea.setSelectionRange(cursor, cursor);
     });
   };
-
-  const applyLinePrefix = (key: keyof typeof LINE_ACTIONS) => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const { prefix, placeholder } = LINE_ACTIONS[key];
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
-    const selectedLine = value.slice(lineStart, end).trim() || placeholder;
-    const next = value.slice(0, lineStart) + prefix + selectedLine + value.slice(end);
-    onChange(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const pos = lineStart + prefix.length + selectedLine.length;
-      el.setSelectionRange(pos, pos);
-    });
-  };
-
-  const applyLink = () => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const selected = value.slice(start, end) || "текст ссылки";
-    const insert = `[${selected}](https://)`;
-    const next = value.slice(0, start) + insert + value.slice(end);
-    onChange(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const urlStart = start + selected.length + 3;
-      el.setSelectionRange(urlStart, urlStart + 8);
-    });
-  };
-
-  const buttons = [
-    { icon: <Bold size={16} />, label: "Жирный", onClick: () => applyWrap("bold") },
-    { icon: <Italic size={16} />, label: "Курсив", onClick: () => applyWrap("italic") },
-    { icon: <Heading2 size={16} />, label: "Заголовок", onClick: () => applyLinePrefix("heading") },
-    { icon: <Quote size={16} />, label: "Цитата", onClick: () => applyLinePrefix("quote") },
-    { icon: <Code size={16} />, label: "Код", onClick: () => applyWrap("code") },
-    { icon: <Link2 size={16} />, label: "Ссылка", onClick: applyLink },
-    { icon: <List size={16} />, label: "Список", onClick: () => applyLinePrefix("ul") },
-    { icon: <ListOrdered size={16} />, label: "Нумерованный список", onClick: () => applyLinePrefix("ol") },
-  ];
 
   return (
-    <div className="flex items-center gap-1 border dark:border-gray-600 border-b-0 rounded-t px-2 py-1.5 bg-gray-50 dark:bg-gray-700">
-      {buttons.map((b) => (
-        <button
-          key={b.label}
-          type="button"
-          onClick={b.onClick}
-          aria-label={b.label}
-          title={b.label}
-          className="p-1.5 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-        >
-          {b.icon}
-        </button>
-      ))}
+    <div className="flex items-center gap-1 flex-wrap border-t dark:border-gray-700 pt-2 mt-2">
+      <ToolbarDropdown icon={Type} label="Текст">
+        {(close) => (
+          <>
+            <ToolbarButton icon={Bold} label="Жирный" onClick={() => { apply((sel) => ({ text: `**${sel || "текст"}**` })); close(); }} />
+            <ToolbarButton icon={Italic} label="Курсив" onClick={() => { apply((sel) => ({ text: `*${sel || "текст"}*` })); close(); }} />
+            <ToolbarButton icon={UnderlineIcon} label="Подчёркнутый" onClick={() => { apply((sel) => ({ text: `<u>${sel || "текст"}</u>` })); close(); }} />
+            <ToolbarButton icon={Strikethrough} label="Зачёркнутый" onClick={() => { apply((sel) => ({ text: `~~${sel || "текст"}~~` })); close(); }} />
+            <ToolbarButton icon={SubscriptIcon} label="Подстрочный" onClick={() => { apply((sel) => ({ text: `<sub>${sel || "текст"}</sub>` })); close(); }} />
+            <ToolbarButton icon={SuperscriptIcon} label="Надстрочный" onClick={() => { apply((sel) => ({ text: `<sup>${sel || "текст"}</sup>` })); close(); }} />
+            <ToolbarButton icon={Eraser} label="Очистить форматирование" onClick={() => { apply((sel) => ({ text: sel.replace(/(\*\*|\*|~~|<\/?u>|<\/?sub>|<\/?sup>)/g, "") })); close(); }} />
+          </>
+        )}
+      </ToolbarDropdown>
+
+      <ToolbarDropdown icon={Heading} label="Заголовок">
+        {(close) => (
+          <>
+            <ToolbarTextButton text="H1" label="Заголовок 1" onClick={() => { apply((sel) => ({ text: `# ${sel || "Заголовок"}` })); close(); }} />
+            <ToolbarTextButton text="H2" label="Заголовок 2" onClick={() => { apply((sel) => ({ text: `## ${sel || "Заголовок"}` })); close(); }} />
+            <ToolbarTextButton text="H3" label="Заголовок 3" onClick={() => { apply((sel) => ({ text: `### ${sel || "Заголовок"}` })); close(); }} />
+          </>
+        )}
+      </ToolbarDropdown>
+
+
+      <ToolbarButton icon={Quote} label="Цитата" onClick={() => apply((sel) => ({ text: `> ${sel || "цитата"}` }))} />
+
+      <ToolbarDropdown icon={List} label="Список">
+        {(close) => (
+          <>
+            <ToolbarButton icon={List} label="Маркированный список" onClick={() => { apply((sel) => ({ text: `- ${sel || "пункт"}` })); close(); }} />
+            <ToolbarButton icon={ListOrdered} label="Нумерованный список" onClick={() => { apply((sel) => ({ text: `1. ${sel || "пункт"}` })); close(); }} />
+          </>
+        )}
+      </ToolbarDropdown>
+
+      <ToolbarButton
+        icon={ImageIcon}
+        label="Изображение"
+        onClick={() => {
+          const url = window.prompt("Ссылка на изображение:");
+          if (url && url.trim()) apply(() => ({ text: `![](${url.trim()})` }));
+        }}
+      />
+      <ToolbarButton icon={Table2} label="Таблица" onClick={() => apply(() => ({ text: "| A | B |\n| - | - |\n| 1 | 2 |" }))} />
+      <ToolbarButton icon={Minus} label="Разделитель" onClick={() => apply(() => ({ text: "\n---\n" }))} />
+
+      <ToolbarDropdown icon={Code} label="Код">
+        {(close) => (
+          <>
+            <ToolbarButton icon={Code} label="Код в строке" onClick={() => { apply((sel) => ({ text: `\`${sel || "код"}\`` })); close(); }} />
+            <ToolbarButton icon={Code} label="Блок кода" onClick={() => { apply((sel) => ({ text: "```\n" + (sel || "код") + "\n```" })); close(); }} />
+          </>
+        )}
+      </ToolbarDropdown>
+
+      <ToolbarDropdown icon={Sigma} label="Формула">
+        {(close) => (
+          <>
+            <ToolbarButton icon={Sigma} label="Формула (блок)" onClick={() => { apply((sel) => ({ text: `$$\n${sel || "E = mc^2"}\n$$` })); close(); }} />
+            <ToolbarButton icon={Superscript} label="Формула (в строке)" onClick={() => { apply((sel) => ({ text: `$${sel || "x^2"}$` })); close(); }} />
+          </>
+        )}
+      </ToolbarDropdown>
+
+      <ToolbarButton
+        icon={EyeOff}
+        label="Спойлер"
+        onClick={() => apply((sel) => ({ text: `::: spoiler Спойлер\n${sel || "текст"}\n:::` }))}
+      />
+      <ToolbarButton
+        icon={AnchorIcon}
+        label="Якорь"
+        onClick={() => {
+          const name = window.prompt("Имя якоря (латиница/цифры/дефис):");
+          if (name && name.trim()) apply(() => ({ text: `{#${name.trim()}}` }));
+        }}
+      />
+      <ToolbarButton icon={AtSign} label="Персона" onClick={() => apply(() => ({ text: "@" }))} />
     </div>
   );
 }

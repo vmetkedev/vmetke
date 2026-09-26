@@ -1,18 +1,26 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createPost } from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
 import { BlockEditor } from "./editor/BlockEditor";
+import { MarkdownToolbar } from "./MarkdownToolbar";
 
 const MAX_TITLE = 200;
 const MAX_CONTENT = 30000;
 
-export function PostComposer({ onPosted }: { onPosted: () => void }) {
+type PostComposerProps = {
+  onPosted: () => void;
+  mode: "wysiwyg" | "markdown";
+  editorKey: number;
+};
+
+export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim()) return;
@@ -56,7 +64,20 @@ export function PostComposer({ onPosted }: { onPosted: () => void }) {
         className="w-full bg-transparent text-3xl font-bold placeholder-gray-300 dark:placeholder-gray-600 dark:text-gray-100 focus:outline-none"
       />
 
-      <BlockEditor content={content} onChange={setContent} />
+      {mode === "wysiwyg" ? (
+        <BlockEditor key={editorKey} content={content} onChange={setContent} />
+      ) : (
+        <>
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full min-h-50 bg-transparent text-sm font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-y"
+            placeholder="Введите текст"
+          />
+          <MarkdownToolbar textareaRef={textareaRef} content={content} onChange={setContent} />
+        </>
+      )}
 
       <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
         <span className="text-xs text-gray-400 dark:text-gray-500">

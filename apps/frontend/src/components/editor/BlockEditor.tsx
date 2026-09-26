@@ -9,14 +9,17 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { createLowlight, common } from "lowlight";
 import { Markdown } from "tiptap-markdown";
-import { SlashCommandExtension } from "./SlashCommandExtension";
 import { CodeBlockComponent } from "./CodeBlockComponent";
 import { TableToolbar } from "./TableToolbar";
+import { EditorToolbar } from "./EditorToolbar";
 import { FormulaExtension } from "./FormulaExtension";
 import { InlineFormulaExtension } from "./InlineFormulaExtension";
 import { SpoilerExtension } from "./SpoilerExtension";
 import { AnchorExtension } from "./AnchorExtension";
 import { MentionExtension } from "./MentionExtension";
+import Underline from "@tiptap/extension-underline";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
 
 const lowlight = createLowlight(common);
 
@@ -72,6 +75,33 @@ function fixFormulaParagraphs(editor: any) {
   editor.view.dispatch(tr);
 }
 
+function fixMentions(editor: any) {
+  const { state } = editor;
+  const { doc, schema } = state;
+  const matches: { from: number; to: number; username: string }[] = [];
+
+  doc.descendants((node: any, pos: number) => {
+    if (!node.isText) return;
+    const text = node.text || "";
+    const regex = /(^|\s)@([a-zA-Z0-9_]{2,32})/g;
+    let m;
+    while ((m = regex.exec(text))) {
+      const start = m.index + m[1].length;
+      matches.push({ from: pos + start, to: pos + start + 1 + m[2].length, username: m[2] });
+    }
+  });
+
+  if (matches.length === 0) return;
+
+  const tr = state.tr;
+  for (let idx = matches.length - 1; idx >= 0; idx--) {
+    const { from, to, username } = matches[idx];
+    const mentionNode = schema.nodes.mention.create({ username });
+    tr.replaceWith(from, to, mentionNode);
+  }
+  editor.view.dispatch(tr);
+}
+
 type BlockEditorProps = {
   content: string;
   onChange: (markdown: string) => void;
@@ -107,15 +137,18 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
         transformPastedText: true,
       }),
       Placeholder.configure({
-        placeholder: placeholder || 'Нажмите "/" для вызова меню',
+        placeholder: placeholder || "Текст публикации",
       }),
-      SlashCommandExtension,
+      Underline,
+      Subscript,
+      Superscript,
     ],
     content,
     onCreate: ({ editor }) => {
       setTimeout(() => {
         fixFormulaParagraphs(editor);
         fixInlineFormulas(editor);
+        fixMentions(editor);
       }, 0);
     },
     onUpdate: ({ editor }) => {
@@ -143,6 +176,7 @@ export function BlockEditor({ content, onChange, placeholder }: BlockEditorProps
     <>
       {editor && <TableToolbar editor={editor} />}
       <EditorContent editor={editor} />
+      {editor && <EditorToolbar editor={editor} />}
     </>
   );
 }
