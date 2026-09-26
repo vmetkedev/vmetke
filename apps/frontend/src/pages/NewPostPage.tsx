@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { PostComposer } from "../components/PostComposer";
 import { AppLayout } from "../components/AppLayout";
-import { EditorSettingsModal } from "../components/EditorSettingsModal";
+import { EditorSettingsModal } from "../components/editor/EditorSettingsModal";
 
 export default function NewPostPage() {
   const navigate = useNavigate();
