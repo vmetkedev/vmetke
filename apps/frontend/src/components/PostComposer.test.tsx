@@ -56,7 +56,7 @@ describe("PostComposer", () => {
     fireEvent.click(screen.getByText("Опубликовать"));
 
     await waitFor(() => {
-      expect(postsLib.createPost).toHaveBeenCalledWith("Заголовок", "Текст поста");
+      expect(postsLib.createPost).toHaveBeenCalledWith("Заголовок", "Текст поста", []);
       expect(onPosted).toHaveBeenCalledTimes(1);
     });
   });

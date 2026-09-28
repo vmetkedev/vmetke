@@ -4,6 +4,7 @@ export type Post = {
   id: string;
   title: string | null;
   content: string;
+  tags: string[];
   createdAt: string;
   likesCount: number;
   commentsCount: number;
@@ -37,15 +38,20 @@ export async function fetchPost(postId: string): Promise<Post> {
   return data.post;
 }
 
-export async function createPost(title: string, content: string): Promise<Post> {
-  const res = await api.post("/posts", { title, content });
+export async function createPost(title: string, content: string, tags: string[] = []): Promise<Post> {
+  const res = await api.post("/posts", { title, content, tags });
   if (!res.ok) throw new Error("Не удалось опубликовать пост");
   const data = await res.json();
   return data.post;
 }
 
-export async function updatePost(postId: string, title: string, content: string): Promise<Post> {
-  const res = await api.patch(`/posts/${postId}`, { title, content });
+export async function updatePost(
+  postId: string,
+  title: string,
+  content: string,
+  tags: string[] = []
+): Promise<Post> {
+  const res = await api.patch(`/posts/${postId}`, { title, content, tags });
   if (!res.ok) throw new Error("Не удалось отредактировать пост");
   const data = await res.json();
   return data.post;

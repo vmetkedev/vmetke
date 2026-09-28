@@ -6,8 +6,8 @@ import type { FeedQuery } from "../schemas/posts.js";
 export class NotOwnerError extends Error {}
 export class NotFoundError extends Error {}
 
-export async function createPost(authorId: string, title: string, content: string) {
-  const [post] = await db.insert(posts).values({ authorId, title, content }).returning();
+export async function createPost(authorId: string, title: string, content: string, tags: string[] = []) {
+  const [post] = await db.insert(posts).values({ authorId, title, content, tags }).returning();
   return post;
 }
 
@@ -29,6 +29,7 @@ const postSelectFields = {
   id: posts.id,
   title: posts.title,
   content: posts.content,
+  tags: posts.tags,
   createdAt: posts.createdAt,
   viewsCount: posts.views,
   author: {
@@ -180,12 +181,15 @@ export async function getBookmarkedPosts(userId: string, { cursor, limit }: Feed
   return { posts: withEngagement, nextCursor };
 }
 
-export async function updatePost(postId: string, userId: string, title: string, content: string) {
+export async function updatePost(postId: string, userId: string, title: string, content: string, tags?: string[]) {
   const [post] = await db.select().from(posts).where(eq(posts.id, postId));
   if (!post) throw new NotFoundError("Пост не найден");
   if (post.authorId !== userId) throw new NotOwnerError("Нельзя редактировать чужой пост");
 
-  await db.update(posts).set({ title, content }).where(eq(posts.id, postId));
+  await db
+    .update(posts)
+    .set({ title, content, ...(tags ? { tags } : {}) })
+    .where(eq(posts.id, postId));
   return getPostById(postId, userId, false);
 }
 

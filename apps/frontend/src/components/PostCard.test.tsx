@@ -130,7 +130,7 @@ describe("PostCard редактирование", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(postsLib.updatePost).toHaveBeenCalledWith("post-1", "Новый заголовок", "Новый текст");
+      expect(postsLib.updatePost).toHaveBeenCalledWith("post-1", "Новый заголовок", "Новый текст", []);
     });
   });
 });

@@ -34,7 +34,7 @@ export default async function postsRoutes(app: FastifyInstance) {
       if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
       const payload = request.user as { sub: string };
-      const post = await createPost(payload.sub, parsed.data.title, parsed.data.content);
+      const post = await createPost(payload.sub, parsed.data.title, parsed.data.content, parsed.data.tags);
       return reply.code(201).send({ post });
     }
   );
@@ -82,7 +82,13 @@ export default async function postsRoutes(app: FastifyInstance) {
 
     const payload = request.user as { sub: string };
     try {
-      const post = await updatePost(paramsParsed.data.postId, payload.sub, bodyParsed.data.title, bodyParsed.data.content);
+      const post = await updatePost(
+        paramsParsed.data.postId,
+        payload.sub,
+        bodyParsed.data.title,
+        bodyParsed.data.content,
+        bodyParsed.data.tags
+      );
       return { post };
     } catch (err) {
       return handleOwnershipError(err, reply);

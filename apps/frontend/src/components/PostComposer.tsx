@@ -4,6 +4,7 @@ import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
 import { BlockEditor } from "./editor/BlockEditor";
 import { MarkdownToolbar } from "./MarkdownToolbar";
+import { TagInput } from "./TagInput";
 import { useDraftAutosave } from "../hooks/useDraftAutosave";
 import { DraftRestoreBanner } from "./editor/DraftRestoreBanner";
 
@@ -21,6 +22,7 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
   const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restoreCounter, setRestoreCounter] = useState(0);
@@ -54,10 +56,11 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
     setSubmitting(true);
     setError(null);
     try {
-      await createPost(title.trim(), content.trim());
+      await createPost(title.trim(), content.trim(), tags);
       discardDraft();
       setTitle("");
       setContent("");
+      setTags([]);
       onPosted();
     } catch (err) {
       setError((err as Error).message);
@@ -105,6 +108,8 @@ export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
           <MarkdownToolbar textareaRef={textareaRef} content={content} onChange={setContent} />
         </>
       )}
+
+      <TagInput value={tags} onChange={setTags} />
 
       <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
         <span />

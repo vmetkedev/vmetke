@@ -18,6 +18,8 @@ import { Avatar } from "./Avatar";
 import { BlockEditor } from "./editor/BlockEditor";
 import { EditorSettingsModal } from "./editor/EditorSettingsModal";
 import { MarkdownToolbar } from "./MarkdownToolbar";
+import { TagInput } from "./TagInput";
+import { PostTags } from "./PostTags";
 
 const PREVIEW_LENGTH = 500;
 
@@ -47,6 +49,7 @@ export function PostCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(post.title || "");
   const [editContent, setEditContent] = useState(post.content);
+  const [editTags, setEditTags] = useState<string[]>(post.tags ?? []);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState<"wysiwyg" | "markdown">("wysiwyg");
   const [editEditorKey, setEditEditorKey] = useState(0);
@@ -92,7 +95,7 @@ export function PostCard({
     if (!editTitle.trim() || !editContent.trim()) return;
     setSaving(true);
     try {
-      const updated = await updatePost(post.id, editTitle.trim(), editContent.trim());
+      const updated = await updatePost(post.id, editTitle.trim(), editContent.trim(), editTags);
       setPost(updated);
       setIsEditing(false);
     } finally {
@@ -169,6 +172,9 @@ export function PostCard({
               <MarkdownToolbar textareaRef={editTextareaRef} content={editContent} onChange={setEditContent} />
             </div>
           )}
+          <div className="border dark:border-gray-600 rounded px-2 py-1.5">
+            <TagInput value={editTags} onChange={setEditTags} />
+          </div>
           {showEditorSettings && (
             <EditorSettingsModal
               currentMode={editMode}
@@ -185,6 +191,7 @@ export function PostCard({
                 setIsEditing(false);
                 setEditTitle(post.title || "");
                 setEditContent(post.content);
+                setEditTags(post.tags ?? []);
                 setEditMode("wysiwyg");
                 setEditEditorKey((k) => k + 1);
               }}
@@ -233,6 +240,8 @@ export function PostCard({
               </>
             );
           })()}
+
+          <PostTags tags={post.tags} />
         </>
       )}
 
