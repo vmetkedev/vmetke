@@ -19,10 +19,20 @@ export const feedQuerySchema = z.object({
 
 export type FeedQuery = z.infer<typeof feedQuerySchema>;
 
-export const searchQuerySchema = z.object({
-  q: z.string().min(1).max(100),
-  type: z.enum(["users", "posts"]),
-  limit: z.coerce.number().int().min(1).max(30).default(15),
-});
+export const searchQuerySchema = z
+  .object({
+    q: z.string().min(1).max(100).optional(),
+    type: z.enum(["users", "posts"]),
+    tag: z.string().trim().toLowerCase().min(1).max(30).optional(),
+    limit: z.coerce.number().int().min(1).max(30).default(15),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === "users" && !data.q) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "q обязателен для поиска пользователей", path: ["q"] });
+    }
+    if (data.type === "posts" && !data.q && !data.tag) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "q или tag обязателен для поиска постов", path: ["q"] });
+    }
+  });
 
 export type SearchQuery = z.infer<typeof searchQuerySchema>;

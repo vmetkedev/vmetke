@@ -27,3 +27,10 @@ export async function search(
   const data = await res.json();
   return data.results;
 }
+
+export async function searchPostsByTag(tag: string): Promise<PostSearchResult[]> {
+  const res = await api.get(`/search?type=posts&tag=${encodeURIComponent(tag)}`);
+  if (!res.ok) throw new Error("Ошибка поиска");
+  const data = await res.json();
+  return data.results;
+}

@@ -1,4 +1,4 @@
-import { desc, eq, ilike, or } from "drizzle-orm";
+import { desc, eq, ilike, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, posts } from "../db/schema/index.js";
 
@@ -32,6 +32,27 @@ export async function searchPosts(query: string, limit: number) {
     .from(posts)
     .innerJoin(users, eq(posts.authorId, users.id))
     .where(or(ilike(posts.title, `%${query}%`), ilike(posts.content, `%${query}%`)))
+    .orderBy(desc(posts.createdAt))
+    .limit(limit);
+}
+
+export async function searchPostsByTag(tag: string, limit: number) {
+  return db
+    .select({
+      id: posts.id,
+      title: posts.title,
+      content: posts.content,
+      createdAt: posts.createdAt,
+      author: {
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        avatarColor: users.avatarColor,
+      },
+    })
+    .from(posts)
+    .innerJoin(users, eq(posts.authorId, users.id))
+    .where(sql`${posts.tags} @> ARRAY[${tag}]::text[]`)
     .orderBy(desc(posts.createdAt))
     .limit(limit);
 }

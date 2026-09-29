@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { Bell, SquarePen } from "lucide-react";
+import { Bell, Search, SquarePen } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { fetchNotifications } from "../lib/notifications";
-import { SearchDropdown } from "./SearchDropdown";
 import { ProfileMenu } from "./ProfileMenu";
 
 export function AppHeader() {
@@ -40,7 +39,9 @@ export function AppHeader() {
           Vmetke
         </Link>
         <div className="flex items-center gap-4">
-          <SearchDropdown />
+          <Link to="/search" className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white">
+            <Search size={20} />
+          </Link>
           <Link to="/notifications" className="relative flex items-center text-gray-600 dark:text-gray-300">
             <Bell size={20} />
             {unreadCount > 0 && (

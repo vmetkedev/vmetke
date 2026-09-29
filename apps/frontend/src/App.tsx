@@ -11,6 +11,7 @@ import SettingsPage from "./pages/SettingsPage";
 import MarkdownHelpPage from "./pages/help/MarkdownHelpPage";
 import WysiwygHelpPage from "./pages/help/WysiwygHelpPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
+import SearchPage from "./pages/SearchPage";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
       <Route path="/new-post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
       <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />
+      <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/docs/help/markdown" element={<MarkdownHelpPage />} />
       <Route path="/docs/help/wysiwyg" element={<WysiwygHelpPage />} />
