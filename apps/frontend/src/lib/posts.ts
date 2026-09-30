@@ -77,10 +77,22 @@ export async function deleteComment(commentId: string) {
   if (!res.ok) throw new Error("Не удалось удалить комментарий");
 }
 
+export async function likeComment(commentId: string) {
+  const res = await api.post(`/posts/comments/${commentId}/like`);
+  if (!res.ok) throw new Error("Не удалось поставить лайк");
+}
+
+export async function unlikeComment(commentId: string) {
+  const res = await api.delete(`/posts/comments/${commentId}/like`);
+  if (!res.ok) throw new Error("Не удалось убрать лайк");
+}
+
 export type Comment = {
   id: string;
   content: string;
   createdAt: string;
+  likesCount: number;
+  isLikedByMe: boolean;
   author: {
     id: string;
     username: string;

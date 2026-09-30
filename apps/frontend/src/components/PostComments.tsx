@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Trash2 } from "lucide-react";
-import { fetchComments, createComment, deleteComment, type Comment } from "../lib/posts";
+import { Heart, Trash2 } from "lucide-react";
+import {
+  fetchComments,
+  createComment,
+  deleteComment,
+  likeComment,
+  unlikeComment,
+  type Comment,
+} from "../lib/posts";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
 
@@ -17,6 +24,7 @@ export function PostComments({
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set());
 
   const navigate = useNavigate();
 
@@ -47,6 +55,34 @@ export function PostComments({
     onCountChange?.(-1);
   };
 
+  const handleToggleLike = async (c: Comment) => {
+    if (!user) return navigate("/login");
+    if (pendingLikes.has(c.id)) return;
+
+    const wasLiked = c.isLikedByMe;
+    const apply = (liked: boolean) =>
+      setComments((prev) =>
+        prev.map((x) =>
+          x.id === c.id ? { ...x, isLikedByMe: liked, likesCount: x.likesCount + (liked ? 1 : -1) } : x
+        )
+      );
+
+    setPendingLikes((s) => new Set(s).add(c.id));
+    apply(!wasLiked);
+    try {
+      if (wasLiked) await unlikeComment(c.id);
+      else await likeComment(c.id);
+    } catch {
+      apply(wasLiked);
+    } finally {
+      setPendingLikes((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
+      });
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
       <h3 className="text-sm font-medium dark:text-gray-100">Комментарии</h3>
@@ -70,6 +106,19 @@ export function PostComments({
                     {c.author.displayName || c.author.username}
                   </Link>
                   <span className="text-gray-700 dark:text-gray-300 ml-1.5 wrap-anywhere">{c.content}</span>
+                  <div className="mt-0.5">
+                    <button
+                      onClick={() => handleToggleLike(c)}
+                      disabled={pendingLikes.has(c.id)}
+                      aria-label={c.isLikedByMe ? "Убрать лайк" : "Поставить лайк"}
+                      className={`flex items-center gap-1 text-xs ${
+                        c.isLikedByMe ? "text-red-500" : "text-gray-400 dark:text-gray-500 hover:text-red-400"
+                      } disabled:opacity-50`}
+                    >
+                      <Heart size={13} fill={c.isLikedByMe ? "currentColor" : "none"} />
+                      {c.likesCount > 0 && c.likesCount}
+                    </button>
+                  </div>
                 </div>
               </div>
               {user?.id === c.author.id && (

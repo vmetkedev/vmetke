@@ -14,7 +14,13 @@ import {
 } from "../services/posts.service.js";
 import { likePost, unlikePost } from "../services/likes.service.js";
 import { bookmarkPost, unbookmarkPost } from "../services/bookmarks.service.js";
-import { createComment, getPostComments, deleteComment } from "../services/comments.service.js";
+import { 
+  createComment,
+  getPostComments,
+  deleteComment,
+  likeComment,
+  unlikeComment,
+} from "../services/comments.service.js";
 
 const postIdParamSchema = z.object({ postId: z.string().uuid() });
 const commentIdParamSchema = z.object({ commentId: z.string().uuid() });
@@ -154,12 +160,13 @@ export default async function postsRoutes(app: FastifyInstance) {
 
   app.get(
     "/:postId/comments",
-    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    { preHandler: [app.optionalAuthenticate], config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const parsed = postIdParamSchema.safeParse(request.params);
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-      const comments = await getPostComments(parsed.data.postId);
+      const payload = request.user as { sub: string } | undefined;
+      const comments = await getPostComments(parsed.data.postId, payload?.sub ?? null);
       return { comments };
     }
   );
@@ -191,5 +198,31 @@ export default async function postsRoutes(app: FastifyInstance) {
     } catch (err) {
       return handleOwnershipError(err, reply);
     }
+  });
+
+  app.post(
+  "/comments/:commentId/like",
+  { preHandler: [app.authenticate], config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+  async (request, reply) => {
+    const parsed = commentIdParamSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID комментария" });
+
+    const payload = request.user as { sub: string };
+    try {
+      await likeComment(parsed.data.commentId, payload.sub);
+      return { success: true };
+    } catch (err) {
+      return handleOwnershipError(err, reply);
+    }
+  }
+);
+
+  app.delete("/comments/:commentId/like", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const parsed = commentIdParamSchema.safeParse(request.params);
+    if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID комментария" });
+
+    const payload = request.user as { sub: string };
+    await unlikeComment(parsed.data.commentId, payload.sub);
+    return { success: true };
   });
 }
