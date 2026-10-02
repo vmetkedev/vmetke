@@ -12,6 +12,23 @@ import { PostCard } from "../components/PostCard";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
 
+type Tab = "profile" | "posts";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "profile", label: "Профиль" },
+  { id: "posts", label: "Посты" },
+];
+
+const CARD = "bg-white dark:bg-gray-800 rounded-lg shadow";
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -19,6 +36,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("profile");
 
   const load = useCallback(async () => {
     if (!username) return;
@@ -39,6 +57,7 @@ export default function ProfilePage() {
   }, [username]);
 
   useEffect(() => {
+    setTab("profile");
     load();
   }, [load]);
 
@@ -66,52 +85,112 @@ export default function ProfilePage() {
   if (loading) return <AppLayout><p className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</p></AppLayout>;
   if (error || !profile)
     return <AppLayout><p className="p-8 text-center text-red-600">{error || "Пользователь не найден"}</p></AppLayout>;
+
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto p-8 space-y-4">
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-          <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
-              <Avatar
-                username={profile.username}
-                displayName={profile.displayName}
-                avatarColor={profile.avatarColor}
-                size="lg"
-              />
-              <div>
-                <h1 className="text-xl font-semibold dark:text-gray-100">{profile.displayName || profile.username}</h1>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">@{profile.username}</p>
+      <div className="max-w-5xl mx-auto p-4 sm:p-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
+        {/* Левая колонка */}
+        <div className="space-y-4 min-w-0">
+          {/* Шапка профиля */}
+          <div className={CARD}>
+            <div className="p-5 pb-4">
+              <div className="flex items-start gap-4">
+                <Avatar
+                  username={profile.username}
+                  displayName={profile.displayName}
+                  avatarColor={profile.avatarColor}
+                  size="lg"
+                />
+                <div className="text-center min-w-[72px]">
+                  <div className="text-xl font-semibold text-green-600 dark:text-green-400">
+                    {profile.followersCount}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Подписчики</div>
+                </div>
+                <div className="text-center min-w-[72px]">
+                  <div className="text-xl font-semibold text-green-600 dark:text-green-400">
+                    {profile.followingCount}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Подписки</div>
+                </div>
+                {!profile.isMe && (
+                  <button
+                    onClick={handleFollowToggle}
+                    disabled={followLoading}
+                    className={`ml-auto text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
+                      profile.isFollowedByMe
+                        ? "border dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                        : "bg-blue-600 text-white"
+                    }`}
+                  >
+                    {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}
+                  </button>
+                )}
               </div>
+              <h1 className="mt-3 text-xl font-semibold text-blue-600 dark:text-blue-400 break-all">
+                @{profile.username}
+              </h1>
+              {profile.displayName && (
+                <p className="text-sm text-gray-800 dark:text-gray-200 mt-1">{profile.displayName}</p>
+              )}
             </div>
-            {!profile.isMe && (
-              <button
-                onClick={handleFollowToggle}
-                disabled={followLoading}
-                className={`text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
-                  profile.isFollowedByMe
-                    ? "border dark:border-gray-600 text-gray-700 dark:text-gray-200"
-                    : "bg-blue-600 text-white"
-                }`}
-              >
-                {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}
-              </button>
-            )}
+
+            <div className="flex gap-6 px-5 border-t dark:border-gray-700">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`py-3 text-xs font-semibold uppercase tracking-wider border-b-2 -mb-px ${
+                    tab === t.id
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-4 text-sm text-gray-500 dark:text-gray-400 mt-3">
-            <span>{profile.followersCount} подписчиков</span>
-            <span>{profile.followingCount} подписок</span>
-          </div>
+
+          {/* Контент таба */}
+          {tab === "profile" ? (
+            <div className={`${CARD} p-5`}>
+              <h2 className="text-sm font-semibold dark:text-gray-100 mb-2">О себе</h2>
+              {profile.bio ? (
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap wrap-break-word">
+                  {profile.bio}
+                </p>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Пользователь пока ничего не рассказал о себе.
+                </p>
+              )}
+            </div>
+          ) : posts.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Постов пока нет.</p>
+          ) : (
+            <div className="space-y-3">
+              {posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {posts.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400 text-center py-8">Постов пока нет.</p>
-        ) : (
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} onDeleted={(id) => setPosts((prev) => prev.filter((p) => p.id !== id))} />
-            ))}
-          </div>
-        )}
+        {/* Правая колонка */}
+        <aside className={`${CARD} p-5`}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 pb-3 border-b dark:border-gray-700">
+            Информация
+          </h2>
+          <dl className="mt-4 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-4 text-sm">
+            <dt className="font-semibold dark:text-gray-100">Зарегистрирован</dt>
+            <dd className="text-gray-700 dark:text-gray-300">{formatDate(profile.createdAt)}</dd>
+          </dl>
+        </aside>
       </div>
     </AppLayout>
   );

@@ -16,6 +16,7 @@ export async function getUserProfile(username: string, viewerId: string | null) 
       createdAt: users.createdAt,
       deletedAt: users.deletedAt,
       avatarColor: users.avatarColor,
+      bio: users.bio,
     })
     .from(users)
     .where(eq(users.username, username));
