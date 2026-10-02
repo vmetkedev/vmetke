@@ -36,6 +36,18 @@ describe("renderMarkdown — базовый инлайн-синтаксис", ()
     );
   });
 
+  it("рендерит картинку с title", () => {
+    const html = renderMarkdown('![Alt](https://example.com/a.jpg "Подпись")**Жирный**');
+    expect(html).toContain('<img src="https://example.com/a.jpg" alt="Alt" title="Подпись"');
+    expect(html).toContain("<strong>Жирный</strong>");
+    expect(html).not.toContain("![");
+  });
+
+  it("рендерит картинку с title отдельной строкой", () => {
+    const html = renderMarkdown('![Alt](https://example.com/a.jpg "Подпись")');
+    expect(html).toContain('title="Подпись"');
+  });
+
   it("рендерит обычную ссылку", () => {
     expect(renderMarkdown("[текст](https://example.com)")).toBe(
       '<p class="my-1"><a href="https://example.com" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline">текст</a></p>'

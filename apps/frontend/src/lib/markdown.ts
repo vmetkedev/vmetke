@@ -104,8 +104,9 @@ function inline(rawText: string): string {
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
     .replace(
-      /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g,
-      '<img src="$2" alt="$1" class="max-w-full rounded my-2" loading="lazy" />'
+      /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+&quot;(.*?)&quot;)?\)/g,
+      (_m, alt, url, title) =>
+        `<img src="${url}" alt="${alt}"${title ? ` title="${title}"` : ""} class="max-w-full rounded my-2" loading="lazy" />`
     )
     .replace(/\{#([a-zA-Z0-9_-]+)\}/g, '<a id="$1" class="scroll-mt-20"></a>')
     .replace(
@@ -137,10 +138,10 @@ function isHorizontalRule(line: string): boolean {
   return /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line.trim());
 }
 
-function matchImageLine(line: string): { alt: string; url: string } | null {
-  const match = line.trim().match(/^!\[([^\]]*)\]\((https?:\/\/\S+)\)$/);
+function matchImageLine(line: string): { alt: string; url: string; title: string | null } | null {
+  const match = line.trim().match(/^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)$/);
   if (!match) return null;
-  return { alt: match[1], url: match[2] };
+  return { alt: match[1], url: match[2], title: match[3] ?? null };
 }
 
 function splitTableRow(line: string): string[] {
@@ -257,7 +258,7 @@ export function renderMarkdown(raw: string): string {
     if (image) {
       closeList();
       html.push(
-        `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" class="max-w-full rounded my-2" loading="lazy" />`
+        `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}"${image.title ? ` title="${escapeHtml(image.title)}"` : ""} class="max-w-full rounded my-2" loading="lazy" />`
       );
       i++;
       continue;
