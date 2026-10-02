@@ -9,7 +9,7 @@ import { useDraftAutosave } from "../hooks/useDraftAutosave";
 import { DraftRestoreBanner } from "./editor/DraftRestoreBanner";
 
 const MAX_TITLE = 100;
-const MAX_CONTENT = 30000;
+const MAX_CONTENT = 55000;
 const DRAFT_STORAGE_KEY = "vmetke:draft:new-post";
 
 type PostComposerProps = {
