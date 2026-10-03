@@ -12,6 +12,7 @@ import {
   unbookmarkPost,
 } from "../lib/posts";
 import { renderMarkdown } from "../lib/markdown";
+import { truncateMarkdown } from "../lib/preview";
 import { estimateReadingMinutes } from "../lib/readingTime";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
@@ -58,6 +59,11 @@ export function PostCard({
 
   const isOwnPost = user?.id === post.author.id;
   const readingMinutes = estimateReadingMinutes(post.content);
+
+  // Превью на ленте: 500 символов, ссылки на картинки в лимит не входят
+  const preview = linkTitle ? truncateMarkdown(post.content, PREVIEW_LENGTH) : null;
+  const isTruncated = preview?.truncated ?? false;
+  const displayText = preview ? preview.text : post.content;
 
   const navigate = useNavigate();
 
@@ -223,23 +229,15 @@ export function PostCard({
             </span>
           </div>
 
-          {(() => {
-            const isTruncated = linkTitle && post.content.length > PREVIEW_LENGTH;
-            const displayText = isTruncated ? `${post.content.slice(0, PREVIEW_LENGTH)}…` : post.content;
-            return (
-              <>
-                <div
-                  className="text-sm text-gray-700 dark:text-gray-300 wrap-anywhere"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }}
-                />
-                {isTruncated && (
-                  <Link to={`/post/${post.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">
-                    Читать далее
-                  </Link>
-                )}
-              </>
-            );
-          })()}
+          <div
+            className="text-sm text-gray-700 dark:text-gray-300 wrap-anywhere"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }}
+          />
+          {isTruncated && (
+            <Link to={`/post/${post.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">
+              Читать далее
+            </Link>
+          )}
 
           <PostTags tags={post.tags} />
         </>
