@@ -24,7 +24,7 @@ describe("PostComposer", () => {
 
   it("не показывает счётчик символов текста поста", () => {
     render(<PostComposer mode="markdown" editorKey={0} onPosted={vi.fn()} />);
-    expect(screen.queryByText(/\/30000/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/55000/)).not.toBeInTheDocument();
   });
 
   it("кнопка 'Опубликовать' отключена, пока пустой заголовок или текст", () => {
