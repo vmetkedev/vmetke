@@ -67,7 +67,7 @@ export default function NotificationsPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto p-8 space-y-3">
+      <div className="max-w-5xl mx-auto p-8 space-y-3">
         <h1 className="text-xl font-semibold dark:text-gray-100">Уведомления</h1>
     
         {loading ? (

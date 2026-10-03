@@ -73,7 +73,7 @@ export default function SearchPage() {
   if (tag) {
     return (
       <AppLayout>
-        <div className="max-w-2xl mx-auto p-8 space-y-4">
+        <div className="max-w-5xl mx-auto p-8 space-y-4">
           <h1 className="text-xl font-semibold dark:text-gray-100">
             Посты с тегом <span className="text-blue-600 dark:text-blue-400">{tag}</span>
           </h1>
@@ -103,7 +103,7 @@ export default function SearchPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto p-8 space-y-4">
+      <div className="max-w-5xl mx-auto p-8 space-y-4">
         <h1 className="text-xl font-semibold dark:text-gray-100">Поиск</h1>
 
         <input

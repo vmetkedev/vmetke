@@ -12,7 +12,7 @@ export function Footer() {
 
   return (
     <footer className="border-t dark:border-gray-700 mt-8">
-      <div className="max-w-2xl mx-auto px-8 py-6 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+      <div className="max-w-5xl mx-auto px-8 py-6 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
         <span>© {new Date().getFullYear()} Vmetke</span>
         <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-full p-1">
           {options.map((opt) => (

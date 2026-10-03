@@ -20,7 +20,7 @@ export function AppHeader() {
   if (!user) {
     return (
       <header className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
-        <div className="max-w-2xl mx-auto px-8 py-4 flex justify-between items-center">
+        <div className="max-w-5xl mx-auto px-8 py-4 flex justify-between items-center">
           <Link to="/" className="text-xl font-semibold text-blue-600 dark:text-blue-400">
             Vmetke
           </Link>
@@ -34,7 +34,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-700">
-      <div className="max-w-2xl mx-auto px-8 py-4 flex justify-between items-center">
+      <div className="max-w-5xl mx-auto px-8 py-4 flex justify-between items-center">
         <Link to="/" className="text-xl font-semibold text-blue-600 dark:text-blue-400">
           Vmetke
         </Link>

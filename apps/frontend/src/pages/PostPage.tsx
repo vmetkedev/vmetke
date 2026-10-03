@@ -56,7 +56,7 @@ export default function PostPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto p-8 space-y-4">
+      <div className="max-w-5xl mx-auto p-8 space-y-4">
         <PostCard post={post} linkTitle={false} onDeleted={() => navigate("/")} />
 
         {profile && (

@@ -44,7 +44,7 @@ export default function BookmarksPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto p-8 space-y-4">
+      <div className="max-w-5xl mx-auto p-8 space-y-4">
         <h1 className="text-xl font-semibold dark:text-gray-100">Избранное</h1>
 
         {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
