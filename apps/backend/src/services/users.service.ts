@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 import crypto from "node:crypto";
 import { eq, and, count } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { users, follows, posts, comments, likes, bookmarks, refreshTokens } from "../db/schema/index.js";
+import { users, follows, refreshTokens } from "../db/schema/index.js";
 
 export class InvalidPasswordError extends Error {}
 export class UserNotFoundError extends Error {}
@@ -80,36 +80,4 @@ export async function deleteAccount(userId: string, password: string) {
     .where(eq(users.id, userId));
 
   await db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.userId, userId));
-}
-
-export async function exportUserData(userId: string) {
-  const [profile] = await db.select().from(users).where(eq(users.id, userId));
-  if (!profile) throw new UserNotFoundError("Пользователь не найден");
-
-  const [userPosts, userComments, userLikes, userBookmarks, following, followers] = await Promise.all([
-    db.select().from(posts).where(eq(posts.authorId, userId)),
-    db.select().from(comments).where(eq(comments.authorId, userId)),
-    db.select().from(likes).where(eq(likes.userId, userId)),
-    db.select().from(bookmarks).where(eq(bookmarks.userId, userId)),
-    db.select().from(follows).where(eq(follows.followerId, userId)),
-    db.select().from(follows).where(eq(follows.followingId, userId)),
-  ]);
-
-  return {
-    profile: {
-      id: profile.id,
-      email: profile.email,
-      username: profile.username,
-      displayName: profile.displayName,
-      bio: profile.bio,
-      avatarColor: profile.avatarColor,
-      createdAt: profile.createdAt,
-    },
-    posts: userPosts,
-    comments: userComments,
-    likes: userLikes,
-    bookmarks: userBookmarks,
-    following,
-    followers,
-  };
 }

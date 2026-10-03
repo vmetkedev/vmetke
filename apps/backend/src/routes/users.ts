@@ -4,7 +4,6 @@ import {
   getUserProfile,
   updateAvatarColor,
   deleteAccount,
-  exportUserData,
   InvalidPasswordError,
   UserNotFoundError,
 } from "../services/users.service.js";
@@ -23,13 +22,6 @@ export default async function usersRoutes(app: FastifyInstance) {
     const payload = request.user as { sub: string };
     await updateAvatarColor(payload.sub, parsed.data.avatarColor);
     return { success: true };
-  });
-
-  app.get("/me/export", { preHandler: [app.authenticate] }, async (request, reply) => {
-    const payload = request.user as { sub: string };
-    const data = await exportUserData(payload.sub);
-    reply.header("Content-Disposition", `attachment; filename="vmetke-export-${payload.sub}.json"`);
-    return data;
   });
 
   app.delete("/me", { preHandler: [app.authenticate] }, async (request, reply) => {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../auth/AuthContext";
-import { exportAccountData, deleteAccount } from "../lib/account";
+import { deleteAccount } from "../lib/account";
 import { updateAvatarColor } from "../lib/users";
 import { Avatar } from "../components/Avatar";
 import { AVATAR_PALETTE } from "../lib/avatarPalette";
@@ -10,9 +10,6 @@ import { AVATAR_PALETTE } from "../lib/avatarPalette";
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuth();
   const navigate = useNavigate();
-
-  const [exporting, setExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
 
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
@@ -35,26 +32,6 @@ export default function SettingsPage() {
       setAvatarError((err as Error).message);
     } finally {
       setAvatarSaving(false);
-    }
-  };
-
-  const handleExport = async () => {
-    setExporting(true);
-    setExportError(null);
-    try {
-      const blob = await exportAccountData();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `vmetke-export-${user?.username ?? "data"}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setExportError((err as Error).message);
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -100,21 +77,6 @@ export default function SettingsPage() {
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-3">
-          <h2 className="font-medium dark:text-gray-100">Экспорт данных</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Скачайте копию всех ваших данных: профиль, посты, комментарии, лайки, закладки и подписки — в формате JSON.
-          </p>
-          {exportError && <p className="text-sm text-red-600">{exportError}</p>}
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="text-sm rounded px-4 py-1.5 bg-blue-600 text-white disabled:opacity-50"
-          >
-            {exporting ? "Готовим файл..." : "Скачать мои данные"}
-          </button>
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-3 border border-red-200 dark:border-red-900">
