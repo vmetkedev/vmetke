@@ -12,6 +12,7 @@ import usersRoutes from "./routes/users.js";
 import notificationsRoutes from "./routes/notifications.js";
 import searchRoutes from "./routes/search.js";
 import sitemapRoutes from "./routes/sitemap.js";
+import messagesRoutes from "./routes/messages.js";
 
 const app = Fastify({ logger: true });
 
@@ -33,6 +34,8 @@ const start = async () => {
   await app.register(notificationsRoutes, { prefix: "/api/notifications" });
   await app.register(searchRoutes, { prefix: "/api/search" });
   await app.register(sitemapRoutes);
+
+  await app.register(messagesRoutes, { prefix: "/api/conversations" });
 
   app.get("/health", async () => ({ status: "ok" }));
 

@@ -78,6 +78,13 @@
       "when": 1790746551238,
       "tag": "0011_perfect_lockheed",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791087039451,
+      "tag": "0012_giant_gabe_jones",
+      "breakpoints": true
     }
   ]
 }

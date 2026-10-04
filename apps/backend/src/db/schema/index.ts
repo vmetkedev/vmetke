@@ -7,3 +7,4 @@ export * from "./comments.js";
 export * from "./comment-likes.js";
 export * from "./notifications.js";
 export * from "./bookmarks.js";
+export * from "./messages.js";
