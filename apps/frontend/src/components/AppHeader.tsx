@@ -11,7 +11,10 @@ export function AppHeader() {
 
   useEffect(() => {
     if (!user) return;
-    const load = () => fetchNotifications().then((data) => setUnreadCount(data.unreadCount));
+    const load = () => 
+      fetchNotifications()
+        .then((data) => 
+          setUnreadCount(data.unreadCount));
     load();
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);

@@ -51,7 +51,12 @@ export async function listConversations(me: string) {
   return db
     .select({
       id: conversations.id,
-      otherUser: { id: users.id, username: users.username },
+      otherUser: {
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        avatarColor: users.avatarColor,
+      },
       lastMessage: {
         id: messages.id,
         content: messages.content,

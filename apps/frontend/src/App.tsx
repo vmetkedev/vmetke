@@ -12,6 +12,7 @@ import MarkdownHelpPage from "./pages/help/MarkdownHelpPage";
 import WysiwygHelpPage from "./pages/help/WysiwygHelpPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import SearchPage from "./pages/SearchPage";
+import MessagesPage from "./pages/MessagesPage";
 
 export default function App() {
   return (
@@ -28,6 +29,8 @@ export default function App() {
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/docs/help/markdown" element={<MarkdownHelpPage />} />
       <Route path="/docs/help/wysiwyg" element={<WysiwygHelpPage />} />
+      <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+      <Route path="/messages/:id" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
     </Routes>
   );
 }

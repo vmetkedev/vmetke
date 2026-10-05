@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import {
   fetchUserProfile,
   fetchUserPosts,
@@ -11,6 +11,8 @@ import type { Post } from "../lib/posts";
 import { PostCard } from "../components/PostCard";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
+import { Mail } from "lucide-react";
+import { openConversation } from "../lib/messages";
 
 type Tab = "profile" | "posts";
 
@@ -37,6 +39,7 @@ export default function ProfilePage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("profile");
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     if (!username) return;
@@ -82,6 +85,25 @@ export default function ProfilePage() {
     }
   };
 
+  const handleMessage = async () => {
+    if (!profile) return;
+    try {
+      const conv = await openConversation(profile.id);
+      navigate(`/messages/${conv.id}`, {
+        state: {
+          otherUser: {
+            id: profile.id,
+            username: profile.username,
+            displayName: profile.displayName,
+            avatarColor: profile.avatarColor,
+          },
+        },
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   if (loading) return <AppLayout><p className="p-8 text-center text-gray-500 dark:text-gray-400">Загрузка...</p></AppLayout>;
   if (error || !profile)
     return <AppLayout><p className="p-8 text-center text-red-600">{error || "Пользователь не найден"}</p></AppLayout>;
@@ -114,17 +136,26 @@ export default function ProfilePage() {
                   <div className="text-xs text-gray-500 dark:text-gray-400">Подписки</div>
                 </div>
                 {!profile.isMe && (
-                  <button
-                    onClick={handleFollowToggle}
-                    disabled={followLoading}
-                    className={`ml-auto text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
-                      profile.isFollowedByMe
-                        ? "border dark:border-gray-600 text-gray-700 dark:text-gray-200"
-                        : "bg-blue-600 text-white"
-                    }`}
-                  >
-                    {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}
-                  </button>
+                  <div className="ml-auto flex gap-2">
+                    <button
+                      onClick={handleMessage}
+                      className="flex items-center gap-1.5 text-sm rounded px-3 py-1.5 border dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                      <Mail size={14} />
+                      Написать
+                    </button>
+                    <button
+                      onClick={handleFollowToggle}
+                      disabled={followLoading}
+                      className={`text-sm rounded px-4 py-1.5 disabled:opacity-50 ${
+                        profile.isFollowedByMe
+                          ? "border dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                          : "bg-blue-600 text-white"
+                      }`}
+                    >
+                      {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}
+                    </button>
+                  </div>
                 )}
               </div>
               <h1 className="mt-3 text-xl font-semibold text-blue-600 dark:text-blue-400 break-all">

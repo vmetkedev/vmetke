@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { Settings, Bookmark, LogOut } from "lucide-react";
+import { Settings, Bookmark, LogOut, Mail } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { fetchConversations, MESSAGES_CHANGED_EVENT } from "../lib/messages";
 import { Avatar } from "./Avatar";
 
 export function ProfileMenu() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [messagesUnread, setMessagesUnread] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -20,12 +22,36 @@ export function ProfileMenu() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  useEffect(() => {
+    if (!user) return;
+    const load = () =>
+      fetchConversations()
+        .then((data) =>
+          setMessagesUnread(data.conversations.reduce((sum, c) => sum + c.unreadCount, 0)),
+        )
+        .catch(() => {});
+    load();
+    const interval = setInterval(load, 10000);
+    window.addEventListener(MESSAGES_CHANGED_EVENT, load);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(MESSAGES_CHANGED_EVENT, load);
+    };
+  }, [user]);
+
   if (!user) return null;
 
   return (
     <div className="relative" ref={containerRef}>
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center" aria-label="Меню профиля">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="relative flex items-center"
+        aria-label="Меню профиля"
+      >
         <Avatar username={user.username} avatarColor={user.avatarColor} size="sm" />
+        {messagesUnread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-gray-50 dark:border-gray-900" />
+        )}
       </button>
 
       {open && (
@@ -50,6 +76,19 @@ export function ProfileMenu() {
           </div>
 
           <nav className="py-1">
+            <Link
+              to="/messages"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              <Mail size={16} />
+              Сообщения
+              {messagesUnread > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
+                  {messagesUnread > 99 ? "99+" : messagesUnread}
+                </span>
+              )}
+            </Link>
             <Link
               to="/bookmarks"
               onClick={() => setOpen(false)}
