@@ -24,7 +24,14 @@ const start = async () => {
   });
   await app.register(cookie);
   await app.register(jwtPlugin);
-  await app.register(rateLimit, { max: 100, timeWindow: "1 minute" });
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: `Слишком много запросов. Повторите через ${Math.ceil(context.ttl / 1000)} с`,
+    }),
+  });
 
   await app.register(authRoutes, { prefix: "/api/auth" });
 

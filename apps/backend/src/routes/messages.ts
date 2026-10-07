@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
   getMessages,
@@ -10,6 +10,9 @@ import {
 } from "../services/messages.service.js";
 
 export const MAX_MESSAGE = 5000;
+export const SEND_LIMIT = 20;
+export const CREATE_LIMIT = 10;
+const LIMIT_WINDOW = "1 minute";
 
 const createBody = z.object({ userId: z.string().uuid() });
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -25,7 +28,24 @@ function fail(reply: FastifyReply, e: unknown) {
 }
 
 export default async function messagesRoutes(app: FastifyInstance) {
-  app.post("/", { preHandler: [app.authenticate] }, async (request, reply) => {
+  // onRequest-хук rate-limit срабатывает до authenticate, поэтому request.user ещё пуст.
+  // Проверяем подпись токена сами; без валидного токена лимитируем по IP.
+  const userKey = (request: FastifyRequest) => {
+    try {
+      const token = request.headers.authorization?.replace(/^Bearer\s+/i, "");
+      if (token) return `user:${app.jwt.verify<{ sub: string }>(token).sub}`;
+    } catch {
+      // невалидный токен: authenticate всё равно вернёт 401
+    }
+    return request.ip;
+  };
+  app.post(
+  "/",
+  {
+    preHandler: [app.authenticate],
+    config: { rateLimit: { max: CREATE_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+  },
+  async (request, reply) => {
     const body = createBody.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Некорректные данные" });
 
@@ -57,7 +77,13 @@ export default async function messagesRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/:id/messages", { preHandler: [app.authenticate] }, async (request, reply) => {
+  app.post(
+  "/:id/messages",
+  {
+    preHandler: [app.authenticate],
+    config: { rateLimit: { max: SEND_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+  },
+  async (request, reply) => {
     const params = idParams.safeParse(request.params);
     const body = sendBody.safeParse(request.body);
     if (!params.success || !body.success) {
