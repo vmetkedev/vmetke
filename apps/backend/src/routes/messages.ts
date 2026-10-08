@@ -1,6 +1,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
+  deleteConversation,
+  deleteMessage,
   getMessages,
   getOrCreateConversation,
   listConversations,
@@ -21,6 +23,12 @@ const historyQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
 const sendBody = z.object({ content: z.string().trim().min(1).max(MAX_MESSAGE) });
+const messageParams = z.object({
+  id: z.coerce.number().int().positive(),
+  messageId: z.coerce.number().int().positive(),
+});
+// scope обязателен и без default, чтобы случайно не удалить диалог у всех
+const deleteQuery = z.object({ scope: z.enum(["me", "all"]) });
 
 function fail(reply: FastifyReply, e: unknown) {
   if (e instanceof MessagingError) return reply.code(e.statusCode).send({ error: e.message });
@@ -106,6 +114,35 @@ export default async function messagesRoutes(app: FastifyInstance) {
     const payload = request.user as { sub: string };
     try {
       await markRead(params.data.id, payload.sub);
+      return { success: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  app.delete("/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const params = idParams.safeParse(request.params);
+    const query = deleteQuery.safeParse(request.query);
+    if (!params.success || !query.success) {
+      return reply.code(400).send({ error: "Некорректные данные" });
+    }
+
+    const payload = request.user as { sub: string };
+    try {
+      await deleteConversation(params.data.id, payload.sub, query.data.scope);
+      return { success: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  app.delete("/:id/messages/:messageId", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const params = messageParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
+
+    const payload = request.user as { sub: string };
+    try {
+      await deleteMessage(params.data.id, params.data.messageId, payload.sub);
       return { success: true };
     } catch (e) {
       return fail(reply, e);

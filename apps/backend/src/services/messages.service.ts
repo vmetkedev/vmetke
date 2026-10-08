@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { conversations, messages, users } from "../db/schema/index.js";
 
@@ -10,7 +10,27 @@ export class MessagingError extends Error {
   }
 }
 
+type Conv = typeof conversations.$inferSelect;
+type MessageRow = typeof messages.$inferSelect;
+export type DeleteScope = "me" | "all";
+
 const isLow = (conv: { userLowId: string }, me: string) => conv.userLowId === me;
+
+// Отметка «удалено у меня»: сообщения с id <= этого значения мне не показываются
+const clearedFor = (conv: Conv, me: string) =>
+  (isLow(conv, me) ? conv.clearedLowId : conv.clearedHighId) ?? 0;
+
+// Удалённое сообщение остаётся в истории как «надгробие» без текста
+function serializeMessage(m: MessageRow) {
+  return {
+    id: m.id,
+    conversationId: m.conversationId,
+    senderId: m.senderId,
+    content: m.deletedAt ? "" : m.content,
+    createdAt: m.createdAt,
+    deleted: m.deletedAt !== null,
+  };
+}
 
 async function getConversationFor(conversationId: number, me: string) {
   const [conv] = await db
@@ -19,10 +39,11 @@ async function getConversationFor(conversationId: number, me: string) {
     .where(
       and(
         eq(conversations.id, conversationId),
+        isNull(conversations.deletedAt),
         or(eq(conversations.userLowId, me), eq(conversations.userHighId, me)),
       ),
     );
-  // 404 и для чужого диалога, чтобы не раскрывать его существование
+  // 404 и для чужого/удалённого диалога, чтобы не раскрывать его существование
   if (!conv) throw new MessagingError(404, "Диалог не найден");
   return conv;
 }
@@ -36,19 +57,27 @@ export async function getOrCreateConversation(me: string, otherId: string) {
   const low = me < otherId ? me : otherId;
   const high = me < otherId ? otherId : me;
 
+  // Конфликт возможен только с живым диалогом (частичный уникальный индекс)
   await db.insert(conversations).values({ userLowId: low, userHighId: high }).onConflictDoNothing();
 
   const [conv] = await db
     .select()
     .from(conversations)
-    .where(and(eq(conversations.userLowId, low), eq(conversations.userHighId, high)));
+    .where(
+      and(
+        eq(conversations.userLowId, low),
+        eq(conversations.userHighId, high),
+        isNull(conversations.deletedAt),
+      ),
+    );
   return conv;
 }
 
 export async function listConversations(me: string) {
   const otherId = sql<string>`CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.userHighId} ELSE ${conversations.userLowId} END`;
+  const myCleared = sql`COALESCE(CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.clearedLowId} ELSE ${conversations.clearedHighId} END, 0)`;
 
-  return db
+  const rows = await db
     .select({
       id: conversations.id,
       otherUser: {
@@ -62,11 +91,13 @@ export async function listConversations(me: string) {
         content: messages.content,
         senderId: messages.senderId,
         createdAt: messages.createdAt,
+        deletedAt: messages.deletedAt,
       },
       unreadCount: sql<number>`(
         SELECT count(*)::int FROM ${messages} AS m
         WHERE m.conversation_id = ${conversations.id}
           AND m.sender_id <> ${me}
+          AND m.deleted_at IS NULL
           AND m.id > COALESCE(
             CASE WHEN ${conversations.userLowId} = ${me}
               THEN ${conversations.lastReadLowId}
@@ -76,8 +107,26 @@ export async function listConversations(me: string) {
     .from(conversations)
     .innerJoin(users, sql`${users.id} = ${otherId}`)
     .innerJoin(messages, eq(messages.id, conversations.lastMessageId))
-    .where(or(eq(conversations.userLowId, me), eq(conversations.userHighId, me)))
+    .where(
+      and(
+        or(eq(conversations.userLowId, me), eq(conversations.userHighId, me)),
+        isNull(conversations.deletedAt),
+        // Диалог, очищенный «у меня», скрыт, пока не придёт новое сообщение
+        sql`${conversations.lastMessageId} > ${myCleared}`,
+      ),
+    )
     .orderBy(desc(conversations.lastMessageAt));
+
+  return rows.map(({ lastMessage, ...rest }) => ({
+    ...rest,
+    lastMessage: {
+      id: lastMessage.id,
+      content: lastMessage.deletedAt ? "" : lastMessage.content,
+      senderId: lastMessage.senderId,
+      createdAt: lastMessage.createdAt,
+      deleted: lastMessage.deletedAt !== null,
+    },
+  }));
 }
 
 export async function getMessages(
@@ -86,7 +135,7 @@ export async function getMessages(
   before: number | undefined,
   limit: number,
 ) {
-  await getConversationFor(conversationId, me);
+  const conv = await getConversationFor(conversationId, me);
 
   const rows = await db
     .select()
@@ -94,6 +143,7 @@ export async function getMessages(
     .where(
       and(
         eq(messages.conversationId, conversationId),
+        gt(messages.id, clearedFor(conv, me)),
         before ? lt(messages.id, before) : undefined,
       ),
     )
@@ -102,7 +152,10 @@ export async function getMessages(
 
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
-  return { messages: items, nextCursor: hasMore ? items[items.length - 1].id : null };
+  return {
+    messages: items.map(serializeMessage),
+    nextCursor: hasMore ? items[items.length - 1].id : null,
+  };
 }
 
 export async function sendMessage(conversationId: number, me: string, content: string) {
@@ -124,7 +177,7 @@ export async function sendMessage(conversationId: number, me: string, content: s
       })
       .where(eq(conversations.id, conversationId));
 
-    return msg;
+    return serializeMessage(msg);
   });
 }
 
@@ -139,5 +192,70 @@ export async function markRead(conversationId: number, me: string) {
   await db
     .update(conversations)
     .set(low ? { lastReadLowId: value } : { lastReadHighId: value })
+    .where(eq(conversations.id, conversationId));
+}
+
+// Удаление своего сообщения у всех (soft delete). Повторное удаление идемпотентно.
+export async function deleteMessage(conversationId: number, messageId: number, me: string) {
+  const conv = await getConversationFor(conversationId, me);
+
+  const [msg] = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.id, messageId),
+        eq(messages.conversationId, conversationId),
+        // сообщение из очищенной «у меня» части истории я не вижу, значит, и удалить не могу
+        gt(messages.id, clearedFor(conv, me)),
+      ),
+    );
+  if (!msg) throw new MessagingError(404, "Сообщение не найдено");
+  if (msg.senderId !== me) throw new MessagingError(403, "Можно удалять только свои сообщения");
+  if (msg.deletedAt) return;
+
+  await db.transaction(async (tx) => {
+    await tx.update(messages).set({ deletedAt: new Date() }).where(eq(messages.id, messageId));
+
+    if (conv.lastMessageId !== messageId) return;
+
+    // Удалили последнее сообщение: превью диалога переключаем на предыдущее живое.
+    // Если живых нет, lastMessageId = null, и диалог скрывается из списка.
+    const [prev] = await tx
+      .select({ id: messages.id, createdAt: messages.createdAt })
+      .from(messages)
+      .where(and(eq(messages.conversationId, conversationId), isNull(messages.deletedAt)))
+      .orderBy(desc(messages.id))
+      .limit(1);
+
+    // Условие на lastMessageId защищает от гонки с новым сообщением
+    await tx
+      .update(conversations)
+      .set({ lastMessageId: prev?.id ?? null, lastMessageAt: prev?.createdAt ?? null })
+      .where(and(eq(conversations.id, conversationId), eq(conversations.lastMessageId, messageId)));
+  });
+}
+
+export async function deleteConversation(conversationId: number, me: string, scope: DeleteScope) {
+  const conv = await getConversationFor(conversationId, me);
+
+  if (scope === "all") {
+    await db
+      .update(conversations)
+      .set({ deletedAt: new Date() })
+      .where(eq(conversations.id, conversationId));
+    return;
+  }
+
+  // «У меня»: прячем всю историю до последнего сообщения и считаем её прочитанной
+  if (!conv.lastMessageId) return;
+  const cleared = conv.lastMessageId;
+  await db
+    .update(conversations)
+    .set(
+      isLow(conv, me)
+        ? { clearedLowId: cleared, lastReadLowId: cleared }
+        : { clearedHighId: cleared, lastReadHighId: cleared },
+    )
     .where(eq(conversations.id, conversationId));
 }

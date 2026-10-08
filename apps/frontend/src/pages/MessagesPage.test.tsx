@@ -48,12 +48,13 @@ const msg = (id: number, senderId: string, content: string, conversationId = 5):
   senderId,
   content,
   createdAt: now(),
+  deleted: false,
 });
 
 const conv = (over: Partial<Conversation> = {}): Conversation => ({
   id: 5,
   otherUser: BOB,
-  lastMessage: { id: 2, content: "последнее", senderId: BOB.id, createdAt: now() },
+  lastMessage: { id: 2, content: "последнее", senderId: BOB.id, createdAt: now(), deleted: false },
   unreadCount: 0,
   ...over,
 });
@@ -101,11 +102,11 @@ describe("MessagesPage: список диалогов", () => {
   it("рисует диалоги: имя, username, префикс «Вы:» и бейдж непрочитанных", async () => {
     vi.mocked(fetchConversations).mockResolvedValue({
       conversations: [
-        conv({ unreadCount: 3, lastMessage: { id: 2, content: "привет, как дела", senderId: BOB.id, createdAt: now() } }),
+        conv({ unreadCount: 3, lastMessage: { id: 2, content: "привет, как дела", senderId: BOB.id, createdAt: now(), deleted: false } }),
         conv({
           id: 6,
           otherUser: ALICE,
-          lastMessage: { id: 9, content: "ок", senderId: ME, createdAt: now() },
+          lastMessage: { id: 9, content: "ок", senderId: ME, createdAt: now(), deleted: false },
         }),
       ],
     });

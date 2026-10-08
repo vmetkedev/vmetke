@@ -27,7 +27,7 @@ import { ProfileMenu } from "./ProfileMenu";
 const conv = (id: number, unreadCount: number): Conversation => ({
   id,
   otherUser: { id: `u${id}`, username: `user${id}`, displayName: null, avatarColor: null },
-  lastMessage: { id: 1, content: "hi", senderId: `u${id}`, createdAt: new Date().toISOString() },
+  lastMessage: { id: 1, content: "hi", senderId: `u${id}`, createdAt: new Date().toISOString(), deleted: false },
   unreadCount,
 });
 

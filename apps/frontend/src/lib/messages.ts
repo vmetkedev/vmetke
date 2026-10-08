@@ -13,22 +13,39 @@ export type Message = {
   senderId: string;
   content: string;
   createdAt: string;
+  deleted: boolean;
 };
 
 export type Conversation = {
   id: number;
   otherUser: ConversationUser;
-  lastMessage: { id: number; content: string; senderId: string; createdAt: string };
+  lastMessage: {
+    id: number;
+    content: string;
+    senderId: string;
+    createdAt: string;
+    deleted: boolean;
+  };
   unreadCount: number;
 };
+
+export type DeleteScope = "me" | "all";
 
 export const MAX_MESSAGE = 5000;
 export const MESSAGES_CHANGED_EVENT = "messages:changed";
 
+export class RequestError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.error ?? "Ошибка запроса");
+    throw new RequestError(body?.error ?? "Ошибка запроса", res.status);
   }
   return res.json();
 }
@@ -62,5 +79,18 @@ export async function sendMessage(conversationId: number, content: string): Prom
 
 export async function markConversationRead(conversationId: number): Promise<void> {
   await parse(await api.post(`/conversations/${conversationId}/read`));
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export async function deleteMessage(conversationId: number, messageId: number): Promise<void> {
+  await parse(await api.delete(`/conversations/${conversationId}/messages/${messageId}`));
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export async function deleteConversation(
+  conversationId: number,
+  scope: DeleteScope,
+): Promise<void> {
+  await parse(await api.delete(`/conversations/${conversationId}?scope=${scope}`));
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
 }

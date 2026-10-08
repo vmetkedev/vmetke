@@ -85,6 +85,13 @@
       "when": 1791087039451,
       "tag": "0012_giant_gabe_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791430539824,
+      "tag": "0013_wise_arachne",
+      "breakpoints": true
     }
   ]
 }
