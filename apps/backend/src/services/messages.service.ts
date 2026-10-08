@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { conversations, messages, users } from "../db/schema/index.js";
+import { conversations, messages, userBlocks, users } from "../db/schema/index.js";
 
 export class MessagingError extends Error {
   statusCode: number;
@@ -32,6 +32,32 @@ function serializeMessage(m: MessageRow) {
   };
 }
 
+const otherOf = (conv: { userLowId: string; userHighId: string }, me: string) =>
+  isLow(conv, me) ? conv.userHighId : conv.userLowId;
+
+async function blockState(me: string, otherId: string) {
+  const rows = await db
+    .select({ blockerId: userBlocks.blockerId })
+    .from(userBlocks)
+    .where(
+      or(
+        and(eq(userBlocks.blockerId, me), eq(userBlocks.blockedId, otherId)),
+        and(eq(userBlocks.blockerId, otherId), eq(userBlocks.blockedId, me)),
+      ),
+    );
+  return {
+    blockedByMe: rows.some((r) => r.blockerId === me),
+    blockedMe: rows.some((r) => r.blockerId === otherId),
+  };
+}
+
+function assertCanMessage(s: { blockedByMe: boolean; blockedMe: boolean }) {
+  if (s.blockedByMe) {
+    throw new MessagingError(403, "Вы заблокировали этого пользователя. Разблокируйте его, чтобы написать");
+  }
+  if (s.blockedMe) throw new MessagingError(403, "Этому пользователю нельзя отправить сообщение");
+}
+
 async function getConversationFor(conversationId: number, me: string) {
   const [conv] = await db
     .select()
@@ -57,19 +83,27 @@ export async function getOrCreateConversation(me: string, otherId: string) {
   const low = me < otherId ? me : otherId;
   const high = me < otherId ? otherId : me;
 
+  const findActive = () =>
+    db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.userLowId, low),
+          eq(conversations.userHighId, high),
+          isNull(conversations.deletedAt),
+        ),
+      );
+
+  const [existing] = await findActive();
+  if (existing) return existing;
+
+  assertCanMessage(await blockState(me, otherId));
+
   // Конфликт возможен только с живым диалогом (частичный уникальный индекс)
   await db.insert(conversations).values({ userLowId: low, userHighId: high }).onConflictDoNothing();
 
-  const [conv] = await db
-    .select()
-    .from(conversations)
-    .where(
-      and(
-        eq(conversations.userLowId, low),
-        eq(conversations.userHighId, high),
-        isNull(conversations.deletedAt),
-      ),
-    );
+  const [conv] = await findActive();
   return conv;
 }
 
@@ -102,6 +136,11 @@ export async function listConversations(me: string) {
             CASE WHEN ${conversations.userLowId} = ${me}
               THEN ${conversations.lastReadLowId}
               ELSE ${conversations.lastReadHighId} END, 0)
+      )`,
+      blockedByMe: sql<boolean>`EXISTS (
+        SELECT 1 FROM ${userBlocks}
+        WHERE ${userBlocks.blockerId} = ${me}
+          AND ${userBlocks.blockedId} = ${otherId}
       )`,
     })
     .from(conversations)
@@ -152,14 +191,17 @@ export async function getMessages(
 
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
+  const { blockedByMe } = await blockState(me, otherOf(conv, me));
   return {
     messages: items.map(serializeMessage),
     nextCursor: hasMore ? items[items.length - 1].id : null,
+    blockedByMe,
   };
 }
 
 export async function sendMessage(conversationId: number, me: string, content: string) {
   const conv = await getConversationFor(conversationId, me);
+  assertCanMessage(await blockState(me, otherOf(conv, me)));
 
   return db.transaction(async (tx) => {
     const [msg] = await tx
@@ -258,4 +300,34 @@ export async function deleteConversation(conversationId: number, me: string, sco
         : { clearedHighId: cleared, lastReadHighId: cleared },
     )
     .where(eq(conversations.id, conversationId));
+}
+
+export async function blockUser(me: string, targetId: string) {
+  if (me === targetId) throw new MessagingError(400, "Нельзя заблокировать самого себя");
+
+  const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, targetId));
+  if (!target) throw new MessagingError(404, "Пользователь не найден");
+
+  await db.insert(userBlocks).values({ blockerId: me, blockedId: targetId }).onConflictDoNothing();
+}
+
+export async function unblockUser(me: string, targetId: string) {
+  await db
+    .delete(userBlocks)
+    .where(and(eq(userBlocks.blockerId, me), eq(userBlocks.blockedId, targetId)));
+}
+
+export async function listBlockedUsers(me: string) {
+  return db
+    .select({
+      id: users.id,
+      username: users.username,
+      displayName: users.displayName,
+      avatarColor: users.avatarColor,
+      blockedAt: userBlocks.createdAt,
+    })
+    .from(userBlocks)
+    .innerJoin(users, eq(users.id, userBlocks.blockedId))
+    .where(eq(userBlocks.blockerId, me))
+    .orderBy(desc(userBlocks.createdAt));
 }

@@ -11,6 +11,7 @@ import usersRoutes from "../routes/users.js";
 import notificationsRoutes from "../routes/notifications.js";
 import searchRoutes from "../routes/search.js";
 import messagesRoutes from "../routes/messages.js";
+import blocksRoutes from "../routes/blocks.js";
 
 export async function buildTestApp() {
   const app = Fastify({ logger: false });
@@ -28,6 +29,7 @@ export async function buildTestApp() {
   await app.register(notificationsRoutes, { prefix: "/api/notifications" });
   await app.register(searchRoutes, { prefix: "/api/search" });
 
+    await app.register(blocksRoutes, { prefix: "/api/blocks" });
   await app.register(messagesRoutes, { prefix: "/api/conversations" });
 
   await app.ready();
