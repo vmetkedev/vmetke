@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { AppLayout } from "../components/AppLayout";
 import { useAuth } from "../auth/AuthContext";
 import { deleteAccount } from "../lib/account";
 import { updateAvatarColor } from "../lib/users";
+import { fetchBlockedUsers, unblockUser, type BlockedUser } from "../lib/messages";
 import { Avatar } from "../components/Avatar";
 import { AVATAR_PALETTE } from "../lib/avatarPalette";
 
@@ -19,6 +20,28 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [blocked, setBlocked] = useState<BlockedUser[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(true);
+  const [blockedError, setBlockedError] = useState<string | null>(null);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchBlockedUsers()
+      .then((data) => {
+        if (!cancelled) setBlocked(data.blocked);
+      })
+      .catch((err) => {
+        if (!cancelled) setBlockedError((err as Error).message);
+      })
+      .finally(() => {
+        if (!cancelled) setBlockedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleAvatarSelect = async (colorIndex: number) => {
     if (!user || colorIndex === user.avatarColor) return;
     setAvatarSaving(true);
@@ -32,6 +55,19 @@ export default function SettingsPage() {
       setAvatarError((err as Error).message);
     } finally {
       setAvatarSaving(false);
+    }
+  };
+
+  const handleUnblock = async (u: BlockedUser) => {
+    setUnblockingId(u.id);
+    setBlockedError(null);
+    try {
+      await unblockUser(u.id);
+      setBlocked((prev) => prev.filter((x) => x.id !== u.id));
+    } catch (err) {
+      setBlockedError((err as Error).message);
+    } finally {
+      setUnblockingId(null);
     }
   };
 
@@ -77,6 +113,45 @@ export default function SettingsPage() {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-3">
+          <h2 className="font-medium dark:text-gray-100">Заблокированные пользователи</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Заблокированные не могут писать вам, а вы не можете писать им.
+          </p>
+          {blockedError && <p className="text-sm text-red-600">{blockedError}</p>}
+          {blockedLoading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Загрузка...</p>
+          ) : blocked.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Вы никого не блокировали.</p>
+          ) : (
+            <ul className="divide-y dark:divide-gray-700">
+              {blocked.map((u) => (
+                <li key={u.id} className="flex items-center gap-3 py-2">
+                  <Avatar
+                    username={u.username}
+                    displayName={u.displayName}
+                    avatarColor={u.avatarColor}
+                    size="sm"
+                  />
+                  <Link
+                    to={`/u/${u.username}`}
+                    className="flex-1 min-w-0 truncate text-sm hover:underline dark:text-gray-100"
+                  >
+                    {u.displayName || u.username}
+                  </Link>
+                  <button
+                    onClick={() => handleUnblock(u)}
+                    disabled={unblockingId === u.id}
+                    className="text-sm rounded px-3 py-1 border dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+                  >
+                    Разблокировать
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow space-y-3 border border-red-200 dark:border-red-900">

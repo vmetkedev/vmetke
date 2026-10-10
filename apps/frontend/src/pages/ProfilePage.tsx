@@ -12,7 +12,7 @@ import { PostCard } from "../components/PostCard";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
 import { Mail } from "lucide-react";
-import { openConversation } from "../lib/messages";
+import { blockUser, fetchBlockedUsers, openConversation, unblockUser } from "../lib/messages";
 
 type Tab = "profile" | "posts";
 
@@ -39,6 +39,9 @@ export default function ProfilePage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("profile");
+  const [blocked, setBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
@@ -64,6 +67,24 @@ export default function ProfilePage() {
     load();
   }, [load]);
 
+  const profileId = profile?.id;
+  const isMe = profile?.isMe;
+
+  useEffect(() => {
+    setBlocked(false);
+    setActionError(null);
+    if (!profileId || isMe) return;
+    let cancelled = false;
+    fetchBlockedUsers()
+      .then((data) => {
+        if (!cancelled) setBlocked(data.blocked.some((u) => u.id === profileId));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, isMe]);
+
   const handleFollowToggle = async () => {
     if (!profile) return;
     setFollowLoading(true);
@@ -87,6 +108,7 @@ export default function ProfilePage() {
 
   const handleMessage = async () => {
     if (!profile) return;
+    setActionError(null);
     try {
       const conv = await openConversation(profile.id);
       navigate(`/messages/${conv.id}`, {
@@ -100,7 +122,30 @@ export default function ProfilePage() {
         },
       });
     } catch (err) {
-      setError((err as Error).message);
+      setActionError((err as Error).message);
+    }
+  };
+
+  const handleBlockToggle = async () => {
+    if (!profile || blockLoading) return;
+    if (
+      !blocked &&
+      !window.confirm(
+        `Заблокировать @${profile.username}? Переписка будет невозможна, пока вы не разблокируете.`,
+      )
+    ) {
+      return;
+    }
+    setBlockLoading(true);
+    setActionError(null);
+    try {
+      if (blocked) await unblockUser(profile.id);
+      else await blockUser(profile.id);
+      setBlocked(!blocked);
+    } catch (err) {
+      setActionError((err as Error).message);
+    } finally {
+      setBlockLoading(false);
     }
   };
 
@@ -136,7 +181,7 @@ export default function ProfilePage() {
                   <div className="text-xs text-gray-500 dark:text-gray-400">Подписки</div>
                 </div>
                 {!profile.isMe && (
-                  <div className="ml-auto flex gap-2">
+                  <div className="ml-auto flex flex-wrap justify-end gap-2">
                     <button
                       onClick={handleMessage}
                       className="flex items-center gap-1.5 text-sm rounded px-3 py-1.5 border dark:border-gray-600 text-gray-700 dark:text-gray-200"
@@ -155,6 +200,13 @@ export default function ProfilePage() {
                     >
                       {profile.isFollowedByMe ? "Отписаться" : "Подписаться"}
                     </button>
+                    <button
+                      onClick={handleBlockToggle}
+                      disabled={blockLoading}
+                      className="text-sm rounded px-3 py-1.5 border dark:border-gray-600 text-gray-700 dark:text-gray-200 disabled:opacity-50"
+                    >
+                      {blocked ? "Разблокировать" : "Заблокировать"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -164,6 +216,7 @@ export default function ProfilePage() {
               {profile.displayName && (
                 <p className="text-sm text-gray-800 dark:text-gray-200 mt-1">{profile.displayName}</p>
               )}
+              {actionError && <p className="mt-2 text-sm text-red-600">{actionError}</p>}
             </div>
 
             <div className="flex gap-6 px-5 border-t dark:border-gray-700">

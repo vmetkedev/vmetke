@@ -64,7 +64,7 @@ export async function openConversation(userId: string): Promise<{ id: number }> 
 export async function fetchMessages(
   conversationId: number,
   before?: number,
-): Promise<{ messages: Message[]; nextCursor: number | null }> {
+): Promise<{ messages: Message[]; nextCursor: number | null; blockedByMe?: boolean }> {
   const qs = before ? `?before=${before}` : "";
   return parse(await api.get(`/conversations/${conversationId}/messages${qs}`));
 }
@@ -93,4 +93,18 @@ export async function deleteConversation(
 ): Promise<void> {
   await parse(await api.delete(`/conversations/${conversationId}?scope=${scope}`));
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export type BlockedUser = ConversationUser & { blockedAt: string };
+
+export async function fetchBlockedUsers(): Promise<{ blocked: BlockedUser[] }> {
+  return parse(await api.get("/blocks"));
+}
+
+export async function blockUser(userId: string): Promise<void> {
+  await parse(await api.post("/blocks", { userId }));
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+  await parse(await api.delete(`/blocks/${userId}`));
 }

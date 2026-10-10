@@ -4,15 +4,18 @@ import { ArrowLeft, Send, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
+import { ConversationMenu } from "../components/ConversationMenu";
 import { DeleteConversationModal } from "../components/DeleteConversationModal";
 import {
   MAX_MESSAGE,
+  blockUser,
   deleteConversation,
   deleteMessage,
   fetchConversations,
   fetchMessages,
   markConversationRead,
   sendMessage,
+  unblockUser,
   type Conversation,
   type ConversationUser,
   type DeleteScope,
@@ -72,6 +75,8 @@ function Thread({
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [blockedByMe, setBlockedByMe] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -102,6 +107,7 @@ function Thread({
         setMessages((prev) => mergeMessages(prev, asc));
         if (initial) setNextCursor(data.nextCursor);
         markIfNeeded(asc);
+        setBlockedByMe(data.blockedByMe === true);
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -210,7 +216,44 @@ function Thread({
     }
   };
 
+  const handleBlock = async () => {
+    if (!otherUser || blockBusy) return;
+    const name = otherUser.displayName || otherUser.username;
+    if (
+      !window.confirm(`Заблокировать ${name}? Переписка будет невозможна, пока вы не разблокируете.`)
+    ) {
+      return;
+    }
+    setBlockBusy(true);
+    try {
+      await blockUser(otherUser.id);
+      setBlockedByMe(true);
+      setError(null);
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBlockBusy(false);
+    }
+  };
+
+  const handleUnblock = async () => {
+    if (!otherUser || blockBusy) return;
+    setBlockBusy(true);
+    try {
+      await unblockUser(otherUser.id);
+      setBlockedByMe(false);
+      setError(null);
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBlockBusy(false);
+    }
+  };
+
   const visibleMessages = messages.filter((m) => !m.deleted);
+  const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
 
   return (
     <>
@@ -229,20 +272,21 @@ function Thread({
               avatarColor={otherUser.avatarColor}
               size="sm"
             />
-            <span className="font-medium text-sm truncate">
-              {otherUser.displayName || otherUser.username}
-            </span>
+            <span className="font-medium text-sm truncate">{otherName}</span>
           </Link>
         ) : (
           <span className="font-medium text-sm dark:text-gray-100">Диалог</span>
         )}
-        <button
-          onClick={() => setShowDelete(true)}
-          className="ml-auto shrink-0 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-        >
-          <Trash2 size={14} />
-          <span>Удалить диалог</span>
-        </button>
+        <ConversationMenu
+          blocked={blockedByMe}
+          canBlock={otherUser !== null}
+          busy={blockBusy}
+          onBlockToggle={() => {
+            if (blockedByMe) handleUnblock();
+            else handleBlock();
+          }}
+          onDelete={() => setShowDelete(true)}
+        />
       </div>
 
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -266,7 +310,7 @@ function Thread({
                 Сообщений пока нет. Напишите первым.
               </p>
             )}
-                        {visibleMessages.map((m) => {
+            {visibleMessages.map((m) => {
               const mine = m.senderId === myId;
               return (
                 <div
@@ -308,31 +352,46 @@ function Thread({
 
       {error && <p className="px-4 pb-1 text-xs text-red-600">{error}</p>}
 
-      <div className="flex items-end gap-2 p-3 border-t dark:border-gray-700">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          maxLength={MAX_MESSAGE}
-          rows={1}
-          placeholder="Напишите сообщение..."
-          className="flex-1 resize-none max-h-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        <button
-          onClick={handleSend}
-          disabled={sending || !text.trim()}
-          aria-label="Отправить"
-          className="bg-blue-600 text-white rounded p-2.5 disabled:opacity-50"
-        >
-          <Send size={16} />
-        </button>
-      </div>
+      {blockedByMe ? (
+        <div className="flex items-center justify-between gap-3 p-3 border-t dark:border-gray-700">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Вы заблокировали этого пользователя.
+          </span>
+          <button
+            onClick={handleUnblock}
+            disabled={blockBusy}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 shrink-0"
+          >
+            Разблокировать
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-end gap-2 p-3 border-t dark:border-gray-700">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            maxLength={MAX_MESSAGE}
+            rows={1}
+            placeholder="Напишите сообщение..."
+            className="flex-1 resize-none max-h-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !text.trim()}
+            aria-label="Отправить"
+            className="bg-blue-600 text-white rounded p-2.5 disabled:opacity-50"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      )}
 
       <DeleteConversationModal
         open={showDelete}
         busy={deleting}
         error={deleteError}
-        userName={otherUser ? otherUser.displayName || otherUser.username : undefined}
+        userName={otherName}
         onClose={() => {
           setShowDelete(false);
           setDeleteError(null);
