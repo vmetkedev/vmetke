@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./api", () => ({
-  api: { get: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 
 import { api } from "./api";
 import {
   MESSAGES_CHANGED_EVENT,
+  deleteConversation,
+  deleteMessage,
   fetchConversations,
   fetchMessages,
   markConversationRead,
@@ -68,6 +70,17 @@ describe("lib/messages", () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
+  it("sendMessage с replyToId передаёт его в теле запроса", async () => {
+    const message = { id: 2, conversationId: 5, senderId: "me", content: "ответ", createdAt: "x" };
+    vi.mocked(api.post).mockResolvedValue(json({ message }, 201));
+
+    await expect(sendMessage(5, "ответ", 3)).resolves.toEqual(message);
+    expect(api.post).toHaveBeenCalledWith("/conversations/5/messages", {
+      content: "ответ",
+      replyToId: 3,
+    });
+  });
+
   it("sendMessage при ошибке не шлёт событие", async () => {
     vi.mocked(api.post).mockResolvedValue(json({ error: "Диалог не найден" }, 404));
 
@@ -80,6 +93,22 @@ describe("lib/messages", () => {
 
     await markConversationRead(5);
     expect(api.post).toHaveBeenCalledWith("/conversations/5/read");
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleteMessage передаёт scope и шлёт событие", async () => {
+    vi.mocked(api.delete).mockResolvedValue(json({ success: true }));
+
+    await deleteMessage(5, 9, "me");
+    expect(api.delete).toHaveBeenCalledWith("/conversations/5/messages/9?scope=me");
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleteConversation передаёт scope и шлёт событие", async () => {
+    vi.mocked(api.delete).mockResolvedValue(json({ success: true }));
+
+    await deleteConversation(5, "all");
+    expect(api.delete).toHaveBeenCalledWith("/conversations/5?scope=all");
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 

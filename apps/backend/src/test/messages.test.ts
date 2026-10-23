@@ -486,4 +486,137 @@ describe("messages", () => {
     expect(await historyOf(alice, conv.id)).toHaveLength(0);
     expect((await historyOf(bob, conv.id))[0]).toMatchObject({ content: "", deleted: true });
   });
+
+  type Quote = { id: number; senderId: string | null; content: string; deleted: boolean } | null;
+
+  const quotesOf = async (token: string, convId: number) =>
+    (await historyOf(token, convId)) as unknown as { id: number; replyTo: Quote }[];
+
+  const sendReply = (token: string, convId: number, content: string, replyToId: unknown) =>
+    app.inject({
+      method: "POST",
+      url: `/api/conversations/${convId}/messages`,
+      headers: auth(token),
+      payload: { content, replyToId },
+    });
+
+  it("sends a reply and returns a quote preview", async () => {
+    const alice = await registerAndLogin(app, "alice23");
+    const bob = await registerAndLogin(app, "bob23");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "оригинал")).json().message as { id: number };
+
+    const res = await sendReply(bob, conv.id, "ответ", orig.id);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().message.replyTo).toEqual({
+      id: orig.id,
+      senderId: userIdFromToken(alice),
+      content: "оригинал",
+      deleted: false,
+    });
+
+    for (const token of [alice, bob]) {
+      const history = await quotesOf(token, conv.id);
+      expect(history.find((m) => m.id === res.json().message.id)?.replyTo).toMatchObject({
+        id: orig.id,
+        content: "оригинал",
+      });
+      expect(history.find((m) => m.id === orig.id)?.replyTo).toBeNull();
+    }
+  });
+
+  it("validates replyToId", async () => {
+    const alice = await registerAndLogin(app, "alice24");
+    const bob = await registerAndLogin(app, "bob24");
+    const carol = await registerAndLogin(app, "carol24");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const other = await openConversation(app, alice, userIdFromToken(carol));
+    const foreign = (await send(app, alice, other.id, "в другом диалоге")).json().message as {
+      id: number;
+    };
+
+    for (const bad of [0, -1, "abc", 1.5]) {
+      expect((await sendReply(alice, conv.id, "x", bad)).statusCode).toBe(400);
+    }
+    expect((await sendReply(alice, conv.id, "x", 999999)).statusCode).toBe(404);
+    // сообщение из другого диалога
+    expect((await sendReply(alice, conv.id, "x", foreign.id)).statusCode).toBe(404);
+    expect(await historyOf(alice, conv.id)).toHaveLength(0);
+  });
+
+  it("cannot reply to a message deleted for everyone or hidden for me", async () => {
+    const alice = await registerAndLogin(app, "alice25");
+    const bob = await registerAndLogin(app, "bob25");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const gone = (await send(app, alice, conv.id, "удалю")).json().message as { id: number };
+    const hidden = (await send(app, alice, conv.id, "скрою")).json().message as { id: number };
+
+    await deleteMessage(alice, conv.id, gone.id, "all");
+    await deleteMessage(bob, conv.id, hidden.id, "me");
+
+    expect((await sendReply(bob, conv.id, "x", gone.id)).statusCode).toBe(404);
+    expect((await sendReply(bob, conv.id, "x", hidden.id)).statusCode).toBe(404);
+    // у автора это сообщение не скрыто, ему ответить на него можно
+    expect((await sendReply(alice, conv.id, "x", hidden.id)).statusCode).toBe(201);
+  });
+
+  it("a quote turns into «deleted» when the original is deleted for everyone", async () => {
+    const alice = await registerAndLogin(app, "alice26");
+    const bob = await registerAndLogin(app, "bob26");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "секрет")).json().message as { id: number };
+    const reply = (await sendReply(bob, conv.id, "ответ", orig.id)).json().message as { id: number };
+
+    await deleteMessage(alice, conv.id, orig.id, "all");
+
+    for (const token of [alice, bob]) {
+      const quote = (await quotesOf(token, conv.id)).find((m) => m.id === reply.id)?.replyTo;
+      expect(quote).toEqual({ id: orig.id, senderId: null, content: "", deleted: true });
+    }
+  });
+
+  it("a quote of a message hidden for me looks deleted only for me", async () => {
+    const alice = await registerAndLogin(app, "alice27");
+    const bob = await registerAndLogin(app, "bob27");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "оригинал")).json().message as { id: number };
+    const reply = (await sendReply(bob, conv.id, "ответ", orig.id)).json().message as { id: number };
+
+    await deleteMessage(bob, conv.id, orig.id, "me");
+
+    const forBob = (await quotesOf(bob, conv.id)).find((m) => m.id === reply.id)?.replyTo;
+    expect(forBob).toMatchObject({ deleted: true, content: "" });
+    const forAlice = (await quotesOf(alice, conv.id)).find((m) => m.id === reply.id)?.replyTo;
+    expect(forAlice).toMatchObject({ deleted: false, content: "оригинал" });
+  });
+
+  it("truncates long quotes", async () => {
+    const alice = await registerAndLogin(app, "alice28");
+    const bob = await registerAndLogin(app, "bob28");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "я".repeat(300))).json().message as { id: number };
+
+    const res = await sendReply(bob, conv.id, "ответ", orig.id);
+    expect(res.json().message.replyTo.content).toBe("я".repeat(140));
+  });
+
+  it("a conversation cleared for me turns older quotes into «deleted»", async () => {
+    const alice = await registerAndLogin(app, "alice29");
+    const bob = await registerAndLogin(app, "bob29");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "старое")).json().message as { id: number };
+
+    await app.inject({
+      method: "DELETE",
+      url: `/api/conversations/${conv.id}?scope=me`,
+      headers: auth(bob),
+    });
+    // Алиса отвечает на старое, Боб старой истории не видит
+    const reply = (await sendReply(alice, conv.id, "ответ", orig.id)).json().message as {
+      id: number;
+    };
+
+    const quote = (await quotesOf(bob, conv.id)).find((m) => m.id === reply.id)?.replyTo;
+    expect(quote).toEqual({ id: orig.id, senderId: null, content: "", deleted: true });
+  });
 });

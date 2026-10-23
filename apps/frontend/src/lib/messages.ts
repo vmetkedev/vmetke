@@ -7,6 +7,13 @@ export type ConversationUser = {
   avatarColor: number | null;
 };
 
+export type ReplyPreview = {
+  id: number;
+  senderId: string | null;
+  content: string;
+  deleted: boolean;
+};
+
 export type Message = {
   id: number;
   conversationId: number;
@@ -14,6 +21,7 @@ export type Message = {
   content: string;
   createdAt: string;
   deleted: boolean;
+  replyTo?: ReplyPreview | null;
 };
 
 export type Conversation = {
@@ -69,9 +77,14 @@ export async function fetchMessages(
   return parse(await api.get(`/conversations/${conversationId}/messages${qs}`));
 }
 
-export async function sendMessage(conversationId: number, content: string): Promise<Message> {
+export async function sendMessage(
+  conversationId: number,
+  content: string,
+  replyToId?: number,
+): Promise<Message> {
+  const body = replyToId === undefined ? { content } : { content, replyToId };
   const data = await parse<{ message: Message }>(
-    await api.post(`/conversations/${conversationId}/messages`, { content }),
+    await api.post(`/conversations/${conversationId}/messages`, body),
   );
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
   return data.message;

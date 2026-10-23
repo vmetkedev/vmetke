@@ -22,7 +22,10 @@ const historyQuery = z.object({
   before: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
-const sendBody = z.object({ content: z.string().trim().min(1).max(MAX_MESSAGE) });
+const sendBody = z.object({
+  content: z.string().trim().min(1).max(MAX_MESSAGE),
+  replyToId: z.number().int().positive().optional(),
+});
 const messageParams = z.object({
   id: z.coerce.number().int().positive(),
   messageId: z.coerce.number().int().positive(),
@@ -102,7 +105,12 @@ export default async function messagesRoutes(app: FastifyInstance) {
 
       const payload = request.user as { sub: string };
       try {
-        const message = await sendMessage(params.data.id, payload.sub, body.data.content);
+        const message = await sendMessage(
+          params.data.id,
+          payload.sub,
+          body.data.content,
+          body.data.replyToId,
+        );
         return reply.code(201).send({ message });
       } catch (e) {
         return fail(reply, e);

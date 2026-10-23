@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, CornerUpLeft, Trash2 } from "lucide-react";
 
 const MENU_WIDTH = 192;
 
 export function MessageMenu({
   anchor,
   mine,
+  canReply = true,
+  onReply,
   onDeleteForMe,
   onDeleteForAll,
   onClose,
 }: {
   anchor: DOMRect;
   mine: boolean;
+  canReply?: boolean;
+  onReply: () => void;
   onDeleteForMe: () => void;
   onDeleteForAll: () => void;
   onClose: () => void;
@@ -59,10 +63,18 @@ export function MessageMenu({
       className="z-50 rounded-lg border bg-white py-1 shadow-lg dark:border-gray-600 dark:bg-gray-800"
     >
       {view === "main" ? (
-        <button role="menuitem" className={item} onClick={() => setView("delete")}>
-          <Trash2 size={14} />
-          Удалить
-        </button>
+        <>
+          {canReply && (
+            <button role="menuitem" className={item} onClick={onReply}>
+              <CornerUpLeft size={14} />
+              Ответить
+            </button>
+          )}
+          <button role="menuitem" className={item} onClick={() => setView("delete")}>
+            <Trash2 size={14} />
+            Удалить
+          </button>
+        </>
       ) : (
         <>
           <button role="menuitem" className={`${item} text-gray-500`} onClick={() => setView("main")}>

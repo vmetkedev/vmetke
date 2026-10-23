@@ -5,10 +5,12 @@ import { MessageMenu } from "./MessageMenu";
 
 const anchor = { top: 100, bottom: 130, left: 50, right: 250 } as DOMRect;
 
-function setup(mine: boolean) {
+function setup(mine: boolean, canReply = true) {
   const props = {
     anchor,
     mine,
+    canReply,
+    onReply: vi.fn(),
     onDeleteForMe: vi.fn(),
     onDeleteForAll: vi.fn(),
     onClose: vi.fn(),
@@ -18,10 +20,23 @@ function setup(mine: boolean) {
 }
 
 describe("MessageMenu", () => {
-  it("shows only «Удалить» at first", () => {
+  it("shows «Ответить» and «Удалить» at first", () => {
     setup(true);
+    expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
     expect(screen.queryByText("Удалить у меня")).not.toBeInTheDocument();
+  });
+
+  it("«Ответить» calls onReply", async () => {
+    const p = setup(false);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Ответить" }));
+    expect(p.onReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides «Ответить» when replying is not possible", () => {
+    setup(true, false);
+    expect(screen.queryByRole("menuitem", { name: "Ответить" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
   });
 
   it("own message: submenu offers delete for me and for everyone", async () => {
@@ -50,6 +65,7 @@ describe("MessageMenu", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Удалить" }));
     await userEvent.click(screen.getByText("Назад"));
     expect(screen.queryByText("Удалить у меня")).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
   });
 
   it("closes on Escape and on outside click", async () => {

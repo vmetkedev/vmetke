@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { conversations, messageHides, messages, userBlocks, users } from "../db/schema/index.js";
 
@@ -14,6 +14,15 @@ type Conv = typeof conversations.$inferSelect;
 type MessageRow = typeof messages.$inferSelect;
 export type DeleteScope = "me" | "all";
 
+const REPLY_PREVIEW_LEN = 140;
+
+type ReplyPreview = {
+  id: number;
+  senderId: string | null;
+  content: string;
+  deleted: boolean;
+};
+
 const isLow = (conv: { userLowId: string }, me: string) => conv.userLowId === me;
 
 // Отметка «удалено у меня»: сообщения с id <= этого значения мне не показываются
@@ -21,7 +30,7 @@ const clearedFor = (conv: Conv, me: string) =>
   (isLow(conv, me) ? conv.clearedLowId : conv.clearedHighId) ?? 0;
 
 // Удалённое сообщение остаётся в истории как «надгробие» без текста
-function serializeMessage(m: MessageRow) {
+function serializeMessage(m: MessageRow, replyTo: ReplyPreview | null = null) {
   return {
     id: m.id,
     conversationId: m.conversationId,
@@ -29,7 +38,45 @@ function serializeMessage(m: MessageRow) {
     content: m.deletedAt ? "" : m.content,
     createdAt: m.createdAt,
     deleted: m.deletedAt !== null,
+    replyTo,
   };
+}
+
+// Цитаты для пачки сообщений одним запросом. Оригинал, удалённый у всех,
+// скрытый «у меня» или очищенный вместе с историей, отдаётся как «удалённый»,
+// без текста и автора.
+async function withReplies(rows: MessageRow[], me: string, cleared: number) {
+  const ids = [...new Set(rows.map((r) => r.replyToId).filter((v): v is number => v !== null))];
+  const targets = new Map<number, MessageRow>();
+
+  if (ids.length > 0) {
+    const found = await db
+      .select()
+      .from(messages)
+      .where(
+        and(
+          inArray(messages.id, ids),
+          gt(messages.id, cleared),
+          sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
+        ),
+      );
+    for (const t of found) targets.set(t.id, t);
+  }
+
+  return rows.map((m) => {
+    if (m.replyToId === null) return serializeMessage(m);
+    const t = targets.get(m.replyToId);
+    const preview: ReplyPreview =
+      !t || t.deletedAt
+        ? { id: m.replyToId, senderId: null, content: "", deleted: true }
+        : {
+            id: t.id,
+            senderId: t.senderId,
+            content: [...t.content].slice(0, REPLY_PREVIEW_LEN).join(""),
+            deleted: false,
+          };
+    return serializeMessage(m, preview);
+  });
 }
 
 const otherOf = (conv: { userLowId: string; userHighId: string }, me: string) =>
@@ -210,34 +257,59 @@ export async function getMessages(
   const items = hasMore ? rows.slice(0, limit) : rows;
   const { blockedByMe } = await blockState(me, otherOf(conv, me));
   return {
-    messages: items.map(serializeMessage),
+    messages: await withReplies(items, me, clearedFor(conv, me)),
     nextCursor: hasMore ? items[items.length - 1].id : null,
     blockedByMe,
   };
 }
 
-export async function sendMessage(conversationId: number, me: string, content: string) {
+export async function sendMessage(
+  conversationId: number,
+  me: string,
+  content: string,
+  replyToId?: number,
+) {
   const conv = await getConversationFor(conversationId, me);
   assertCanMessage(await blockState(me, otherOf(conv, me)));
 
-  return db.transaction(async (tx) => {
-    const [msg] = await tx
+  // Отвечать можно только на то, что я вижу: тот же диалог, не очищено, не скрыто, не удалено
+  if (replyToId !== undefined) {
+    const [target] = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.id, replyToId),
+          eq(messages.conversationId, conversationId),
+          gt(messages.id, clearedFor(conv, me)),
+          isNull(messages.deletedAt),
+          sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
+        ),
+      );
+    if (!target) throw new MessagingError(404, "Сообщение, на которое вы отвечаете, не найдено");
+  }
+
+  const msg = await db.transaction(async (tx) => {
+    const [row] = await tx
       .insert(messages)
-      .values({ conversationId, senderId: me, content })
+      .values({ conversationId, senderId: me, content, replyToId: replyToId ?? null })
       .returning();
 
     // Своё сообщение автоматически считается прочитанным отправителем
     await tx
       .update(conversations)
       .set({
-        lastMessageId: msg.id,
-        lastMessageAt: msg.createdAt,
-        ...(isLow(conv, me) ? { lastReadLowId: msg.id } : { lastReadHighId: msg.id }),
+        lastMessageId: row.id,
+        lastMessageAt: row.createdAt,
+        ...(isLow(conv, me) ? { lastReadLowId: row.id } : { lastReadHighId: row.id }),
       })
       .where(eq(conversations.id, conversationId));
 
-    return serializeMessage(msg);
+    return row;
   });
+
+  const [serialized] = await withReplies([msg], me, clearedFor(conv, me));
+  return serialized;
 }
 
 export async function markRead(conversationId: number, me: string) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
@@ -79,13 +79,23 @@ function Thread({
   const [blockedByMe, setBlockedByMe] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
   const [menu, setMenu] = useState<{ id: number; mine: boolean; anchor: DOMRect } | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const stickToBottom = useRef(true);
   const prevScrollHeight = useRef<number | null>(null);
   const lastMarkedId = useRef(0);
   // Сообщения, скрытые «у меня»: защищают от «воскрешения» опросом, начатым до удаления
   const hiddenIds = useRef<Set<number>>(new Set());
+
+  const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
+  const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
+  // Если оригинал пропал (удалён или скрыт), пока я писал ответ, плашка исчезает
+  const activeReply =
+    replyTo && visibleMessages.some((m) => m.id === replyTo.id) ? replyTo : null;
+  const authorName = (senderId: string | null) =>
+    senderId === myId ? "Вы" : (otherName ?? "Собеседник");
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -174,10 +184,13 @@ function Thread({
     if (!content || sending) return;
     setSending(true);
     try {
-      const msg = await sendMessage(conversationId, content);
+      const msg = activeReply
+        ? await sendMessage(conversationId, content, activeReply.id)
+        : await sendMessage(conversationId, content);
       stickToBottom.current = true;
       setMessages((prev) => mergeMessages(prev, [msg]));
       setText("");
+      setReplyTo(null);
       setError(null);
       onChanged();
     } catch (e) {
@@ -188,6 +201,10 @@ function Thread({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape" && replyTo) {
+      setReplyTo(null);
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -215,6 +232,21 @@ function Thread({
 
   const toggleMenu = (id: number, mine: boolean, el: HTMLElement) => {
     setMenu((cur) => (cur?.id === id ? null : { id, mine, anchor: el.getBoundingClientRect() }));
+  };
+
+  const handleReply = (id: number) => {
+    const target = messages.find((m) => m.id === id);
+    setMenu(null);
+    if (!target) return;
+    setReplyTo(target);
+    inputRef.current?.focus();
+  };
+
+  const scrollToMessage = (id: number) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
+    if (!el) return;
+    stickToBottom.current = false;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
   };
 
   const handleDeleteConversation = async (scope: DeleteScope) => {
@@ -265,9 +297,6 @@ function Thread({
       setBlockBusy(false);
     }
   };
-
-  const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
-  const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
 
   return (
     <>
@@ -327,8 +356,13 @@ function Thread({
             {visibleMessages.map((m) => {
               const mine = m.senderId === myId;
               const selected = menu?.id === m.id;
+              const quote = m.replyTo ?? null;
               return (
-                <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={m.id}
+                  data-message-id={m.id}
+                  className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                >
                   <div
                     data-message-bubble
                     role="button"
@@ -350,6 +384,30 @@ function Thread({
                         : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
                     } ${selected ? "ring-2 ring-blue-400" : ""}`}
                   >
+                    {quote && (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!quote.deleted) scrollToMessage(quote.id);
+                        }}
+                        className={`mb-1 rounded border-l-2 px-2 py-1 text-xs ${
+                          mine
+                            ? "border-blue-200 bg-blue-500/60"
+                            : "border-gray-400 bg-gray-200 dark:bg-gray-600"
+                        } ${quote.deleted ? "" : "cursor-pointer"}`}
+                      >
+                        {quote.deleted ? (
+                          <p className="italic opacity-80">Сообщение удалено</p>
+                        ) : (
+                          <>
+                            <p className="font-medium truncate">{authorName(quote.senderId)}</p>
+                            <p className="line-clamp-2 whitespace-pre-wrap wrap-anywhere opacity-90">
+                              {quote.content}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <p className="whitespace-pre-wrap wrap-anywhere">{m.content}</p>
                     <p
                       className={`text-[10px] mt-1 text-right ${
@@ -382,24 +440,44 @@ function Thread({
           </button>
         </div>
       ) : (
-        <div className="flex items-end gap-2 p-3 border-t dark:border-gray-700">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            maxLength={MAX_MESSAGE}
-            rows={1}
-            placeholder="Напишите сообщение..."
-            className="flex-1 resize-none max-h-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending || !text.trim()}
-            aria-label="Отправить"
-            className="bg-blue-600 text-white rounded p-2.5 disabled:opacity-50"
-          >
-            <Send size={16} />
-          </button>
+        <div className="border-t dark:border-gray-700">
+          {activeReply && (
+            <div className="flex items-center gap-2 px-3 pt-2 text-xs">
+              <div className="flex-1 min-w-0 border-l-2 border-blue-500 pl-2">
+                <p className="font-medium text-blue-600 dark:text-blue-400 truncate">
+                  {authorName(activeReply.senderId)}
+                </p>
+                <p className="truncate text-gray-500 dark:text-gray-400">{activeReply.content}</p>
+              </div>
+              <button
+                onClick={() => setReplyTo(null)}
+                aria-label="Отменить ответ"
+                className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          <div className="flex items-end gap-2 p-3">
+            <textarea
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              maxLength={MAX_MESSAGE}
+              rows={1}
+              placeholder="Напишите сообщение..."
+              className="flex-1 resize-none max-h-32 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleSend}
+              disabled={sending || !text.trim()}
+              aria-label="Отправить"
+              className="bg-blue-600 text-white rounded p-2.5 disabled:opacity-50"
+            >
+              <Send size={16} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -407,7 +485,9 @@ function Thread({
         <MessageMenu
           anchor={menu.anchor}
           mine={menu.mine}
+          canReply={!blockedByMe}
           onClose={() => setMenu(null)}
+          onReply={() => handleReply(menu.id)}
           onDeleteForMe={() => handleDeleteMessage(menu.id, "me")}
           onDeleteForAll={() => handleDeleteMessage(menu.id, "all")}
         />
