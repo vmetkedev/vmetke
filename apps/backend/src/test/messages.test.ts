@@ -223,13 +223,20 @@ describe("messages", () => {
       })
     ).json().messages as { id: number; content: string; deleted: boolean }[];
 
+  const deleteMessage = (token: string, convId: number, msgId: number, scope?: string) =>
+    app.inject({
+      method: "DELETE",
+      url: `/api/conversations/${convId}/messages/${msgId}${scope ? `?scope=${scope}` : ""}`,
+      headers: auth(token),
+    });
+
   it("deletes own message as a tombstone and forbids deleting others'", async () => {
     const alice = await registerAndLogin(app, "alice10");
     const bob = await registerAndLogin(app, "bob10");
     const eve = await registerAndLogin(app, "eve10");
     const conv = await openConversation(app, alice, userIdFromToken(bob));
     const msg = (await send(app, alice, conv.id, "ошибся")).json().message as { id: number };
-    const url = `/api/conversations/${conv.id}/messages/${msg.id}`;
+    const url = `/api/conversations/${conv.id}/messages/${msg.id}?scope=all`;
 
     expect((await app.inject({ method: "DELETE", url, headers: auth(bob) })).statusCode).toBe(403);
     expect((await app.inject({ method: "DELETE", url, headers: auth(eve) })).statusCode).toBe(404);
@@ -237,7 +244,7 @@ describe("messages", () => {
       (
         await app.inject({
           method: "DELETE",
-          url: `/api/conversations/${conv.id}/messages/999999`,
+          url: `/api/conversations/${conv.id}/messages/999999?scope=all`,
           headers: auth(alice),
         })
       ).statusCode,
@@ -263,7 +270,7 @@ describe("messages", () => {
 
     await app.inject({
       method: "DELETE",
-      url: `/api/conversations/${conv.id}/messages/${second.id}`,
+      url: `/api/conversations/${conv.id}/messages/${second.id}?scope=all`,
       headers: auth(alice),
     });
 
@@ -280,7 +287,7 @@ describe("messages", () => {
 
     await app.inject({
       method: "DELETE",
-      url: `/api/conversations/${conv.id}/messages/${only.id}`,
+      url: `/api/conversations/${conv.id}/messages/${only.id}?scope=all`,
       headers: auth(alice),
     });
 
@@ -375,5 +382,108 @@ describe("messages", () => {
     });
     expect(foreign.statusCode).toBe(404);
     expect(await listOf(alice)).toHaveLength(1);
+  });
+
+  it("requires a valid scope when deleting a message", async () => {
+    const alice = await registerAndLogin(app, "alice16");
+    const bob = await registerAndLogin(app, "bob16");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "привет")).json().message as { id: number };
+
+    expect((await deleteMessage(alice, conv.id, msg.id)).statusCode).toBe(400);
+    expect((await deleteMessage(alice, conv.id, msg.id, "nobody")).statusCode).toBe(400);
+    expect(await historyOf(alice, conv.id)).toHaveLength(1);
+  });
+
+  it("scope=me hides a message only for the one who deleted it", async () => {
+    const alice = await registerAndLogin(app, "alice17");
+    const bob = await registerAndLogin(app, "bob17");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "привет")).json().message as { id: number };
+
+    expect((await deleteMessage(alice, conv.id, msg.id, "me")).statusCode).toBe(200);
+
+    expect((await historyOf(alice, conv.id)).map((m) => m.id)).not.toContain(msg.id);
+    // у собеседника сообщение живое, не «надгробие»
+    expect(await historyOf(bob, conv.id)).toEqual([
+      expect.objectContaining({ id: msg.id, content: "привет", deleted: false }),
+    ]);
+  });
+
+  it("recipient can hide a foreign message for me but cannot delete it for everyone", async () => {
+    const alice = await registerAndLogin(app, "alice18");
+    const bob = await registerAndLogin(app, "bob18");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "от алисы")).json().message as { id: number };
+
+    expect((await deleteMessage(bob, conv.id, msg.id, "all")).statusCode).toBe(403);
+    expect(await historyOf(alice, conv.id)).toHaveLength(1);
+    expect((await historyOf(alice, conv.id))[0].deleted).toBe(false);
+
+    expect((await deleteMessage(bob, conv.id, msg.id, "me")).statusCode).toBe(200);
+    expect(await historyOf(bob, conv.id)).toHaveLength(0);
+    expect(await historyOf(alice, conv.id)).toHaveLength(1);
+  });
+
+  it("scope=me is idempotent and not available to a third user", async () => {
+    const alice = await registerAndLogin(app, "alice19");
+    const bob = await registerAndLogin(app, "bob19");
+    const eve = await registerAndLogin(app, "eve19");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "привет")).json().message as { id: number };
+
+    expect((await deleteMessage(alice, conv.id, msg.id, "me")).statusCode).toBe(200);
+    expect((await deleteMessage(alice, conv.id, msg.id, "me")).statusCode).toBe(200);
+    expect((await deleteMessage(eve, conv.id, msg.id, "me")).statusCode).toBe(404);
+    expect((await deleteMessage(alice, conv.id, 999999, "me")).statusCode).toBe(404);
+  });
+
+  it("hiding the last message for me moves only my preview to the previous one", async () => {
+    const alice = await registerAndLogin(app, "alice20");
+    const bob = await registerAndLogin(app, "bob20");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    await send(app, alice, conv.id, "один");
+    const second = (await send(app, alice, conv.id, "два")).json().message as { id: number };
+
+    await deleteMessage(bob, conv.id, second.id, "me");
+
+    const [bobItem] = await listOf(bob);
+    expect(bobItem.lastMessage).toMatchObject({ content: "один", deleted: false });
+    expect(bobItem.unreadCount).toBe(1);
+
+    const [aliceItem] = await listOf(alice);
+    expect(aliceItem.lastMessage.content).toBe("два");
+  });
+
+  it("hiding every message for me removes the dialog from my list only", async () => {
+    const alice = await registerAndLogin(app, "alice21");
+    const bob = await registerAndLogin(app, "bob21");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "единственное")).json().message as { id: number };
+
+    await deleteMessage(bob, conv.id, msg.id, "me");
+
+    expect(await listOf(bob)).toHaveLength(0);
+    expect(await listOf(alice)).toHaveLength(1);
+
+    // новое сообщение возвращает диалог, скрытое старое не возвращается
+    await send(app, alice, conv.id, "ещё");
+    const bobList = await listOf(bob);
+    expect(bobList).toHaveLength(1);
+    expect(bobList[0].lastMessage.content).toBe("ещё");
+    expect((await historyOf(bob, conv.id)).map((m) => m.content)).toEqual(["ещё"]);
+  });
+
+  it("a message hidden for me and then deleted for everyone stays hidden for me", async () => {
+    const alice = await registerAndLogin(app, "alice22");
+    const bob = await registerAndLogin(app, "bob22");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "привет")).json().message as { id: number };
+
+    await deleteMessage(alice, conv.id, msg.id, "me");
+    expect((await deleteMessage(alice, conv.id, msg.id, "all")).statusCode).toBe(200);
+
+    expect(await historyOf(alice, conv.id)).toHaveLength(0);
+    expect((await historyOf(bob, conv.id))[0]).toMatchObject({ content: "", deleted: true });
   });
 });

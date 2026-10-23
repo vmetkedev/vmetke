@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
 import { ConversationMenu } from "../components/ConversationMenu";
 import { DeleteConversationModal } from "../components/DeleteConversationModal";
+import { MessageMenu } from "../components/MessageMenu";
 import {
   MAX_MESSAGE,
   blockUser,
@@ -77,11 +78,14 @@ function Thread({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [blockedByMe, setBlockedByMe] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
+  const [menu, setMenu] = useState<{ id: number; mine: boolean; anchor: DOMRect } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const prevScrollHeight = useRef<number | null>(null);
   const lastMarkedId = useRef(0);
+  // Сообщения, скрытые «у меня»: защищают от «воскрешения» опросом, начатым до удаления
+  const hiddenIds = useRef<Set<number>>(new Set());
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -145,6 +149,7 @@ function Thread({
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
+    if (menu) setMenu(null);
     stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
@@ -189,18 +194,27 @@ function Thread({
     }
   };
 
-  const handleDeleteMessage = async (id: number) => {
-    if (!window.confirm("Удалить сообщение у всех?")) return;
+  const handleDeleteMessage = async (id: number, scope: DeleteScope) => {
+    setMenu(null);
     try {
-      await deleteMessage(conversationId, id);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, content: "", deleted: true } : m)),
-      );
+      await deleteMessage(conversationId, id, scope);
+      if (scope === "me") {
+        hiddenIds.current.add(id);
+        setMessages((prev) => prev.filter((m) => m.id !== id));
+      } else {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === id ? { ...m, content: "", deleted: true } : m)),
+        );
+      }
       setError(null);
       onChanged();
     } catch (e) {
       setError((e as Error).message);
     }
+  };
+
+  const toggleMenu = (id: number, mine: boolean, el: HTMLElement) => {
+    setMenu((cur) => (cur?.id === id ? null : { id, mine, anchor: el.getBoundingClientRect() }));
   };
 
   const handleDeleteConversation = async (scope: DeleteScope) => {
@@ -252,7 +266,7 @@ function Thread({
     }
   };
 
-  const visibleMessages = messages.filter((m) => !m.deleted);
+  const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
   const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
 
   return (
@@ -312,27 +326,29 @@ function Thread({
             )}
             {visibleMessages.map((m) => {
               const mine = m.senderId === myId;
+              const selected = menu?.id === m.id;
               return (
-                <div
-                  key={m.id}
-                  className={`group flex items-center gap-2 ${mine ? "justify-end" : "justify-start"}`}
-                >
-                  {mine && (
-                    <button
-                      onClick={() => handleDeleteMessage(m.id)}
-                      aria-label="Удалить сообщение"
-                      title="Удалить сообщение"
-                      className="shrink-0 text-gray-400 hover:text-red-600 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
+                <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                    data-message-bubble
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      // выделение текста мышью не должно открывать меню
+                      if (window.getSelection()?.toString()) return;
+                      toggleMenu(m.id, mine, e.currentTarget);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleMenu(m.id, mine, e.currentTarget);
+                      }
+                    }}
+                    className={`max-w-[80%] cursor-pointer rounded-lg px-3 py-2 text-sm ${
                       mine
                         ? "bg-blue-600 text-white"
                         : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
-                    }`}
+                    } ${selected ? "ring-2 ring-blue-400" : ""}`}
                   >
                     <p className="whitespace-pre-wrap wrap-anywhere">{m.content}</p>
                     <p
@@ -387,6 +403,16 @@ function Thread({
         </div>
       )}
 
+      {menu && (
+        <MessageMenu
+          anchor={menu.anchor}
+          mine={menu.mine}
+          onClose={() => setMenu(null)}
+          onDeleteForMe={() => handleDeleteMessage(menu.id, "me")}
+          onDeleteForAll={() => handleDeleteMessage(menu.id, "all")}
+        />
+      )}
+
       <DeleteConversationModal
         open={showDelete}
         busy={deleting}
@@ -428,8 +454,7 @@ export default function MessagesPage() {
   }, [loadConversations]);
 
   const stateUser = (location.state as { otherUser?: ConversationUser } | null)?.otherUser ?? null;
-  const activeUser =
-    conversations.find((c) => c.id === activeId)?.otherUser ?? stateUser;
+  const activeUser = conversations.find((c) => c.id === activeId)?.otherUser ?? stateUser;
 
   return (
     <AppLayout>

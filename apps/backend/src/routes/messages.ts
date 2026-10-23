@@ -27,7 +27,7 @@ const messageParams = z.object({
   id: z.coerce.number().int().positive(),
   messageId: z.coerce.number().int().positive(),
 });
-// scope обязателен и без default, чтобы случайно не удалить диалог у всех
+// scope обязателен и без default, чтобы случайно не удалить что-то у всех
 const deleteQuery = z.object({ scope: z.enum(["me", "all"]) });
 
 function fail(reply: FastifyReply, e: unknown) {
@@ -47,23 +47,25 @@ export default async function messagesRoutes(app: FastifyInstance) {
     }
     return request.ip;
   };
-  app.post(
-  "/",
-  {
-    preHandler: [app.authenticate],
-    config: { rateLimit: { max: CREATE_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
-  },
-  async (request, reply) => {
-    const body = createBody.safeParse(request.body);
-    if (!body.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-    const payload = request.user as { sub: string };
-    try {
-      return { conversation: await getOrCreateConversation(payload.sub, body.data.userId) };
-    } catch (e) {
-      return fail(reply, e);
-    }
-  });
+  app.post(
+    "/",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: CREATE_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const body = createBody.safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: "Некорректные данные" });
+
+      const payload = request.user as { sub: string };
+      try {
+        return { conversation: await getOrCreateConversation(payload.sub, body.data.userId) };
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
 
   app.get("/", { preHandler: [app.authenticate] }, async (request) => {
     const payload = request.user as { sub: string };
@@ -86,26 +88,27 @@ export default async function messagesRoutes(app: FastifyInstance) {
   });
 
   app.post(
-  "/:id/messages",
-  {
-    preHandler: [app.authenticate],
-    config: { rateLimit: { max: SEND_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
-  },
-  async (request, reply) => {
-    const params = idParams.safeParse(request.params);
-    const body = sendBody.safeParse(request.body);
-    if (!params.success || !body.success) {
-      return reply.code(400).send({ error: "Некорректные данные" });
-    }
+    "/:id/messages",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: SEND_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const params = idParams.safeParse(request.params);
+      const body = sendBody.safeParse(request.body);
+      if (!params.success || !body.success) {
+        return reply.code(400).send({ error: "Некорректные данные" });
+      }
 
-    const payload = request.user as { sub: string };
-    try {
-      const message = await sendMessage(params.data.id, payload.sub, body.data.content);
-      return reply.code(201).send({ message });
-    } catch (e) {
-      return fail(reply, e);
-    }
-  });
+      const payload = request.user as { sub: string };
+      try {
+        const message = await sendMessage(params.data.id, payload.sub, body.data.content);
+        return reply.code(201).send({ message });
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
 
   app.post("/:id/read", { preHandler: [app.authenticate] }, async (request, reply) => {
     const params = idParams.safeParse(request.params);
@@ -136,16 +139,23 @@ export default async function messagesRoutes(app: FastifyInstance) {
     }
   });
 
-  app.delete("/:id/messages/:messageId", { preHandler: [app.authenticate] }, async (request, reply) => {
-    const params = messageParams.safeParse(request.params);
-    if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
+  app.delete(
+    "/:id/messages/:messageId",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const params = messageParams.safeParse(request.params);
+      const query = deleteQuery.safeParse(request.query);
+      if (!params.success || !query.success) {
+        return reply.code(400).send({ error: "Некорректные данные" });
+      }
 
-    const payload = request.user as { sub: string };
-    try {
-      await deleteMessage(params.data.id, params.data.messageId, payload.sub);
-      return { success: true };
-    } catch (e) {
-      return fail(reply, e);
-    }
-  });
+      const payload = request.user as { sub: string };
+      try {
+        await deleteMessage(params.data.id, params.data.messageId, payload.sub, query.data.scope);
+        return { success: true };
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
 }

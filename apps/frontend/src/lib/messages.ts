@@ -82,8 +82,14 @@ export async function markConversationRead(conversationId: number): Promise<void
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
 }
 
-export async function deleteMessage(conversationId: number, messageId: number): Promise<void> {
-  await parse(await api.delete(`/conversations/${conversationId}/messages/${messageId}`));
+export async function deleteMessage(
+  conversationId: number,
+  messageId: number,
+  scope: DeleteScope,
+): Promise<void> {
+  await parse(
+    await api.delete(`/conversations/${conversationId}/messages/${messageId}?scope=${scope}`),
+  );
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
 }
 

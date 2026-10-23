@@ -9,3 +9,4 @@ export * from "./notifications.js";
 export * from "./bookmarks.js";
 export * from "./messages.js";
 export * from "./blocks.js";
+export * from "./message-hides.js";

@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { conversations, messages, userBlocks, users } from "../db/schema/index.js";
+import { conversations, messageHides, messages, userBlocks, users } from "../db/schema/index.js";
 
 export class MessagingError extends Error {
   statusCode: number;
@@ -132,6 +132,10 @@ export async function listConversations(me: string) {
         WHERE m.conversation_id = ${conversations.id}
           AND m.sender_id <> ${me}
           AND m.deleted_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM ${messageHides} AS h
+            WHERE h.message_id = m.id AND h.user_id = ${me}
+          )
           AND m.id > COALESCE(
             CASE WHEN ${conversations.userLowId} = ${me}
               THEN ${conversations.lastReadLowId}
@@ -145,13 +149,25 @@ export async function listConversations(me: string) {
     })
     .from(conversations)
     .innerJoin(users, sql`${users.id} = ${otherId}`)
-    .innerJoin(messages, eq(messages.id, conversations.lastMessageId))
+    // Превью считается персонально: последнее живое сообщение, которое я не очистил
+    // и не скрыл «у меня». Если такого нет, диалог в моём списке не показывается.
+    .innerJoin(
+      messages,
+      sql`${messages.id} = (
+        SELECT max(m.id) FROM ${messages} AS m
+        WHERE m.conversation_id = ${conversations.id}
+          AND m.deleted_at IS NULL
+          AND m.id > ${myCleared}
+          AND NOT EXISTS (
+            SELECT 1 FROM ${messageHides} AS h
+            WHERE h.message_id = m.id AND h.user_id = ${me}
+          )
+      )`,
+    )
     .where(
       and(
         or(eq(conversations.userLowId, me), eq(conversations.userHighId, me)),
         isNull(conversations.deletedAt),
-        // Диалог, очищенный «у меня», скрыт, пока не придёт новое сообщение
-        sql`${conversations.lastMessageId} > ${myCleared}`,
       ),
     )
     .orderBy(desc(conversations.lastMessageAt));
@@ -184,6 +200,7 @@ export async function getMessages(
         eq(messages.conversationId, conversationId),
         gt(messages.id, clearedFor(conv, me)),
         before ? lt(messages.id, before) : undefined,
+        sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
       ),
     )
     .orderBy(desc(messages.id))
@@ -237,8 +254,14 @@ export async function markRead(conversationId: number, me: string) {
     .where(eq(conversations.id, conversationId));
 }
 
-// Удаление своего сообщения у всех (soft delete). Повторное удаление идемпотентно.
-export async function deleteMessage(conversationId: number, messageId: number, me: string) {
+// scope=all: удалить своё сообщение у всех (soft delete), повторное удаление идемпотентно.
+// scope=me: скрыть любое видимое мне сообщение (своё или чужое) только для себя.
+export async function deleteMessage(
+  conversationId: number,
+  messageId: number,
+  me: string,
+  scope: DeleteScope,
+) {
   const conv = await getConversationFor(conversationId, me);
 
   const [msg] = await db
@@ -253,7 +276,15 @@ export async function deleteMessage(conversationId: number, messageId: number, m
       ),
     );
   if (!msg) throw new MessagingError(404, "Сообщение не найдено");
-  if (msg.senderId !== me) throw new MessagingError(403, "Можно удалять только свои сообщения");
+
+  if (scope === "me") {
+    await db.insert(messageHides).values({ messageId, userId: me }).onConflictDoNothing();
+    return;
+  }
+
+  if (msg.senderId !== me) {
+    throw new MessagingError(403, "Можно удалять у всех только свои сообщения");
+  }
   if (msg.deletedAt) return;
 
   await db.transaction(async (tx) => {
