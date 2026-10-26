@@ -15,6 +15,7 @@ import {
   markConversationRead,
   openConversation,
   sendMessage,
+  forwardMessage,
 } from "./messages";
 
 const json = (data: unknown, status = 200) =>
@@ -88,6 +89,17 @@ describe("lib/messages", () => {
 
     await expect(editMessage(5, 3, "новое")).resolves.toEqual(message);
     expect(api.post).toHaveBeenCalledWith("/conversations/5/messages/3/edit", { content: "новое" });
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+    it("forwardMessage отправляет id диалога-получателя на /forward, возвращает сообщение и шлёт событие", async () => {
+    const message = { id: 9, conversationId: 6, senderId: "me", content: "текст", createdAt: "x" };
+    vi.mocked(api.post).mockResolvedValue(json({ message }, 201));
+
+    await expect(forwardMessage(5, 3, 6)).resolves.toEqual(message);
+    expect(api.post).toHaveBeenCalledWith("/conversations/5/messages/3/forward", {
+      toConversationId: 6,
+    });
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 

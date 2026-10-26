@@ -61,6 +61,10 @@ export const messages = pgTable(
     replyToId: integer("reply_to_id").references((): AnyPgColumn => messages.id, {
       onDelete: "set null",
     }),
+    // Автор оригинала у пересланного сообщения (при пересылке пересылки остаётся первый автор)
+    forwardedFromId: uuid("forwarded_from_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
     // Время последней правки; null, если сообщение не редактировалось
     editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),

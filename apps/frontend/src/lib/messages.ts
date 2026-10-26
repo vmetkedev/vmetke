@@ -14,6 +14,12 @@ export type ReplyPreview = {
   deleted: boolean;
 };
 
+export type ForwardAuthor = {
+  id: string;
+  username: string;
+  displayName: string | null;
+};
+
 export type Message = {
   id: number;
   conversationId: number;
@@ -23,6 +29,7 @@ export type Message = {
   editedAt?: string | null;
   deleted: boolean;
   replyTo?: ReplyPreview | null;
+  forwardedFrom?: ForwardAuthor | null;
 };
 
 export type Conversation = {
@@ -98,6 +105,20 @@ export async function editMessage(
 ): Promise<Message> {
   const data = await parse<{ message: Message }>(
     await api.post(`/conversations/${conversationId}/messages/${messageId}/edit`, { content }),
+  );
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+  return data.message;
+}
+
+export async function forwardMessage(
+  conversationId: number,
+  messageId: number,
+  toConversationId: number,
+): Promise<Message> {
+  const data = await parse<{ message: Message }>(
+    await api.post(`/conversations/${conversationId}/messages/${messageId}/forward`, {
+      toConversationId,
+    }),
   );
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
   return data.message;

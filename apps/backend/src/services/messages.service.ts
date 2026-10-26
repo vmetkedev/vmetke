@@ -23,6 +23,12 @@ type ReplyPreview = {
   deleted: boolean;
 };
 
+type ForwardAuthor = {
+  id: string;
+  username: string;
+  displayName: string | null;
+};
+
 const isLow = (conv: { userLowId: string }, me: string) => conv.userLowId === me;
 
 // Отметка «удалено у меня»: сообщения с id <= этого значения мне не показываются
@@ -30,7 +36,11 @@ const clearedFor = (conv: Conv, me: string) =>
   (isLow(conv, me) ? conv.clearedLowId : conv.clearedHighId) ?? 0;
 
 // Удалённое сообщение остаётся в истории как «надгробие» без текста
-function serializeMessage(m: MessageRow, replyTo: ReplyPreview | null = null) {
+function serializeMessage(
+  m: MessageRow,
+  replyTo: ReplyPreview | null = null,
+  forwardedFrom: ForwardAuthor | null = null,
+) {
   return {
     id: m.id,
     conversationId: m.conversationId,
@@ -40,23 +50,27 @@ function serializeMessage(m: MessageRow, replyTo: ReplyPreview | null = null) {
     editedAt: m.editedAt,
     deleted: m.deletedAt !== null,
     replyTo,
+    forwardedFrom,
   };
 }
 
-// Цитаты для пачки сообщений одним запросом. Оригинал, удалённый у всех,
+// Цитаты и авторы пересылок для пачки сообщений. Оригинал цитаты, удалённый у всех,
 // скрытый «у меня» или очищенный вместе с историей, отдаётся как «удалённый»,
 // без текста и автора.
-async function withReplies(rows: MessageRow[], me: string, cleared: number) {
-  const ids = [...new Set(rows.map((r) => r.replyToId).filter((v): v is number => v !== null))];
-  const targets = new Map<number, MessageRow>();
+async function hydrate(rows: MessageRow[], me: string, cleared: number) {
+  const replyIds = [...new Set(rows.map((r) => r.replyToId).filter((v): v is number => v !== null))];
+  const authorIds = [
+    ...new Set(rows.map((r) => r.forwardedFromId).filter((v): v is string => v !== null)),
+  ];
 
-  if (ids.length > 0) {
+  const targets = new Map<number, MessageRow>();
+  if (replyIds.length > 0) {
     const found = await db
       .select()
       .from(messages)
       .where(
         and(
-          inArray(messages.id, ids),
+          inArray(messages.id, replyIds),
           gt(messages.id, cleared),
           sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
         ),
@@ -64,19 +78,31 @@ async function withReplies(rows: MessageRow[], me: string, cleared: number) {
     for (const t of found) targets.set(t.id, t);
   }
 
+  const authors = new Map<string, ForwardAuthor>();
+  if (authorIds.length > 0) {
+    const found = await db
+      .select({ id: users.id, username: users.username, displayName: users.displayName })
+      .from(users)
+      .where(inArray(users.id, authorIds));
+    for (const a of found) authors.set(a.id, a);
+  }
+
   return rows.map((m) => {
-    if (m.replyToId === null) return serializeMessage(m);
-    const t = targets.get(m.replyToId);
-    const preview: ReplyPreview =
-      !t || t.deletedAt
-        ? { id: m.replyToId, senderId: null, content: "", deleted: true }
-        : {
-            id: t.id,
-            senderId: t.senderId,
-            content: [...t.content].slice(0, REPLY_PREVIEW_LEN).join(""),
-            deleted: false,
-          };
-    return serializeMessage(m, preview);
+    let preview: ReplyPreview | null = null;
+    if (m.replyToId !== null) {
+      const t = targets.get(m.replyToId);
+      preview =
+        !t || t.deletedAt
+          ? { id: m.replyToId, senderId: null, content: "", deleted: true }
+          : {
+              id: t.id,
+              senderId: t.senderId,
+              content: [...t.content].slice(0, REPLY_PREVIEW_LEN).join(""),
+              deleted: false,
+            };
+    }
+    const author = m.forwardedFromId ? (authors.get(m.forwardedFromId) ?? null) : null;
+    return serializeMessage(m, preview, author);
   });
 }
 
@@ -120,6 +146,37 @@ async function getConversationFor(conversationId: number, me: string) {
   // 404 и для чужого/удалённого диалога, чтобы не раскрывать его существование
   if (!conv) throw new MessagingError(404, "Диалог не найден");
   return conv;
+}
+
+// Общая вставка нового сообщения: обновляет превью диалога и считает его прочитанным отправителем
+async function insertMessage(
+  conv: Conv,
+  me: string,
+  values: { content: string; replyToId?: number | null; forwardedFromId?: string | null },
+) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(messages)
+      .values({
+        conversationId: conv.id,
+        senderId: me,
+        content: values.content,
+        replyToId: values.replyToId ?? null,
+        forwardedFromId: values.forwardedFromId ?? null,
+      })
+      .returning();
+
+    await tx
+      .update(conversations)
+      .set({
+        lastMessageId: row.id,
+        lastMessageAt: row.createdAt,
+        ...(isLow(conv, me) ? { lastReadLowId: row.id } : { lastReadHighId: row.id }),
+      })
+      .where(eq(conversations.id, conv.id));
+
+    return row;
+  });
 }
 
 export async function getOrCreateConversation(me: string, otherId: string) {
@@ -258,7 +315,7 @@ export async function getMessages(
   const items = hasMore ? rows.slice(0, limit) : rows;
   const { blockedByMe } = await blockState(me, otherOf(conv, me));
   return {
-    messages: await withReplies(items, me, clearedFor(conv, me)),
+    messages: await hydrate(items, me, clearedFor(conv, me)),
     nextCursor: hasMore ? items[items.length - 1].id : null,
     blockedByMe,
   };
@@ -290,31 +347,52 @@ export async function sendMessage(
     if (!target) throw new MessagingError(404, "Сообщение, на которое вы отвечаете, не найдено");
   }
 
-  const msg = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .insert(messages)
-      .values({ conversationId, senderId: me, content, replyToId: replyToId ?? null })
-      .returning();
+  const msg = await insertMessage(conv, me, { content, replyToId });
+  const [serialized] = await hydrate([msg], me, clearedFor(conv, me));
+  return serialized;
+}
 
-    // Своё сообщение автоматически считается прочитанным отправителем
-    await tx
-      .update(conversations)
-      .set({
-        lastMessageId: row.id,
-        lastMessageAt: row.createdAt,
-        ...(isLow(conv, me) ? { lastReadLowId: row.id } : { lastReadHighId: row.id }),
-      })
-      .where(eq(conversations.id, conversationId));
+// Пересылка: копия видимого мне сообщения уходит в выбранный диалог от моего имени.
+// Текст берётся с сервера, а не от клиента. Цитата и отметка правки не переносятся,
+// автором оригинала остаётся первый автор (пересылка пересылки не затирает его).
+export async function forwardMessage(
+  sourceConversationId: number,
+  messageId: number,
+  me: string,
+  targetConversationId: number,
+) {
+  const sourceConv = await getConversationFor(sourceConversationId, me);
 
-    return row;
+  const [src] = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.id, messageId),
+        eq(messages.conversationId, sourceConversationId),
+        gt(messages.id, clearedFor(sourceConv, me)),
+        isNull(messages.deletedAt),
+        sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
+      ),
+    );
+  if (!src) throw new MessagingError(404, "Сообщение не найдено");
+
+  const targetConv =
+    targetConversationId === sourceConversationId
+      ? sourceConv
+      : await getConversationFor(targetConversationId, me);
+  assertCanMessage(await blockState(me, otherOf(targetConv, me)));
+
+  const msg = await insertMessage(targetConv, me, {
+    content: src.content,
+    forwardedFromId: src.forwardedFromId ?? src.senderId,
   });
-
-  const [serialized] = await withReplies([msg], me, clearedFor(conv, me));
+  const [serialized] = await hydrate([msg], me, clearedFor(targetConv, me));
   return serialized;
 }
 
 // Правка своего сообщения. Правка запрещена так же, как и отправка (блокировки),
-// а текст без изменений не трогает edited_at.
+// пересланные сообщения не редактируются, а текст без изменений не трогает edited_at.
 export async function editMessage(
   conversationId: number,
   messageId: number,
@@ -341,9 +419,12 @@ export async function editMessage(
   if (msg.senderId !== me) {
     throw new MessagingError(403, "Можно редактировать только свои сообщения");
   }
+  if (msg.forwardedFromId !== null) {
+    throw new MessagingError(400, "Пересланное сообщение нельзя редактировать");
+  }
 
   if (msg.content === content) {
-    const [same] = await withReplies([msg], me, cleared);
+    const [same] = await hydrate([msg], me, cleared);
     return same;
   }
 
@@ -353,7 +434,7 @@ export async function editMessage(
     .where(eq(messages.id, messageId))
     .returning();
 
-  const [result] = await withReplies([updated], me, cleared);
+  const [result] = await hydrate([updated], me, cleared);
   return result;
 }
 

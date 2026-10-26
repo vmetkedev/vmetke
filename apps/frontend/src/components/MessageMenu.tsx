@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CornerUpLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CornerUpLeft, Forward, Pencil, Trash2 } from "lucide-react";
 
 const MENU_WIDTH = 192;
 
@@ -9,6 +9,7 @@ export function MessageMenu({
   canReply = true,
   canEdit = false,
   onReply,
+  onForward,
   onEdit,
   onDeleteForMe,
   onDeleteForAll,
@@ -19,6 +20,7 @@ export function MessageMenu({
   canReply?: boolean;
   canEdit?: boolean;
   onReply: () => void;
+  onForward: () => void;
   onEdit?: () => void;
   onDeleteForMe: () => void;
   onDeleteForAll: () => void;
@@ -46,7 +48,7 @@ export function MessageMenu({
     };
   }, [onClose]);
 
-  const placeAbove = window.innerHeight - anchor.bottom < 160;
+  const placeAbove = window.innerHeight - anchor.bottom < 190;
   const rawLeft = mine ? anchor.right - MENU_WIDTH : anchor.left;
   const left = Math.max(8, Math.min(rawLeft, window.innerWidth - MENU_WIDTH - 8));
 
@@ -74,6 +76,10 @@ export function MessageMenu({
               Ответить
             </button>
           )}
+          <button role="menuitem" className={item} onClick={onForward}>
+            <Forward size={14} />
+            Переслать
+          </button>
           {canEdit && (
             <button role="menuitem" className={item} onClick={onEdit}>
               <Pencil size={14} />

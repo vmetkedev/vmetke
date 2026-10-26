@@ -12,6 +12,7 @@ function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = 
     canReply: opts.canReply ?? true,
     canEdit: opts.canEdit ?? false,
     onReply: vi.fn(),
+    onForward: vi.fn(),
     onEdit: vi.fn(),
     onDeleteForMe: vi.fn(),
     onDeleteForAll: vi.fn(),
@@ -22,9 +23,10 @@ function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = 
 }
 
 describe("MessageMenu", () => {
-  it("shows «Ответить» and «Удалить» at first", () => {
+  it("shows «Ответить», «Переслать» and «Удалить» at first", () => {
     setup(true);
     expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
     expect(screen.queryByText("Удалить у меня")).not.toBeInTheDocument();
   });
@@ -35,9 +37,16 @@ describe("MessageMenu", () => {
     expect(p.onReply).toHaveBeenCalledTimes(1);
   });
 
+  it("«Переслать» calls onForward", async () => {
+    const p = setup(false);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    expect(p.onForward).toHaveBeenCalledTimes(1);
+  });
+
   it("hides «Ответить» when replying is not possible", () => {
     setup(true, { canReply: false });
     expect(screen.queryByRole("menuitem", { name: "Ответить" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
   });
 

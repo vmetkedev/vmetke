@@ -4,6 +4,7 @@ import {
   deleteConversation,
   deleteMessage,
   editMessage,
+  forwardMessage,
   getMessages,
   getOrCreateConversation,
   listConversations,
@@ -28,6 +29,7 @@ const sendBody = z.object({
   replyToId: z.number().int().positive().optional(),
 });
 const editBody = z.object({ content: z.string().trim().min(1).max(MAX_MESSAGE) });
+const forwardBody = z.object({ toConversationId: z.number().int().positive() });
 const messageParams = z.object({
   id: z.coerce.number().int().positive(),
   messageId: z.coerce.number().int().positive(),
@@ -143,6 +145,35 @@ export default async function messagesRoutes(app: FastifyInstance) {
           body.data.content,
         );
         return { message };
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
+
+  // Пересылка сообщения в другой (или этот же) диалог; создаёт новое сообщение, поэтому тот же лимит, что у отправки
+  app.post(
+    "/:id/messages/:messageId/forward",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: SEND_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const params = messageParams.safeParse(request.params);
+      const body = forwardBody.safeParse(request.body);
+      if (!params.success || !body.success) {
+        return reply.code(400).send({ error: "Некорректные данные" });
+      }
+
+      const payload = request.user as { sub: string };
+      try {
+        const message = await forwardMessage(
+          params.data.id,
+          params.data.messageId,
+          payload.sub,
+          body.data.toConversationId,
+        );
+        return reply.code(201).send({ message });
       } catch (e) {
         return fail(reply, e);
       }

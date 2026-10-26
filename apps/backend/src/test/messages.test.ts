@@ -753,4 +753,206 @@ describe("messages", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().message.replyTo).toMatchObject({ id: orig.id, content: "вопрос" });
   });
+
+  const forwardMsg = (token: string, convId: number, msgId: number, to: unknown) =>
+    app.inject({
+      method: "POST",
+      url: `/api/conversations/${convId}/messages/${msgId}/forward`,
+      headers: auth(token),
+      payload: { toConversationId: to },
+    });
+
+  type Fwd = {
+    id: number;
+    content: string;
+    editedAt: string | null;
+    replyTo: unknown;
+    forwardedFrom: { id: string; username: string } | null;
+  };
+  const fwdOf = async (token: string, convId: number) =>
+    (await historyOf(token, convId)) as unknown as Fwd[];
+
+  it("forwards a message to another conversation with the original author", async () => {
+    const alice = await registerAndLogin(app, "alice40");
+    const bob = await registerAndLogin(app, "bob40");
+    const carol = await registerAndLogin(app, "carol40");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const orig = (await send(app, bob, c1.id, "привет")).json().message as { id: number };
+
+    const res = await forwardMsg(alice, c1.id, orig.id, c2.id);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().message).toMatchObject({
+      conversationId: c2.id,
+      senderId: userIdFromToken(alice),
+      content: "привет",
+      deleted: false,
+      editedAt: null,
+      replyTo: null,
+      forwardedFrom: { id: userIdFromToken(bob), username: "bob40" },
+    });
+
+    const [copy] = await fwdOf(carol, c2.id);
+    expect(copy).toMatchObject({ content: "привет", forwardedFrom: { username: "bob40" } });
+    const [item] = await listOf(carol);
+    expect(item.lastMessage.content).toBe("привет");
+    expect(item.unreadCount).toBe(1);
+
+    // оригинал не тронут
+    const original = await fwdOf(bob, c1.id);
+    expect(original).toHaveLength(1);
+    expect(original[0].forwardedFrom).toBeNull();
+  });
+
+  it("forwarding your own message marks yourself as the author", async () => {
+    const alice = await registerAndLogin(app, "alice41");
+    const bob = await registerAndLogin(app, "bob41");
+    const carol = await registerAndLogin(app, "carol41");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const orig = (await send(app, alice, c1.id, "моё")).json().message as { id: number };
+
+    const res = await forwardMsg(alice, c1.id, orig.id, c2.id);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().message.forwardedFrom).toMatchObject({ id: userIdFromToken(alice) });
+  });
+
+  it("forwarding a forwarded message keeps the first author", async () => {
+    const alice = await registerAndLogin(app, "alice42");
+    const bob = await registerAndLogin(app, "bob42");
+    const carol = await registerAndLogin(app, "carol42");
+    const dave = await registerAndLogin(app, "dave42");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const c3 = await openConversation(app, alice, userIdFromToken(dave));
+    const orig = (await send(app, bob, c1.id, "эстафета")).json().message as { id: number };
+
+    const first = (await forwardMsg(alice, c1.id, orig.id, c2.id)).json().message as { id: number };
+    const second = await forwardMsg(alice, c2.id, first.id, c3.id);
+
+    expect(second.statusCode).toBe(201);
+    expect(second.json().message.forwardedFrom).toMatchObject({ id: userIdFromToken(bob) });
+  });
+
+  it("can forward into the same conversation", async () => {
+    const alice = await registerAndLogin(app, "alice43");
+    const bob = await registerAndLogin(app, "bob43");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, bob, conv.id, "повтор")).json().message as { id: number };
+
+    const res = await forwardMsg(alice, conv.id, orig.id, conv.id);
+    expect(res.statusCode).toBe(201);
+    expect(await fwdOf(alice, conv.id)).toHaveLength(2);
+  });
+
+  it("validates forward input and hides foreign conversations", async () => {
+    const alice = await registerAndLogin(app, "alice44");
+    const bob = await registerAndLogin(app, "bob44");
+    const carol = await registerAndLogin(app, "carol44");
+    const eve = await registerAndLogin(app, "eve44");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const foreign = await openConversation(app, eve, userIdFromToken(carol));
+    const orig = (await send(app, alice, c1.id, "текст")).json().message as { id: number };
+
+    for (const bad of [undefined, 0, -1, "x", 1.5]) {
+      expect((await forwardMsg(alice, c1.id, orig.id, bad)).statusCode).toBe(400);
+    }
+    expect((await forwardMsg(alice, c1.id, 999999, c1.id)).statusCode).toBe(404);
+    // чужой и несуществующий диалоги получателя
+    expect((await forwardMsg(alice, c1.id, orig.id, foreign.id)).statusCode).toBe(404);
+    expect((await forwardMsg(alice, c1.id, orig.id, 999999)).statusCode).toBe(404);
+    expect(await fwdOf(carol, foreign.id)).toHaveLength(0);
+
+    // посторонний не может пересылать из чужого диалога
+    expect((await forwardMsg(eve, c1.id, orig.id, foreign.id)).statusCode).toBe(404);
+    expect(await fwdOf(carol, foreign.id)).toHaveLength(0);
+  });
+
+  it("cannot forward a message deleted for everyone or hidden for me", async () => {
+    const alice = await registerAndLogin(app, "alice45");
+    const bob = await registerAndLogin(app, "bob45");
+    const carol = await registerAndLogin(app, "carol45");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const gone = (await send(app, bob, c1.id, "удалю")).json().message as { id: number };
+    const hidden = (await send(app, bob, c1.id, "скрою")).json().message as { id: number };
+
+    await deleteMessage(bob, c1.id, gone.id, "all");
+    await deleteMessage(alice, c1.id, hidden.id, "me");
+
+    expect((await forwardMsg(alice, c1.id, gone.id, c2.id)).statusCode).toBe(404);
+    expect((await forwardMsg(alice, c1.id, hidden.id, c2.id)).statusCode).toBe(404);
+    expect(await fwdOf(carol, c2.id)).toHaveLength(0);
+  });
+
+  it("cannot forward a message from a history cleared for me", async () => {
+    const alice = await registerAndLogin(app, "alice46");
+    const bob = await registerAndLogin(app, "bob46");
+    const carol = await registerAndLogin(app, "carol46");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const old = (await send(app, bob, c1.id, "старое")).json().message as { id: number };
+
+    await app.inject({
+      method: "DELETE",
+      url: `/api/conversations/${c1.id}?scope=me`,
+      headers: auth(alice),
+    });
+
+    expect((await forwardMsg(alice, c1.id, old.id, c2.id)).statusCode).toBe(404);
+    expect(await fwdOf(carol, c2.id)).toHaveLength(0);
+  });
+
+  it("cannot forward into a blocked conversation", async () => {
+    const alice = await registerAndLogin(app, "alice47");
+    const bob = await registerAndLogin(app, "bob47");
+    const carol = await registerAndLogin(app, "carol47");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const orig = (await send(app, bob, c1.id, "текст")).json().message as { id: number };
+
+    await app.inject({
+      method: "POST",
+      url: "/api/blocks",
+      headers: auth(alice),
+      payload: { userId: userIdFromToken(carol) },
+    });
+
+    expect((await forwardMsg(alice, c1.id, orig.id, c2.id)).statusCode).toBe(403);
+    expect(await fwdOf(carol, c2.id)).toHaveLength(0);
+  });
+
+  it("the copy drops the quote and the edited mark", async () => {
+    const alice = await registerAndLogin(app, "alice48");
+    const bob = await registerAndLogin(app, "bob48");
+    const carol = await registerAndLogin(app, "carol48");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const question = (await send(app, bob, c1.id, "вопрос")).json().message as { id: number };
+    const answer = (await sendReply(alice, c1.id, "ответ", question.id)).json().message as {
+      id: number;
+    };
+    await editMsg(alice, c1.id, answer.id, "ответ, уточнённый");
+
+    const res = await forwardMsg(alice, c1.id, answer.id, c2.id);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().message).toMatchObject({
+      content: "ответ, уточнённый",
+      replyTo: null,
+      editedAt: null,
+    });
+  });
+
+  it("a forwarded message cannot be edited", async () => {
+    const alice = await registerAndLogin(app, "alice49");
+    const bob = await registerAndLogin(app, "bob49");
+    const carol = await registerAndLogin(app, "carol49");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const orig = (await send(app, bob, c1.id, "оригинал")).json().message as { id: number };
+    const copy = (await forwardMsg(alice, c1.id, orig.id, c2.id)).json().message as { id: number };
+
+    expect((await editMsg(alice, c2.id, copy.id, "подмена")).statusCode).toBe(400);
+    expect((await fwdOf(carol, c2.id))[0]).toMatchObject({ content: "оригинал", editedAt: null });
+  });
 });

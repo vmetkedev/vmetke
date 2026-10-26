@@ -6,6 +6,7 @@ import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
 import { ConversationMenu } from "../components/ConversationMenu";
 import { DeleteConversationModal } from "../components/DeleteConversationModal";
+import { ForwardModal } from "../components/ForwardModal";
 import { MessageMenu } from "../components/MessageMenu";
 import {
   MAX_MESSAGE,
@@ -15,12 +16,14 @@ import {
   editMessage,
   fetchConversations,
   fetchMessages,
+  forwardMessage,
   markConversationRead,
   sendMessage,
   unblockUser,
   type Conversation,
   type ConversationUser,
   type DeleteScope,
+  type ForwardAuthor,
   type Message,
   type RequestError,
 } from "../lib/messages";
@@ -57,11 +60,13 @@ function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
 
 function Thread({
   conversationId,
+  conversations,
   otherUser,
   myId,
   onChanged,
 }: {
   conversationId: number;
+  conversations: Conversation[];
   otherUser: ConversationUser | null;
   myId: string;
   onChanged: () => void;
@@ -82,6 +87,9 @@ function Thread({
   const [menu, setMenu] = useState<{ id: number; mine: boolean; anchor: DOMRect } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
+  const [forwarding, setForwarding] = useState<Message | null>(null);
+  const [forwardBusy, setForwardBusy] = useState(false);
+  const [forwardError, setForwardError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -100,6 +108,8 @@ function Thread({
     replyTo && visibleMessages.some((m) => m.id === replyTo.id) ? replyTo : null;
   const authorName = (senderId: string | null) =>
     senderId === myId ? "Вы" : (otherName ?? "Собеседник");
+  const forwardName = (a: ForwardAuthor) => (a.id === myId ? "Вы" : a.displayName || a.username);
+  const menuTarget = menu ? messages.find((m) => m.id === menu.id) : undefined;
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -290,13 +300,52 @@ function Thread({
   const handleStartEdit = (id: number) => {
     const target = messages.find((m) => m.id === id);
     setMenu(null);
-    if (!target || target.senderId !== myId) return;
+    if (!target || target.senderId !== myId || target.forwardedFrom) return;
     // Черновик запоминаем один раз: переход от правки к правке его не затирает
     if (!editing) draftBeforeEdit.current = text;
     setReplyTo(null);
     setEditing(target);
     setText(target.content);
     inputRef.current?.focus();
+  };
+
+  const handleStartForward = (id: number) => {
+    const target = messages.find((m) => m.id === id);
+    setMenu(null);
+    if (!target) return;
+    setForwardError(null);
+    setForwarding(target);
+  };
+
+  const closeForward = () => {
+    setForwarding(null);
+    setForwardError(null);
+  };
+
+  const handleForward = async (toConversationId: number) => {
+    if (!forwarding || forwardBusy) return;
+    setForwardBusy(true);
+    setForwardError(null);
+    try {
+      const sent = await forwardMessage(conversationId, forwarding.id, toConversationId);
+      setForwardBusy(false);
+      setForwarding(null);
+      onChanged();
+      if (toConversationId === conversationId) {
+        stickToBottom.current = true;
+        setMessages((prev) => mergeMessages(prev, [sent]));
+      } else {
+        // переходим в диалог получателя, чтобы было видно, что сообщение ушло
+        navigate(`/messages/${toConversationId}`, {
+          state: {
+            otherUser: conversations.find((c) => c.id === toConversationId)?.otherUser,
+          },
+        });
+      }
+    } catch (e) {
+      setForwardError((e as Error).message);
+      setForwardBusy(false);
+    }
   };
 
   const scrollToMessage = (id: number) => {
@@ -414,6 +463,7 @@ function Thread({
               const mine = m.senderId === myId;
               const selected = menu?.id === m.id || editing?.id === m.id;
               const quote = m.replyTo ?? null;
+              const forwardedFrom = m.forwardedFrom ?? null;
               return (
                 <div
                   key={m.id}
@@ -441,6 +491,11 @@ function Thread({
                         : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
                     } ${selected ? "ring-2 ring-blue-400" : ""}`}
                   >
+                    {forwardedFrom && (
+                      <p className="mb-1 truncate text-xs font-medium italic opacity-80">
+                        Переслано от {forwardName(forwardedFrom)}
+                      </p>
+                    )}
                     {quote && (
                       <div
                         onClick={(e) => {
@@ -558,12 +613,24 @@ function Thread({
           anchor={menu.anchor}
           mine={menu.mine}
           canReply={!blockedByMe}
-          canEdit={menu.mine && !blockedByMe}
+          canEdit={menu.mine && !blockedByMe && !menuTarget?.forwardedFrom}
           onClose={() => setMenu(null)}
           onReply={() => handleReply(menu.id)}
+          onForward={() => handleStartForward(menu.id)}
           onEdit={() => handleStartEdit(menu.id)}
           onDeleteForMe={() => handleDeleteMessage(menu.id, "me")}
           onDeleteForAll={() => handleDeleteMessage(menu.id, "all")}
+        />
+      )}
+
+      {forwarding && (
+        <ForwardModal
+          conversations={conversations}
+          preview={forwarding.content}
+          busy={forwardBusy}
+          error={forwardError}
+          onClose={closeForward}
+          onConfirm={handleForward}
         />
       )}
 
@@ -682,6 +749,7 @@ export default function MessagesPage() {
               <Thread
                 key={activeId}
                 conversationId={activeId}
+                conversations={conversations}
                 otherUser={activeUser}
                 myId={user.id}
                 onChanged={loadConversations}

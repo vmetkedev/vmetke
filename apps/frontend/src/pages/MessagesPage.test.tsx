@@ -7,6 +7,7 @@ import {
   editMessage,
   fetchConversations,
   fetchMessages,
+  forwardMessage,
   markConversationRead,
   sendMessage,
   type Conversation,
@@ -36,6 +37,7 @@ vi.mock("../lib/messages", async (importOriginal) => ({
   fetchMessages: vi.fn(),
   sendMessage: vi.fn(),
   editMessage: vi.fn(),
+  forwardMessage: vi.fn(),
   markConversationRead: vi.fn(),
 }));
 
@@ -524,6 +526,128 @@ describe("MessagesPage: редактирование", () => {
     renderAt("/messages/5");
 
     expect(await screen.findByText("изменено")).toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: пересылка", () => {
+  const forwardDialog = () => screen.findByRole("dialog", { name: "Переслать сообщение" });
+  const queryForwardDialog = () => screen.queryByRole("dialog", { name: "Переслать сообщение" });
+
+  const BOB_AUTHOR = { id: BOB.id, username: "bob", displayName: "Боб" };
+
+  async function openForward(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(fetchConversations).mockResolvedValue({
+      conversations: [conv(), conv({ id: 6, otherUser: ALICE })],
+    });
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "моё"), msg(1, BOB.id, "чужое")],
+      nextCursor: null,
+    });
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    await user.click(await screen.findByText("чужое"));
+    await user.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    return forwardDialog();
+  }
+
+  it("«Переслать» открывает окно со списком диалогов и превью сообщения", async () => {
+    const dialog = await openForward(userEvent.setup());
+
+    expect(within(dialog).getByText("чужое")).toBeInTheDocument();
+    expect(await within(dialog).findByRole("radio", { name: /alice/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: /Боб/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Переслать" })).toBeDisabled();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("пересылка в другой диалог вызывает API и переходит в этот диалог", async () => {
+    vi.mocked(forwardMessage).mockResolvedValue({
+      ...msg(9, ME, "чужое", 6),
+      forwardedFrom: BOB_AUTHOR,
+    });
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.click(await within(dialog).findByRole("radio", { name: /alice/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Переслать" }));
+
+    await waitFor(() => expect(forwardMessage).toHaveBeenCalledWith(5, 1, 6));
+    await waitFor(() => expect(queryForwardDialog()).not.toBeInTheDocument());
+    await waitFor(() => expect(fetchMessages).toHaveBeenLastCalledWith(6));
+  });
+
+  it("пересылка в тот же диалог добавляет копию с пометкой автора", async () => {
+    vi.mocked(forwardMessage).mockResolvedValue({
+      ...msg(9, ME, "чужое"),
+      forwardedFrom: BOB_AUTHOR,
+    });
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.click(await within(dialog).findByRole("radio", { name: /Боб/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Переслать" }));
+
+    expect(await screen.findByText("Переслано от Боб")).toBeInTheDocument();
+    expect(forwardMessage).toHaveBeenCalledWith(5, 1, 5);
+    expect(queryForwardDialog()).not.toBeInTheDocument();
+  });
+
+  it("при ошибке показывает её и оставляет окно открытым", async () => {
+    vi.mocked(forwardMessage).mockRejectedValue(new Error("Этому пользователю нельзя отправить сообщение"));
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.click(await within(dialog).findByRole("radio", { name: /alice/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Переслать" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Этому пользователю нельзя отправить сообщение",
+    );
+    expect(queryForwardDialog()).toBeInTheDocument();
+  });
+
+  it("Escape и «Отмена» закрывают окно без запроса", async () => {
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.keyboard("{Escape}");
+    expect(queryForwardDialog()).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("чужое"));
+    await user.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    await user.click(within(await forwardDialog()).getByRole("button", { name: "Отмена" }));
+
+    expect(queryForwardDialog()).not.toBeInTheDocument();
+    expect(forwardMessage).not.toHaveBeenCalled();
+    expect(dialog).not.toBeInTheDocument();
+  });
+
+  it("пометка «Переслано от»: чужой автор по имени, свой как «Вы»", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        { ...msg(2, ME, "вторая"), forwardedFrom: { id: ME, username: "me", displayName: null } },
+        { ...msg(1, ME, "первая"), forwardedFrom: BOB_AUTHOR },
+      ],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("Переслано от Боб")).toBeInTheDocument();
+    expect(screen.getByText("Переслано от Вы")).toBeInTheDocument();
+  });
+
+  it("у своего пересланного сообщения нет пункта «Изменить»", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [{ ...msg(1, ME, "пересланное"), forwardedFrom: BOB_AUTHOR }],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+
+    await user.click(await screen.findByText("пересланное"));
+
+    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Изменить" })).not.toBeInTheDocument();
   });
 });
 
