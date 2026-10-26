@@ -20,6 +20,7 @@ export type Message = {
   senderId: string;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
   deleted: boolean;
   replyTo?: ReplyPreview | null;
 };
@@ -85,6 +86,18 @@ export async function sendMessage(
   const body = replyToId === undefined ? { content } : { content, replyToId };
   const data = await parse<{ message: Message }>(
     await api.post(`/conversations/${conversationId}/messages`, body),
+  );
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+  return data.message;
+}
+
+export async function editMessage(
+  conversationId: number,
+  messageId: number,
+  content: string,
+): Promise<Message> {
+  const data = await parse<{ message: Message }>(
+    await api.post(`/conversations/${conversationId}/messages/${messageId}/edit`, { content }),
   );
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
   return data.message;

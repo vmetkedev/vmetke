@@ -619,4 +619,138 @@ describe("messages", () => {
     const quote = (await quotesOf(bob, conv.id)).find((m) => m.id === reply.id)?.replyTo;
     expect(quote).toEqual({ id: orig.id, senderId: null, content: "", deleted: true });
   });
+
+  const editMsg = (token: string, convId: number, msgId: number, content: unknown) =>
+    app.inject({
+      method: "POST",
+      url: `/api/conversations/${convId}/messages/${msgId}/edit`,
+      headers: auth(token),
+      payload: { content },
+    });
+
+  type Edited = { id: number; content: string; editedAt: string | null };
+  const editedOf = async (token: string, convId: number) =>
+    (await historyOf(token, convId)) as unknown as Edited[];
+
+  it("edits own message and marks it as edited for both sides", async () => {
+    const alice = await registerAndLogin(app, "alice30");
+    const bob = await registerAndLogin(app, "bob30");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "опечатка")).json().message as { id: number };
+    const other = (await send(app, alice, conv.id, "другое")).json().message as { id: number };
+
+    const res = await editMsg(alice, conv.id, orig.id, "  исправлено  ");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message).toMatchObject({ id: orig.id, content: "исправлено" });
+    expect(res.json().message.editedAt).not.toBeNull();
+
+    for (const token of [alice, bob]) {
+      const history = await editedOf(token, conv.id);
+      const edited = history.find((m) => m.id === orig.id);
+      expect(edited?.content).toBe("исправлено");
+      expect(edited?.editedAt).not.toBeNull();
+      // нетронутое сообщение остаётся без отметки
+      expect(history.find((m) => m.id === other.id)?.editedAt).toBeNull();
+    }
+  });
+
+  it("edit of the last message updates the list preview", async () => {
+    const alice = await registerAndLogin(app, "alice31");
+    const bob = await registerAndLogin(app, "bob31");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "было")).json().message as { id: number };
+
+    await editMsg(alice, conv.id, msg.id, "стало");
+
+    const [item] = await listOf(bob);
+    expect(item.lastMessage.content).toBe("стало");
+  });
+
+  it("only the author can edit; third users, missing, deleted and hidden messages give 404", async () => {
+    const alice = await registerAndLogin(app, "alice32");
+    const bob = await registerAndLogin(app, "bob32");
+    const eve = await registerAndLogin(app, "eve32");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "моё")).json().message as { id: number };
+    const gone = (await send(app, alice, conv.id, "удалю")).json().message as { id: number };
+    const hidden = (await send(app, alice, conv.id, "скрою")).json().message as { id: number };
+
+    await deleteMessage(alice, conv.id, gone.id, "all");
+    await deleteMessage(alice, conv.id, hidden.id, "me");
+
+    expect((await editMsg(bob, conv.id, msg.id, "чужое")).statusCode).toBe(403);
+    expect((await editMsg(eve, conv.id, msg.id, "чужое")).statusCode).toBe(404);
+    expect((await editMsg(alice, conv.id, 999999, "x")).statusCode).toBe(404);
+    expect((await editMsg(alice, conv.id, gone.id, "x")).statusCode).toBe(404);
+    expect((await editMsg(alice, conv.id, hidden.id, "x")).statusCode).toBe(404);
+
+    // оригинал не пострадал
+    expect((await editedOf(bob, conv.id)).find((m) => m.id === msg.id)?.content).toBe("моё");
+  });
+
+  it("validates the edited content", async () => {
+    const alice = await registerAndLogin(app, "alice33");
+    const bob = await registerAndLogin(app, "bob33");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "текст")).json().message as { id: number };
+
+    for (const bad of ["", "   ", "x".repeat(5001), 123, undefined]) {
+      expect((await editMsg(alice, conv.id, msg.id, bad)).statusCode).toBe(400);
+    }
+    expect((await editedOf(alice, conv.id))[0]).toMatchObject({ content: "текст", editedAt: null });
+  });
+
+  it("an unchanged text does not set the edited mark", async () => {
+    const alice = await registerAndLogin(app, "alice34");
+    const bob = await registerAndLogin(app, "bob34");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "то же")).json().message as { id: number };
+
+    const res = await editMsg(alice, conv.id, msg.id, "  то же  ");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message.editedAt).toBeNull();
+    expect((await editedOf(bob, conv.id))[0].editedAt).toBeNull();
+  });
+
+  it("editing is forbidden when the pair is blocked", async () => {
+    const alice = await registerAndLogin(app, "alice35");
+    const bob = await registerAndLogin(app, "bob35");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const msg = (await send(app, alice, conv.id, "до блокировки")).json().message as { id: number };
+
+    await app.inject({
+      method: "POST",
+      url: "/api/blocks",
+      headers: auth(bob),
+      payload: { userId: userIdFromToken(alice) },
+    });
+
+    expect((await editMsg(alice, conv.id, msg.id, "после")).statusCode).toBe(403);
+    expect((await editedOf(bob, conv.id))[0].content).toBe("до блокировки");
+  });
+
+  it("a quote shows the actual text after the original is edited", async () => {
+    const alice = await registerAndLogin(app, "alice36");
+    const bob = await registerAndLogin(app, "bob36");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "старый текст")).json().message as { id: number };
+    const reply = (await sendReply(bob, conv.id, "ответ", orig.id)).json().message as { id: number };
+
+    await editMsg(alice, conv.id, orig.id, "новый текст");
+
+    const quote = (await quotesOf(bob, conv.id)).find((m) => m.id === reply.id)?.replyTo;
+    expect(quote).toMatchObject({ id: orig.id, content: "новый текст", deleted: false });
+  });
+
+  it("editing a reply keeps its quote", async () => {
+    const alice = await registerAndLogin(app, "alice37");
+    const bob = await registerAndLogin(app, "bob37");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const orig = (await send(app, alice, conv.id, "вопрос")).json().message as { id: number };
+    const reply = (await sendReply(bob, conv.id, "ответ", orig.id)).json().message as { id: number };
+
+    const res = await editMsg(bob, conv.id, reply.id, "уточнённый ответ");
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message.replyTo).toMatchObject({ id: orig.id, content: "вопрос" });
+  });
 });

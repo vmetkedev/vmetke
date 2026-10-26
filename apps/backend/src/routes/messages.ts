@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   deleteConversation,
   deleteMessage,
+  editMessage,
   getMessages,
   getOrCreateConversation,
   listConversations,
@@ -26,6 +27,7 @@ const sendBody = z.object({
   content: z.string().trim().min(1).max(MAX_MESSAGE),
   replyToId: z.number().int().positive().optional(),
 });
+const editBody = z.object({ content: z.string().trim().min(1).max(MAX_MESSAGE) });
 const messageParams = z.object({
   id: z.coerce.number().int().positive(),
   messageId: z.coerce.number().int().positive(),
@@ -112,6 +114,35 @@ export default async function messagesRoutes(app: FastifyInstance) {
           body.data.replyToId,
         );
         return reply.code(201).send({ message });
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
+
+  // Правка своего сообщения (action-style, как /read, чтобы не зависеть от PATCH в api-клиенте и CORS)
+  app.post(
+    "/:id/messages/:messageId/edit",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: SEND_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const params = messageParams.safeParse(request.params);
+      const body = editBody.safeParse(request.body);
+      if (!params.success || !body.success) {
+        return reply.code(400).send({ error: "Некорректные данные" });
+      }
+
+      const payload = request.user as { sub: string };
+      try {
+        const message = await editMessage(
+          params.data.id,
+          params.data.messageId,
+          payload.sub,
+          body.data.content,
+        );
+        return { message };
       } catch (e) {
         return fail(reply, e);
       }

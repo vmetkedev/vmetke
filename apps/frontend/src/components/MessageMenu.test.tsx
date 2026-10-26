@@ -5,12 +5,14 @@ import { MessageMenu } from "./MessageMenu";
 
 const anchor = { top: 100, bottom: 130, left: 50, right: 250 } as DOMRect;
 
-function setup(mine: boolean, canReply = true) {
+function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = {}) {
   const props = {
     anchor,
     mine,
-    canReply,
+    canReply: opts.canReply ?? true,
+    canEdit: opts.canEdit ?? false,
     onReply: vi.fn(),
+    onEdit: vi.fn(),
     onDeleteForMe: vi.fn(),
     onDeleteForAll: vi.fn(),
     onClose: vi.fn(),
@@ -34,9 +36,20 @@ describe("MessageMenu", () => {
   });
 
   it("hides «Ответить» when replying is not possible", () => {
-    setup(true, false);
+    setup(true, { canReply: false });
     expect(screen.queryByRole("menuitem", { name: "Ответить" })).not.toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
+  });
+
+  it("shows «Изменить» only when editing is allowed and calls onEdit", async () => {
+    const p = setup(true, { canEdit: true });
+    await userEvent.click(screen.getByRole("menuitem", { name: "Изменить" }));
+    expect(p.onEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides «Изменить» by default", () => {
+    setup(true);
+    expect(screen.queryByRole("menuitem", { name: "Изменить" })).not.toBeInTheDocument();
   });
 
   it("own message: submenu offers delete for me and for everyone", async () => {

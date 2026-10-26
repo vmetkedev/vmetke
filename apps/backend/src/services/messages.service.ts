@@ -37,6 +37,7 @@ function serializeMessage(m: MessageRow, replyTo: ReplyPreview | null = null) {
     senderId: m.senderId,
     content: m.deletedAt ? "" : m.content,
     createdAt: m.createdAt,
+    editedAt: m.editedAt,
     deleted: m.deletedAt !== null,
     replyTo,
   };
@@ -310,6 +311,50 @@ export async function sendMessage(
 
   const [serialized] = await withReplies([msg], me, clearedFor(conv, me));
   return serialized;
+}
+
+// Правка своего сообщения. Правка запрещена так же, как и отправка (блокировки),
+// а текст без изменений не трогает edited_at.
+export async function editMessage(
+  conversationId: number,
+  messageId: number,
+  me: string,
+  content: string,
+) {
+  const conv = await getConversationFor(conversationId, me);
+  assertCanMessage(await blockState(me, otherOf(conv, me)));
+
+  const cleared = clearedFor(conv, me);
+  const [msg] = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.id, messageId),
+        eq(messages.conversationId, conversationId),
+        gt(messages.id, cleared),
+        isNull(messages.deletedAt),
+        sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
+      ),
+    );
+  if (!msg) throw new MessagingError(404, "Сообщение не найдено");
+  if (msg.senderId !== me) {
+    throw new MessagingError(403, "Можно редактировать только свои сообщения");
+  }
+
+  if (msg.content === content) {
+    const [same] = await withReplies([msg], me, cleared);
+    return same;
+  }
+
+  const [updated] = await db
+    .update(messages)
+    .set({ content, editedAt: new Date() })
+    .where(eq(messages.id, messageId))
+    .returning();
+
+  const [result] = await withReplies([updated], me, cleared);
+  return result;
 }
 
 export async function markRead(conversationId: number, me: string) {

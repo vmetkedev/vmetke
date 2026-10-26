@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, Send, X } from "lucide-react";
+import { ArrowLeft, Check, Send, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
@@ -12,6 +12,7 @@ import {
   blockUser,
   deleteConversation,
   deleteMessage,
+  editMessage,
   fetchConversations,
   fetchMessages,
   markConversationRead,
@@ -80,6 +81,7 @@ function Thread({
   const [blockBusy, setBlockBusy] = useState(false);
   const [menu, setMenu] = useState<{ id: number; mine: boolean; anchor: DOMRect } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -88,6 +90,8 @@ function Thread({
   const lastMarkedId = useRef(0);
   // Сообщения, скрытые «у меня»: защищают от «воскрешения» опросом, начатым до удаления
   const hiddenIds = useRef<Set<number>>(new Set());
+  // Что было в поле ввода до входа в режим правки
+  const draftBeforeEdit = useRef("");
 
   const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
   const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
@@ -156,6 +160,19 @@ function Thread({
     }
   }, [messages]);
 
+  // Редактируемое сообщение пропало (например, я удалил его из меню): выходим из правки
+  useEffect(() => {
+    if (!editing) return;
+    const alive = messages.some(
+      (m) => m.id === editing.id && !m.deleted && !hiddenIds.current.has(m.id),
+    );
+    if (!alive) {
+      setEditing(null);
+      setText(draftBeforeEdit.current);
+      draftBeforeEdit.current = "";
+    }
+  }, [editing, messages]);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -179,18 +196,39 @@ function Thread({
     }
   };
 
+  const cancelEdit = () => {
+    setEditing(null);
+    setText(draftBeforeEdit.current);
+    draftBeforeEdit.current = "";
+  };
+
   const handleSend = async () => {
     const content = text.trim();
     if (!content || sending) return;
+
+    // Текст не изменился: выходим из правки без запроса
+    if (editing && content === editing.content) {
+      cancelEdit();
+      return;
+    }
+
     setSending(true);
     try {
-      const msg = activeReply
-        ? await sendMessage(conversationId, content, activeReply.id)
-        : await sendMessage(conversationId, content);
-      stickToBottom.current = true;
-      setMessages((prev) => mergeMessages(prev, [msg]));
-      setText("");
-      setReplyTo(null);
+      if (editing) {
+        const updated = await editMessage(conversationId, editing.id, content);
+        setMessages((prev) => mergeMessages(prev, [updated]));
+        setEditing(null);
+        setText(draftBeforeEdit.current);
+        draftBeforeEdit.current = "";
+      } else {
+        const msg = activeReply
+          ? await sendMessage(conversationId, content, activeReply.id)
+          : await sendMessage(conversationId, content);
+        stickToBottom.current = true;
+        setMessages((prev) => mergeMessages(prev, [msg]));
+        setText("");
+        setReplyTo(null);
+      }
       setError(null);
       onChanged();
     } catch (e) {
@@ -201,9 +239,15 @@ function Thread({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Escape" && replyTo) {
-      setReplyTo(null);
-      return;
+    if (e.key === "Escape") {
+      if (editing) {
+        cancelEdit();
+        return;
+      }
+      if (replyTo) {
+        setReplyTo(null);
+        return;
+      }
     }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -238,7 +282,20 @@ function Thread({
     const target = messages.find((m) => m.id === id);
     setMenu(null);
     if (!target) return;
+    if (editing) cancelEdit();
     setReplyTo(target);
+    inputRef.current?.focus();
+  };
+
+  const handleStartEdit = (id: number) => {
+    const target = messages.find((m) => m.id === id);
+    setMenu(null);
+    if (!target || target.senderId !== myId) return;
+    // Черновик запоминаем один раз: переход от правки к правке его не затирает
+    if (!editing) draftBeforeEdit.current = text;
+    setReplyTo(null);
+    setEditing(target);
+    setText(target.content);
     inputRef.current?.focus();
   };
 
@@ -355,7 +412,7 @@ function Thread({
             )}
             {visibleMessages.map((m) => {
               const mine = m.senderId === myId;
-              const selected = menu?.id === m.id;
+              const selected = menu?.id === m.id || editing?.id === m.id;
               const quote = m.replyTo ?? null;
               return (
                 <div
@@ -414,6 +471,7 @@ function Thread({
                         mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
                       }`}
                     >
+                      {m.editedAt && <span className="mr-1">изменено</span>}
                       {formatMessageTime(m.createdAt)}
                     </p>
                   </div>
@@ -441,7 +499,21 @@ function Thread({
         </div>
       ) : (
         <div className="border-t dark:border-gray-700">
-          {activeReply && (
+          {editing ? (
+            <div className="flex items-center gap-2 px-3 pt-2 text-xs">
+              <div className="flex-1 min-w-0 border-l-2 border-amber-500 pl-2">
+                <p className="font-medium text-amber-600 dark:text-amber-400">Редактирование</p>
+                <p className="truncate text-gray-500 dark:text-gray-400">{editing.content}</p>
+              </div>
+              <button
+                onClick={cancelEdit}
+                aria-label="Отменить редактирование"
+                className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : activeReply ? (
             <div className="flex items-center gap-2 px-3 pt-2 text-xs">
               <div className="flex-1 min-w-0 border-l-2 border-blue-500 pl-2">
                 <p className="font-medium text-blue-600 dark:text-blue-400 truncate">
@@ -457,7 +529,7 @@ function Thread({
                 <X size={14} />
               </button>
             </div>
-          )}
+          ) : null}
           <div className="flex items-end gap-2 p-3">
             <textarea
               ref={inputRef}
@@ -472,10 +544,10 @@ function Thread({
             <button
               onClick={handleSend}
               disabled={sending || !text.trim()}
-              aria-label="Отправить"
+              aria-label={editing ? "Сохранить" : "Отправить"}
               className="bg-blue-600 text-white rounded p-2.5 disabled:opacity-50"
             >
-              <Send size={16} />
+              {editing ? <Check size={16} /> : <Send size={16} />}
             </button>
           </div>
         </div>
@@ -486,8 +558,10 @@ function Thread({
           anchor={menu.anchor}
           mine={menu.mine}
           canReply={!blockedByMe}
+          canEdit={menu.mine && !blockedByMe}
           onClose={() => setMenu(null)}
           onReply={() => handleReply(menu.id)}
+          onEdit={() => handleStartEdit(menu.id)}
           onDeleteForMe={() => handleDeleteMessage(menu.id, "me")}
           onDeleteForAll={() => handleDeleteMessage(menu.id, "all")}
         />

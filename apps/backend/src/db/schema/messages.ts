@@ -61,6 +61,8 @@ export const messages = pgTable(
     replyToId: integer("reply_to_id").references((): AnyPgColumn => messages.id, {
       onDelete: "set null",
     }),
+    // Время последней правки; null, если сообщение не редактировалось
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },

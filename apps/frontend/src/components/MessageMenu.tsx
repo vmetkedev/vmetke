@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CornerUpLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, CornerUpLeft, Pencil, Trash2 } from "lucide-react";
 
 const MENU_WIDTH = 192;
 
@@ -7,7 +7,9 @@ export function MessageMenu({
   anchor,
   mine,
   canReply = true,
+  canEdit = false,
   onReply,
+  onEdit,
   onDeleteForMe,
   onDeleteForAll,
   onClose,
@@ -15,7 +17,9 @@ export function MessageMenu({
   anchor: DOMRect;
   mine: boolean;
   canReply?: boolean;
+  canEdit?: boolean;
   onReply: () => void;
+  onEdit?: () => void;
   onDeleteForMe: () => void;
   onDeleteForAll: () => void;
   onClose: () => void;
@@ -42,7 +46,7 @@ export function MessageMenu({
     };
   }, [onClose]);
 
-  const placeAbove = window.innerHeight - anchor.bottom < 140;
+  const placeAbove = window.innerHeight - anchor.bottom < 160;
   const rawLeft = mine ? anchor.right - MENU_WIDTH : anchor.left;
   const left = Math.max(8, Math.min(rawLeft, window.innerWidth - MENU_WIDTH - 8));
 
@@ -68,6 +72,12 @@ export function MessageMenu({
             <button role="menuitem" className={item} onClick={onReply}>
               <CornerUpLeft size={14} />
               Ответить
+            </button>
+          )}
+          {canEdit && (
+            <button role="menuitem" className={item} onClick={onEdit}>
+              <Pencil size={14} />
+              Изменить
             </button>
           )}
           <button role="menuitem" className={item} onClick={() => setView("delete")}>

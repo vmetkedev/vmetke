@@ -3,6 +3,18 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  editMessage,
+  fetchConversations,
+  fetchMessages,
+  markConversationRead,
+  sendMessage,
+  type Conversation,
+  type ConversationUser,
+  type Message,
+  type ReplyPreview,
+} from "../lib/messages";
+import MessagesPage from "./MessagesPage";
 
 const { ME } = vi.hoisted(() => ({ ME: "me-id" }));
 
@@ -23,20 +35,10 @@ vi.mock("../lib/messages", async (importOriginal) => ({
   fetchConversations: vi.fn(),
   fetchMessages: vi.fn(),
   sendMessage: vi.fn(),
+  editMessage: vi.fn(),
   markConversationRead: vi.fn(),
 }));
 
-import {
-  fetchConversations,
-  fetchMessages,
-  markConversationRead,
-  sendMessage,
-  type Conversation,
-  type ConversationUser,
-  type Message,
-  type ReplyPreview,
-} from "../lib/messages";
-import MessagesPage from "./MessagesPage";
 
 const BOB: ConversationUser = { id: "bob-id", username: "bob", displayName: "Боб", avatarColor: 1 };
 const ALICE: ConversationUser = { id: "alice-id", username: "alice", displayName: null, avatarColor: 2 };
@@ -384,6 +386,144 @@ describe("MessagesPage: ответы", () => {
     await user.click(await screen.findByText("цитата"));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: редактирование", () => {
+  const cancelEditButton = () => screen.getByRole("button", { name: "Отменить редактирование" });
+  const queryCancelEdit = () => screen.queryByRole("button", { name: "Отменить редактирование" });
+  const saveButton = () => screen.getByRole("button", { name: "Сохранить" });
+
+  async function renderConversation(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "моё"), msg(1, BOB.id, "чужое")],
+      nextCursor: null,
+    });
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+    await screen.findByText("моё");
+    return user;
+  }
+
+  async function startEdit(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByText("моё"));
+    await user.click(screen.getByRole("menuitem", { name: "Изменить" }));
+  }
+
+  it("«Изменить» есть только у своих сообщений", async () => {
+    const user = await renderConversation(userEvent.setup());
+
+    await user.click(screen.getByText("чужое"));
+    expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Изменить" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("моё"));
+    expect(screen.getByRole("menuitem", { name: "Изменить" })).toBeInTheDocument();
+  });
+
+  it("«Изменить» кладёт текст в поле ввода, показывает плашку и фокусирует поле", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    expect(input()).toHaveValue("моё");
+    expect(input()).toHaveFocus();
+    expect(screen.getByText("Редактирование")).toBeInTheDocument();
+    expect(saveButton()).toBeEnabled();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("сохранение отправляет новый текст, показывает «изменено» и возвращает черновик", async () => {
+    vi.mocked(editMessage).mockResolvedValue({ ...msg(2, ME, "новое"), editedAt: now() });
+    const user = await renderConversation(userEvent.setup());
+    await user.type(input(), "черновик");
+    await startEdit(user);
+
+    await user.clear(input());
+    await user.type(input(), "новое");
+    await user.click(saveButton());
+
+    expect(await screen.findByText("новое")).toBeInTheDocument();
+    expect(editMessage).toHaveBeenCalledWith(5, 2, "новое");
+    expect(screen.getByText("изменено")).toBeInTheDocument();
+    expect(input()).toHaveValue("черновик");
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Отправить" })).toBeInTheDocument();
+  });
+
+  it("крестик отменяет правку и возвращает черновик", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await user.type(input(), "черновик");
+    await startEdit(user);
+
+    await user.click(cancelEditButton());
+
+    expect(input()).toHaveValue("черновик");
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(editMessage).not.toHaveBeenCalled();
+  });
+
+  it("Escape отменяет правку", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.keyboard("{Escape}");
+
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(input()).toHaveValue("");
+  });
+
+  it("Enter сохраняет правку", async () => {
+    vi.mocked(editMessage).mockResolvedValue({ ...msg(2, ME, "моё!"), editedAt: now() });
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.type(input(), "!{Enter}");
+
+    await waitFor(() => expect(editMessage).toHaveBeenCalledWith(5, 2, "моё!"));
+  });
+
+  it("если текст не изменился, запрос не отправляется и правка закрывается", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.click(saveButton());
+
+    expect(editMessage).not.toHaveBeenCalled();
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+  });
+
+  it("при ошибке показывает её и остаётся в режиме правки", async () => {
+    vi.mocked(editMessage).mockRejectedValue(new Error("Нельзя править"));
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.type(input(), "!");
+    await user.click(saveButton());
+
+    expect(await screen.findByText("Нельзя править")).toBeInTheDocument();
+    expect(cancelEditButton()).toBeInTheDocument();
+    expect(input()).toHaveValue("моё!");
+  });
+
+  it("начало ответа во время правки отменяет правку", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.click(screen.getByText("чужое"));
+    await user.click(screen.getByRole("menuitem", { name: "Ответить" }));
+
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(cancelReplyButton()).toBeInTheDocument();
+    expect(input()).toHaveValue("");
+  });
+
+  it("показывает «изменено» у уже отредактированного сообщения", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [{ ...msg(1, ME, "правленое"), editedAt: now() }],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("изменено")).toBeInTheDocument();
   });
 });
 

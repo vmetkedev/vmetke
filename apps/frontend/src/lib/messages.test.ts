@@ -9,6 +9,7 @@ import {
   MESSAGES_CHANGED_EVENT,
   deleteConversation,
   deleteMessage,
+  editMessage,
   fetchConversations,
   fetchMessages,
   markConversationRead,
@@ -79,6 +80,15 @@ describe("lib/messages", () => {
       content: "ответ",
       replyToId: 3,
     });
+  });
+
+  it("editMessage отправляет новый текст на /edit, возвращает сообщение и шлёт событие", async () => {
+    const message = { id: 3, conversationId: 5, senderId: "me", content: "новое", createdAt: "x", editedAt: "y" };
+    vi.mocked(api.post).mockResolvedValue(json({ message }));
+
+    await expect(editMessage(5, 3, "новое")).resolves.toEqual(message);
+    expect(api.post).toHaveBeenCalledWith("/conversations/5/messages/3/edit", { content: "новое" });
+    expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
   it("sendMessage при ошибке не шлёт событие", async () => {

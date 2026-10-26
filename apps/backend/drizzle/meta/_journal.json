@@ -113,6 +113,13 @@
       "when": 1792731538557,
       "tag": "0016_curved_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792732562895,
+      "tag": "0017_silent_veda",
+      "breakpoints": true
     }
   ]
 }
