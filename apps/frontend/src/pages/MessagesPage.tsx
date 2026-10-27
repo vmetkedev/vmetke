@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, Check, Send, X } from "lucide-react";
+import { ArrowLeft, Check, Heart, Send, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
@@ -17,9 +17,11 @@ import {
   fetchConversations,
   fetchMessages,
   forwardMessage,
+  likeMessage,
   markConversationRead,
   sendMessage,
   unblockUser,
+  unlikeMessage,
   type Conversation,
   type ConversationUser,
   type DeleteScope,
@@ -100,6 +102,8 @@ function Thread({
   const hiddenIds = useRef<Set<number>>(new Set());
   // Что было в поле ввода до входа в режим правки
   const draftBeforeEdit = useRef("");
+  // Сообщения, у которых лайк сейчас в полёте: повторные нажатия игнорируем
+  const likeBusy = useRef<Set<number>>(new Set());
 
   const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
   const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
@@ -110,6 +114,7 @@ function Thread({
     senderId === myId ? "Вы" : (otherName ?? "Собеседник");
   const forwardName = (a: ForwardAuthor) => (a.id === myId ? "Вы" : a.displayName || a.username);
   const menuTarget = menu ? messages.find((m) => m.id === menu.id) : undefined;
+  const menuLiked = menuTarget?.likes?.likedByMe === true;
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -281,6 +286,26 @@ function Thread({
       onChanged();
     } catch (e) {
       setError((e as Error).message);
+    }
+  };
+
+  const handleToggleLike = async (id: number) => {
+    setMenu(null);
+    const target = messages.find((m) => m.id === id);
+    if (!target || likeBusy.current.has(id)) return;
+
+    likeBusy.current.add(id);
+    try {
+      const likes =
+        target.likes?.likedByMe === true
+          ? await unlikeMessage(conversationId, id)
+          : await likeMessage(conversationId, id);
+      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, likes } : m)));
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      likeBusy.current.delete(id);
     }
   };
 
@@ -464,6 +489,7 @@ function Thread({
               const selected = menu?.id === m.id || editing?.id === m.id;
               const quote = m.replyTo ?? null;
               const forwardedFrom = m.forwardedFrom ?? null;
+              const likes = m.likes ?? null;
               return (
                 <div
                   key={m.id}
@@ -480,6 +506,8 @@ function Thread({
                       toggleMenu(m.id, mine, e.currentTarget);
                     }}
                     onKeyDown={(e) => {
+                      // Enter на вложенной кнопке (сердечко) не должен открывать меню
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         toggleMenu(m.id, mine, e.currentTarget);
@@ -521,14 +549,35 @@ function Thread({
                       </div>
                     )}
                     <p className="whitespace-pre-wrap wrap-anywhere">{m.content}</p>
-                    <p
-                      className={`text-[10px] mt-1 text-right ${
-                        mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
-                      }`}
-                    >
-                      {m.editedAt && <span className="mr-1">изменено</span>}
-                      {formatMessageTime(m.createdAt)}
-                    </p>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      {likes && likes.count > 0 ? (
+                        <button
+                          type="button"
+                          aria-label={likes.likedByMe ? "Убрать лайк" : "Поставить лайк"}
+                          aria-pressed={likes.likedByMe}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleLike(m.id);
+                          }}
+                          className={`flex items-center gap-1 text-[11px] ${
+                            likes.likedByMe ? (mine ? "text-red-300" : "text-red-500") : "opacity-60"
+                          }`}
+                        >
+                          <Heart size={12} className="fill-current" />
+                          {likes.count > 1 && <span>{likes.count}</span>}
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <p
+                        className={`ml-auto text-[10px] ${
+                          mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
+                        }`}
+                      >
+                        {m.editedAt && <span className="mr-1">изменено</span>}
+                        {formatMessageTime(m.createdAt)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
@@ -612,9 +661,12 @@ function Thread({
         <MessageMenu
           anchor={menu.anchor}
           mine={menu.mine}
+          liked={menuLiked}
+          canLike={!blockedByMe || menuLiked}
           canReply={!blockedByMe}
           canEdit={menu.mine && !blockedByMe && !menuTarget?.forwardedFrom}
           onClose={() => setMenu(null)}
+          onToggleLike={() => handleToggleLike(menu.id)}
           onReply={() => handleReply(menu.id)}
           onForward={() => handleStartForward(menu.id)}
           onEdit={() => handleStartEdit(menu.id)}

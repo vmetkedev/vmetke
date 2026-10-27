@@ -10,3 +10,4 @@ export * from "./bookmarks.js";
 export * from "./messages.js";
 export * from "./blocks.js";
 export * from "./message-hides.js";
+export * from "./message-likes.js";

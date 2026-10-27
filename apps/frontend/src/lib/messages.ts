@@ -20,6 +20,11 @@ export type ForwardAuthor = {
   displayName: string | null;
 };
 
+export type MessageLikes = {
+  count: number;
+  likedByMe: boolean;
+};
+
 export type Message = {
   id: number;
   conversationId: number;
@@ -30,6 +35,7 @@ export type Message = {
   deleted: boolean;
   replyTo?: ReplyPreview | null;
   forwardedFrom?: ForwardAuthor | null;
+  likes?: MessageLikes;
 };
 
 export type Conversation = {
@@ -122,6 +128,27 @@ export async function forwardMessage(
   );
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
   return data.message;
+}
+
+// Лайки не влияют на список диалогов и счётчики, поэтому событие MESSAGES_CHANGED_EVENT не шлём
+export async function likeMessage(
+  conversationId: number,
+  messageId: number,
+): Promise<MessageLikes> {
+  const data = await parse<{ likes: MessageLikes }>(
+    await api.post(`/conversations/${conversationId}/messages/${messageId}/like`),
+  );
+  return data.likes;
+}
+
+export async function unlikeMessage(
+  conversationId: number,
+  messageId: number,
+): Promise<MessageLikes> {
+  const data = await parse<{ likes: MessageLikes }>(
+    await api.delete(`/conversations/${conversationId}/messages/${messageId}/like`),
+  );
+  return data.likes;
 }
 
 export async function markConversationRead(conversationId: number): Promise<void> {

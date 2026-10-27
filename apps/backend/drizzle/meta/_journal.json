@@ -127,6 +127,13 @@
       "when": 1792983361329,
       "tag": "0018_yummy_captain_britain",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792984194897,
+      "tag": "0019_military_chimera",
+      "breakpoints": true
     }
   ]
 }

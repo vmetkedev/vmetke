@@ -5,12 +5,18 @@ import { MessageMenu } from "./MessageMenu";
 
 const anchor = { top: 100, bottom: 130, left: 50, right: 250 } as DOMRect;
 
-function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = {}) {
+function setup(
+  mine: boolean,
+  opts: { canReply?: boolean; canEdit?: boolean; liked?: boolean; canLike?: boolean } = {},
+) {
   const props = {
     anchor,
     mine,
+    liked: opts.liked ?? false,
+    canLike: opts.canLike ?? true,
     canReply: opts.canReply ?? true,
     canEdit: opts.canEdit ?? false,
+    onToggleLike: vi.fn(),
     onReply: vi.fn(),
     onForward: vi.fn(),
     onEdit: vi.fn(),
@@ -23,12 +29,32 @@ function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = 
 }
 
 describe("MessageMenu", () => {
-  it("shows «Ответить», «Переслать» and «Удалить» at first", () => {
+  it("shows «Нравится», «Ответить», «Переслать» and «Удалить» at first", () => {
     setup(true);
+    expect(screen.getByRole("menuitem", { name: "Нравится" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
     expect(screen.queryByText("Удалить у меня")).not.toBeInTheDocument();
+  });
+
+  it("«Нравится» calls onToggleLike", async () => {
+    const p = setup(false);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Нравится" }));
+    expect(p.onToggleLike).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows «Убрать лайк» for an already liked message", async () => {
+    const p = setup(false, { liked: true });
+    expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Убрать лайк" }));
+    expect(p.onToggleLike).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the like item when liking is not possible", () => {
+    setup(true, { canLike: false });
+    expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
   });
 
   it("«Ответить» calls onReply", async () => {

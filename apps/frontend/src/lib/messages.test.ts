@@ -16,6 +16,8 @@ import {
   openConversation,
   sendMessage,
   forwardMessage,
+  likeMessage,
+  unlikeMessage,
 } from "./messages";
 
 const json = (data: unknown, status = 200) =>
@@ -92,7 +94,23 @@ describe("lib/messages", () => {
     expect(onChanged).toHaveBeenCalledTimes(1);
   });
 
-    it("forwardMessage отправляет id диалога-получателя на /forward, возвращает сообщение и шлёт событие", async () => {
+  it("likeMessage ставит лайк на /like, возвращает лайки и не шлёт событие", async () => {
+    vi.mocked(api.post).mockResolvedValue(json({ likes: { count: 1, likedByMe: true } }));
+
+    await expect(likeMessage(5, 3)).resolves.toEqual({ count: 1, likedByMe: true });
+    expect(api.post).toHaveBeenCalledWith("/conversations/5/messages/3/like");
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("unlikeMessage снимает лайк через DELETE и возвращает лайки", async () => {
+    vi.mocked(api.delete).mockResolvedValue(json({ likes: { count: 0, likedByMe: false } }));
+
+    await expect(unlikeMessage(5, 3)).resolves.toEqual({ count: 0, likedByMe: false });
+    expect(api.delete).toHaveBeenCalledWith("/conversations/5/messages/3/like");
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("forwardMessage отправляет id диалога-получателя на /forward, возвращает сообщение и шлёт событие", async () => {
     const message = { id: 9, conversationId: 6, senderId: "me", content: "текст", createdAt: "x" };
     vi.mocked(api.post).mockResolvedValue(json({ message }, 201));
 

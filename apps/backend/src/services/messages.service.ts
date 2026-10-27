@@ -1,6 +1,13 @@
 import { and, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
-import { conversations, messageHides, messages, userBlocks, users } from "../db/schema/index.js";
+import {
+  conversations,
+  messageHides,
+  messageLikes,
+  messages,
+  userBlocks,
+  users,
+} from "../db/schema/index.js";
 
 export class MessagingError extends Error {
   statusCode: number;
@@ -29,6 +36,9 @@ type ForwardAuthor = {
   displayName: string | null;
 };
 
+type Likes = { count: number; likedByMe: boolean };
+const NO_LIKES: Likes = { count: 0, likedByMe: false };
+
 const isLow = (conv: { userLowId: string }, me: string) => conv.userLowId === me;
 
 // Отметка «удалено у меня»: сообщения с id <= этого значения мне не показываются
@@ -40,6 +50,7 @@ function serializeMessage(
   m: MessageRow,
   replyTo: ReplyPreview | null = null,
   forwardedFrom: ForwardAuthor | null = null,
+  likes: Likes = NO_LIKES,
 ) {
   return {
     id: m.id,
@@ -51,10 +62,30 @@ function serializeMessage(
     deleted: m.deletedAt !== null,
     replyTo,
     forwardedFrom,
+    likes,
   };
 }
 
-// Цитаты и авторы пересылок для пачки сообщений. Оригинал цитаты, удалённый у всех,
+// Лайки для набора сообщений одним запросом: сколько всего и ставил ли его я
+async function likesOf(ids: number[], me: string) {
+  const map = new Map<number, Likes>();
+  if (ids.length === 0) return map;
+
+  const rows = await db
+    .select({
+      messageId: messageLikes.messageId,
+      count: sql<number>`count(*)::int`,
+      likedByMe: sql<boolean>`COALESCE(bool_or(${messageLikes.userId} = ${me}), false)`,
+    })
+    .from(messageLikes)
+    .where(inArray(messageLikes.messageId, ids))
+    .groupBy(messageLikes.messageId);
+
+  for (const r of rows) map.set(r.messageId, { count: r.count, likedByMe: r.likedByMe });
+  return map;
+}
+
+// Цитаты, авторы пересылок и лайки для пачки сообщений. Оригинал цитаты, удалённый у всех,
 // скрытый «у меня» или очищенный вместе с историей, отдаётся как «удалённый»,
 // без текста и автора.
 async function hydrate(rows: MessageRow[], me: string, cleared: number) {
@@ -87,6 +118,11 @@ async function hydrate(rows: MessageRow[], me: string, cleared: number) {
     for (const a of found) authors.set(a.id, a);
   }
 
+  const likes = await likesOf(
+    rows.map((r) => r.id),
+    me,
+  );
+
   return rows.map((m) => {
     let preview: ReplyPreview | null = null;
     if (m.replyToId !== null) {
@@ -102,7 +138,7 @@ async function hydrate(rows: MessageRow[], me: string, cleared: number) {
             };
     }
     const author = m.forwardedFromId ? (authors.get(m.forwardedFromId) ?? null) : null;
-    return serializeMessage(m, preview, author);
+    return serializeMessage(m, preview, author, likes.get(m.id) ?? NO_LIKES);
   });
 }
 
@@ -146,6 +182,28 @@ async function getConversationFor(conversationId: number, me: string) {
   // 404 и для чужого/удалённого диалога, чтобы не раскрывать его существование
   if (!conv) throw new MessagingError(404, "Диалог не найден");
   return conv;
+}
+
+// Сообщение, которое я сейчас вижу: живое, не очищенное и не скрытое «у меня»
+async function findVisibleMessage(
+  conv: Conv,
+  conversationId: number,
+  messageId: number,
+  me: string,
+) {
+  const [msg] = await db
+    .select()
+    .from(messages)
+    .where(
+      and(
+        eq(messages.id, messageId),
+        eq(messages.conversationId, conversationId),
+        gt(messages.id, clearedFor(conv, me)),
+        isNull(messages.deletedAt),
+        sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
+      ),
+    );
+  return msg;
 }
 
 // Общая вставка нового сообщения: обновляет превью диалога и считает его прочитанным отправителем
@@ -332,18 +390,7 @@ export async function sendMessage(
 
   // Отвечать можно только на то, что я вижу: тот же диалог, не очищено, не скрыто, не удалено
   if (replyToId !== undefined) {
-    const [target] = await db
-      .select({ id: messages.id })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.id, replyToId),
-          eq(messages.conversationId, conversationId),
-          gt(messages.id, clearedFor(conv, me)),
-          isNull(messages.deletedAt),
-          sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
-        ),
-      );
+    const target = await findVisibleMessage(conv, conversationId, replyToId, me);
     if (!target) throw new MessagingError(404, "Сообщение, на которое вы отвечаете, не найдено");
   }
 
@@ -353,7 +400,7 @@ export async function sendMessage(
 }
 
 // Пересылка: копия видимого мне сообщения уходит в выбранный диалог от моего имени.
-// Текст берётся с сервера, а не от клиента. Цитата и отметка правки не переносятся,
+// Текст берётся с сервера, а не от клиента. Цитата, лайки и отметка правки не переносятся,
 // автором оригинала остаётся первый автор (пересылка пересылки не затирает его).
 export async function forwardMessage(
   sourceConversationId: number,
@@ -363,18 +410,7 @@ export async function forwardMessage(
 ) {
   const sourceConv = await getConversationFor(sourceConversationId, me);
 
-  const [src] = await db
-    .select()
-    .from(messages)
-    .where(
-      and(
-        eq(messages.id, messageId),
-        eq(messages.conversationId, sourceConversationId),
-        gt(messages.id, clearedFor(sourceConv, me)),
-        isNull(messages.deletedAt),
-        sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
-      ),
-    );
+  const src = await findVisibleMessage(sourceConv, sourceConversationId, messageId, me);
   if (!src) throw new MessagingError(404, "Сообщение не найдено");
 
   const targetConv =
@@ -403,18 +439,7 @@ export async function editMessage(
   assertCanMessage(await blockState(me, otherOf(conv, me)));
 
   const cleared = clearedFor(conv, me);
-  const [msg] = await db
-    .select()
-    .from(messages)
-    .where(
-      and(
-        eq(messages.id, messageId),
-        eq(messages.conversationId, conversationId),
-        gt(messages.id, cleared),
-        isNull(messages.deletedAt),
-        sql`NOT EXISTS (SELECT 1 FROM ${messageHides} AS h WHERE h.message_id = ${messages.id} AND h.user_id = ${me})`,
-      ),
-    );
+  const msg = await findVisibleMessage(conv, conversationId, messageId, me);
   if (!msg) throw new MessagingError(404, "Сообщение не найдено");
   if (msg.senderId !== me) {
     throw new MessagingError(403, "Можно редактировать только свои сообщения");
@@ -436,6 +461,31 @@ export async function editMessage(
 
   const [result] = await hydrate([updated], me, cleared);
   return result;
+}
+
+// Лайк любого видимого мне сообщения (своего или чужого). Идемпотентен.
+// Если в паре есть блокировка, поставить лайк нельзя, но снять свой можно.
+export async function likeMessage(conversationId: number, messageId: number, me: string) {
+  const conv = await getConversationFor(conversationId, me);
+  const msg = await findVisibleMessage(conv, conversationId, messageId, me);
+  if (!msg) throw new MessagingError(404, "Сообщение не найдено");
+  assertCanMessage(await blockState(me, otherOf(conv, me)));
+
+  await db.insert(messageLikes).values({ messageId, userId: me }).onConflictDoNothing();
+
+  return (await likesOf([messageId], me)).get(messageId) ?? NO_LIKES;
+}
+
+export async function unlikeMessage(conversationId: number, messageId: number, me: string) {
+  const conv = await getConversationFor(conversationId, me);
+  const msg = await findVisibleMessage(conv, conversationId, messageId, me);
+  if (!msg) throw new MessagingError(404, "Сообщение не найдено");
+
+  await db
+    .delete(messageLikes)
+    .where(and(eq(messageLikes.messageId, messageId), eq(messageLikes.userId, me)));
+
+  return (await likesOf([messageId], me)).get(messageId) ?? NO_LIKES;
 }
 
 export async function markRead(conversationId: number, me: string) {

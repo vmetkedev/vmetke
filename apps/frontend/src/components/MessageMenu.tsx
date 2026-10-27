@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CornerUpLeft, Forward, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CornerUpLeft, Forward, Heart, Pencil, Trash2 } from "lucide-react";
 
 const MENU_WIDTH = 192;
 
 export function MessageMenu({
   anchor,
   mine,
+  liked = false,
+  canLike = true,
   canReply = true,
   canEdit = false,
+  onToggleLike,
   onReply,
   onForward,
   onEdit,
@@ -17,8 +20,11 @@ export function MessageMenu({
 }: {
   anchor: DOMRect;
   mine: boolean;
+  liked?: boolean;
+  canLike?: boolean;
   canReply?: boolean;
   canEdit?: boolean;
+  onToggleLike: () => void;
   onReply: () => void;
   onForward: () => void;
   onEdit?: () => void;
@@ -48,7 +54,7 @@ export function MessageMenu({
     };
   }, [onClose]);
 
-  const placeAbove = window.innerHeight - anchor.bottom < 190;
+  const placeAbove = window.innerHeight - anchor.bottom < 230;
   const rawLeft = mine ? anchor.right - MENU_WIDTH : anchor.left;
   const left = Math.max(8, Math.min(rawLeft, window.innerWidth - MENU_WIDTH - 8));
 
@@ -70,6 +76,12 @@ export function MessageMenu({
     >
       {view === "main" ? (
         <>
+          {canLike && (
+            <button role="menuitem" className={item} onClick={onToggleLike}>
+              <Heart size={14} className={liked ? "fill-red-500 text-red-500" : ""} />
+              {liked ? "Убрать лайк" : "Нравится"}
+            </button>
+          )}
           {canReply && (
             <button role="menuitem" className={item} onClick={onReply}>
               <CornerUpLeft size={14} />

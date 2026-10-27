@@ -955,4 +955,130 @@ describe("messages", () => {
     expect((await editMsg(alice, c2.id, copy.id, "подмена")).statusCode).toBe(400);
     expect((await fwdOf(carol, c2.id))[0]).toMatchObject({ content: "оригинал", editedAt: null });
   });
+
+    const likeMsg = (token: string, convId: number, msgId: number) =>
+    app.inject({
+      method: "POST",
+      url: `/api/conversations/${convId}/messages/${msgId}/like`,
+      headers: auth(token),
+    });
+
+  const unlikeMsg = (token: string, convId: number, msgId: number) =>
+    app.inject({
+      method: "DELETE",
+      url: `/api/conversations/${convId}/messages/${msgId}/like`,
+      headers: auth(token),
+    });
+
+  type Likes = { count: number; likedByMe: boolean };
+  const likesOfMsg = async (token: string, convId: number, msgId: number) =>
+    ((await historyOf(token, convId)) as unknown as { id: number; likes: Likes }[]).find(
+      (m) => m.id === msgId,
+    )?.likes;
+
+  it("likes are per user and each viewer sees their own flag", async () => {
+    const alice = await registerAndLogin(app, "alice50");
+    const bob = await registerAndLogin(app, "bob50");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const m = (await send(app, bob, conv.id, "нравится")).json().message as { id: number };
+
+    const first = await likeMsg(alice, conv.id, m.id);
+    expect(first.statusCode).toBe(200);
+    expect(first.json().likes).toEqual({ count: 1, likedByMe: true });
+    expect(await likesOfMsg(alice, conv.id, m.id)).toEqual({ count: 1, likedByMe: true });
+    expect(await likesOfMsg(bob, conv.id, m.id)).toEqual({ count: 1, likedByMe: false });
+
+    // можно лайкнуть и своё сообщение
+    expect((await likeMsg(bob, conv.id, m.id)).json().likes).toEqual({ count: 2, likedByMe: true });
+    expect(await likesOfMsg(alice, conv.id, m.id)).toEqual({ count: 2, likedByMe: true });
+
+    const removed = await unlikeMsg(alice, conv.id, m.id);
+    expect(removed.json().likes).toEqual({ count: 1, likedByMe: false });
+    expect(await likesOfMsg(bob, conv.id, m.id)).toEqual({ count: 1, likedByMe: true });
+  });
+
+  it("a new message has no likes, and like/unlike are idempotent", async () => {
+    const alice = await registerAndLogin(app, "alice51");
+    const bob = await registerAndLogin(app, "bob51");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const sent = await send(app, bob, conv.id, "привет");
+    const m = sent.json().message as { id: number; likes: Likes };
+    expect(m.likes).toEqual({ count: 0, likedByMe: false });
+
+    await likeMsg(alice, conv.id, m.id);
+    expect((await likeMsg(alice, conv.id, m.id)).json().likes).toEqual({
+      count: 1,
+      likedByMe: true,
+    });
+
+    await unlikeMsg(alice, conv.id, m.id);
+    const again = await unlikeMsg(alice, conv.id, m.id);
+    expect(again.statusCode).toBe(200);
+    expect(again.json().likes).toEqual({ count: 0, likedByMe: false });
+  });
+
+  it("likes need a visible message in my own conversation", async () => {
+    const alice = await registerAndLogin(app, "alice52");
+    const bob = await registerAndLogin(app, "bob52");
+    const eve = await registerAndLogin(app, "eve52");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const live = (await send(app, bob, conv.id, "живое")).json().message as { id: number };
+    const gone = (await send(app, bob, conv.id, "удалю")).json().message as { id: number };
+    const hidden = (await send(app, bob, conv.id, "скрою")).json().message as { id: number };
+
+    await deleteMessage(bob, conv.id, gone.id, "all");
+    await deleteMessage(alice, conv.id, hidden.id, "me");
+
+    expect((await likeMsg(eve, conv.id, live.id)).statusCode).toBe(404);
+    expect((await unlikeMsg(eve, conv.id, live.id)).statusCode).toBe(404);
+    expect((await likeMsg(alice, conv.id, 999999)).statusCode).toBe(404);
+    expect((await likeMsg(alice, conv.id, gone.id)).statusCode).toBe(404);
+    expect((await likeMsg(alice, conv.id, hidden.id)).statusCode).toBe(404);
+    expect((await unlikeMsg(alice, conv.id, hidden.id)).statusCode).toBe(404);
+
+    const bad = await app.inject({
+      method: "POST",
+      url: `/api/conversations/${conv.id}/messages/abc/like`,
+      headers: auth(alice),
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(await likesOfMsg(bob, conv.id, live.id)).toEqual({ count: 0, likedByMe: false });
+  });
+
+  it("cannot like in a blocked pair, but can remove an existing like", async () => {
+    const alice = await registerAndLogin(app, "alice53");
+    const bob = await registerAndLogin(app, "bob53");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const m1 = (await send(app, bob, conv.id, "первое")).json().message as { id: number };
+    const m2 = (await send(app, bob, conv.id, "второе")).json().message as { id: number };
+    await likeMsg(alice, conv.id, m1.id);
+
+    await app.inject({
+      method: "POST",
+      url: "/api/blocks",
+      headers: auth(bob),
+      payload: { userId: userIdFromToken(alice) },
+    });
+
+    expect((await likeMsg(alice, conv.id, m2.id)).statusCode).toBe(403);
+    const removed = await unlikeMsg(alice, conv.id, m1.id);
+    expect(removed.statusCode).toBe(200);
+    expect(removed.json().likes).toEqual({ count: 0, likedByMe: false });
+  });
+
+  it("likes survive an edit and are not copied by a forward", async () => {
+    const alice = await registerAndLogin(app, "alice54");
+    const bob = await registerAndLogin(app, "bob54");
+    const carol = await registerAndLogin(app, "carol54");
+    const c1 = await openConversation(app, alice, userIdFromToken(bob));
+    const c2 = await openConversation(app, alice, userIdFromToken(carol));
+    const m = (await send(app, bob, c1.id, "до правки")).json().message as { id: number };
+    await likeMsg(alice, c1.id, m.id);
+
+    const edited = await editMsg(bob, c1.id, m.id, "после правки");
+    expect(edited.json().message.likes).toEqual({ count: 1, likedByMe: false });
+
+    const copy = await forwardMsg(alice, c1.id, m.id, c2.id);
+    expect(copy.json().message.likes).toEqual({ count: 0, likedByMe: false });
+  });
 });

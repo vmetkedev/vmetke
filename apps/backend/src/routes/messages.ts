@@ -7,15 +7,18 @@ import {
   forwardMessage,
   getMessages,
   getOrCreateConversation,
+  likeMessage,
   listConversations,
   markRead,
   MessagingError,
   sendMessage,
+  unlikeMessage,
 } from "../services/messages.service.js";
 
 export const MAX_MESSAGE = 5000;
 export const SEND_LIMIT = 20;
 export const CREATE_LIMIT = 10;
+export const LIKE_LIMIT = 60;
 const LIMIT_WINDOW = "1 minute";
 
 const createBody = z.object({ userId: z.string().uuid() });
@@ -174,6 +177,47 @@ export default async function messagesRoutes(app: FastifyInstance) {
           body.data.toConversationId,
         );
         return reply.code(201).send({ message });
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
+
+  // Лайк сообщения: POST ставит, DELETE снимает (оба идемпотентны), в ответе актуальные лайки
+  app.post(
+    "/:id/messages/:messageId/like",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: LIKE_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const params = messageParams.safeParse(request.params);
+      if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
+
+      const payload = request.user as { sub: string };
+      try {
+        const likes = await likeMessage(params.data.id, params.data.messageId, payload.sub);
+        return { likes };
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
+
+  app.delete(
+    "/:id/messages/:messageId/like",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: LIKE_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const params = messageParams.safeParse(request.params);
+      if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
+
+      const payload = request.user as { sub: string };
+      try {
+        const likes = await unlikeMessage(params.data.id, params.data.messageId, payload.sub);
+        return { likes };
       } catch (e) {
         return fail(reply, e);
       }
