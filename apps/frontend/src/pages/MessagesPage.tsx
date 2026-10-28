@@ -32,6 +32,8 @@ import {
 
 const LIST_POLL_MS = 10000;
 const THREAD_POLL_MS = 4000;
+// Через сколько наведения на сообщение рядом с ним появляется кнопка лайка
+const LIKE_HOVER_DELAY_MS = 400;
 
 function isToday(d: Date) {
   const now = new Date();
@@ -92,6 +94,8 @@ function Thread({
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [forwardBusy, setForwardBusy] = useState(false);
   const [forwardError, setForwardError] = useState<string | null>(null);
+  // Сообщение, над которым курсор продержался LIKE_HOVER_DELAY_MS: рядом с ним показываем кнопку лайка
+  const [hoverId, setHoverId] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -104,6 +108,7 @@ function Thread({
   const draftBeforeEdit = useRef("");
   // Сообщения, у которых лайк сейчас в полёте: повторные нажатия игнорируем
   const likeBusy = useRef<Set<number>>(new Set());
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
   const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
@@ -114,7 +119,6 @@ function Thread({
     senderId === myId ? "Вы" : (otherName ?? "Собеседник");
   const forwardName = (a: ForwardAuthor) => (a.id === myId ? "Вы" : a.displayName || a.username);
   const menuTarget = menu ? messages.find((m) => m.id === menu.id) : undefined;
-  const menuLiked = menuTarget?.likes?.likedByMe === true;
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -187,6 +191,13 @@ function Thread({
       draftBeforeEdit.current = "";
     }
   }, [editing, messages]);
+
+  // Таймер наведения не должен пережить компонент
+  useEffect(() => {
+    return () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    };
+  }, []);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -307,6 +318,17 @@ function Thread({
     } finally {
       likeBusy.current.delete(id);
     }
+  };
+
+  const startHover = (id: number) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHoverId(id), LIKE_HOVER_DELAY_MS);
+  };
+
+  const endHover = (id: number) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    setHoverId((cur) => (cur === id ? null : cur));
   };
 
   const toggleMenu = (id: number, mine: boolean, el: HTMLElement) => {
@@ -490,6 +512,12 @@ function Thread({
               const quote = m.replyTo ?? null;
               const forwardedFrom = m.forwardedFrom ?? null;
               const likes = m.likes ?? null;
+              const likedByMe = likes?.likedByMe === true;
+              // Кнопка лайка: после 1,5 с наведения, а также пока открыто меню сообщения
+              // (так до неё можно добраться с тачскрина и с клавиатуры).
+              // При блокировке ставить лайк нельзя, но снять свой можно.
+              const showHeart =
+                (hoverId === m.id || menu?.id === m.id) && (!blockedByMe || likedByMe);
               return (
                 <div
                   key={m.id}
@@ -497,87 +525,115 @@ function Thread({
                   className={`flex ${mine ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    data-message-bubble
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      // выделение текста мышью не должно открывать меню
-                      if (window.getSelection()?.toString()) return;
-                      toggleMenu(m.id, mine, e.currentTarget);
-                    }}
-                    onKeyDown={(e) => {
-                      // Enter на вложенной кнопке (сердечко) не должен открывать меню
-                      if (e.target !== e.currentTarget) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        toggleMenu(m.id, mine, e.currentTarget);
-                      }
-                    }}
-                    className={`max-w-[80%] cursor-pointer rounded-lg px-3 py-2 text-sm ${
-                      mine
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
-                    } ${selected ? "ring-2 ring-blue-400" : ""}`}
+                    data-testid={`msg-hover-${m.id}`}
+                    className="relative max-w-[80%]"
+                    onMouseEnter={() => startHover(m.id)}
+                    onMouseLeave={() => endHover(m.id)}
                   >
-                    {forwardedFrom && (
-                      <p className="mb-1 truncate text-xs font-medium italic opacity-80">
-                        Переслано от {forwardName(forwardedFrom)}
-                      </p>
-                    )}
-                    {quote && (
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!quote.deleted) scrollToMessage(quote.id);
-                        }}
-                        className={`mb-1 rounded border-l-2 px-2 py-1 text-xs ${
-                          mine
-                            ? "border-blue-200 bg-blue-500/60"
-                            : "border-gray-400 bg-gray-200 dark:bg-gray-600"
-                        } ${quote.deleted ? "" : "cursor-pointer"}`}
-                      >
-                        {quote.deleted ? (
-                          <p className="italic opacity-80">Сообщение удалено</p>
-                        ) : (
-                          <>
-                            <p className="font-medium truncate">{authorName(quote.senderId)}</p>
-                            <p className="line-clamp-2 whitespace-pre-wrap wrap-anywhere opacity-90">
-                              {quote.content}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <p className="whitespace-pre-wrap wrap-anywhere">{m.content}</p>
-                    <div className="mt-1 flex items-center justify-between gap-3">
-                      {likes && likes.count > 0 ? (
-                        <button
-                          type="button"
-                          aria-label={likes.likedByMe ? "Убрать лайк" : "Поставить лайк"}
-                          aria-pressed={likes.likedByMe}
+                    <div
+                      data-message-bubble
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        // выделение текста мышью не должно открывать меню
+                        if (window.getSelection()?.toString()) return;
+                        toggleMenu(m.id, mine, e.currentTarget);
+                      }}
+                      onKeyDown={(e) => {
+                        // Enter на вложенной кнопке (сердечко) не должен открывать меню
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleMenu(m.id, mine, e.currentTarget);
+                        }
+                      }}
+                      className={`cursor-pointer rounded-lg px-3 py-2 text-sm ${
+                        mine
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
+                      } ${selected ? "ring-2 ring-blue-400" : ""}`}
+                    >
+                      {forwardedFrom && (
+                        <p className="mb-1 truncate text-xs font-medium italic opacity-80">
+                          Переслано от {forwardName(forwardedFrom)}
+                        </p>
+                      )}
+                      {quote && (
+                        <div
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleLike(m.id);
+                            if (!quote.deleted) scrollToMessage(quote.id);
                           }}
-                          className={`flex items-center gap-1 text-[11px] ${
-                            likes.likedByMe ? (mine ? "text-red-300" : "text-red-500") : "opacity-60"
+                          className={`mb-1 rounded border-l-2 px-2 py-1 text-xs ${
+                            mine
+                              ? "border-blue-200 bg-blue-500/60"
+                              : "border-gray-400 bg-gray-200 dark:bg-gray-600"
+                          } ${quote.deleted ? "" : "cursor-pointer"}`}
+                        >
+                          {quote.deleted ? (
+                            <p className="italic opacity-80">Сообщение удалено</p>
+                          ) : (
+                            <>
+                              <p className="font-medium truncate">{authorName(quote.senderId)}</p>
+                              <p className="line-clamp-2 whitespace-pre-wrap wrap-anywhere opacity-90">
+                                {quote.content}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap wrap-anywhere">{m.content}</p>
+                      <div className="mt-1 flex items-center justify-between gap-3">
+                        {likes && likes.count > 0 ? (
+                          <button
+                            type="button"
+                            aria-label={likes.likedByMe ? "Убрать лайк" : "Поставить лайк"}
+                            aria-pressed={likes.likedByMe}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleLike(m.id);
+                            }}
+                            className={`flex items-center gap-1 text-[11px] ${
+                              likes.likedByMe
+                                ? mine
+                                  ? "text-red-300"
+                                  : "text-red-500"
+                                : "opacity-60"
+                            }`}
+                          >
+                            <Heart size={12} className="fill-current" />
+                            {likes.count > 1 && <span>{likes.count}</span>}
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        <p
+                          className={`ml-auto text-[10px] ${
+                            mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
                           }`}
                         >
-                          <Heart size={12} className="fill-current" />
-                          {likes.count > 1 && <span>{likes.count}</span>}
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                      <p
-                        className={`ml-auto text-[10px] ${
-                          mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
-                        }`}
-                      >
-                        {m.editedAt && <span className="mr-1">изменено</span>}
-                        {formatMessageTime(m.createdAt)}
-                      </p>
+                          {m.editedAt && <span className="mr-1">изменено</span>}
+                          {formatMessageTime(m.createdAt)}
+                        </p>
+                      </div>
                     </div>
+                    {showHeart && (
+                      // Нижний угол пузыря снаружи: слева у моих сообщений, справа у чужих.
+                      // Кнопка вплотную к пузырю, чтобы курсор мог перейти на неё без разрыва.
+                      <button
+                        type="button"
+                        data-like-button
+                        data-testid={`like-hover-${m.id}`}
+                        aria-label={likedByMe ? "Убрать лайк" : "Нравится"}
+                        aria-pressed={likedByMe}
+                        onClick={() => handleToggleLike(m.id)}
+                        className={`absolute bottom-0 pb-0.5 ${
+                          mine ? "right-full pl-1 pr-1.5" : "left-full pl-1.5 pr-1"
+                        } ${likedByMe ? "text-red-500" : "text-gray-400 hover:text-red-500"}`}
+                      >
+                        <Heart size={16} className={likedByMe ? "fill-current" : ""} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -661,12 +717,9 @@ function Thread({
         <MessageMenu
           anchor={menu.anchor}
           mine={menu.mine}
-          liked={menuLiked}
-          canLike={!blockedByMe || menuLiked}
           canReply={!blockedByMe}
           canEdit={menu.mine && !blockedByMe && !menuTarget?.forwardedFrom}
           onClose={() => setMenu(null)}
-          onToggleLike={() => handleToggleLike(menu.id)}
           onReply={() => handleReply(menu.id)}
           onForward={() => handleStartForward(menu.id)}
           onEdit={() => handleStartEdit(menu.id)}

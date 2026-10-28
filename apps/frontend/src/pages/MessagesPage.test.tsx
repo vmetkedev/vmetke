@@ -656,118 +656,206 @@ describe("MessagesPage: пересылка", () => {
 });
 
 describe("MessagesPage: лайки", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const withLikes = (m: Message, count: number, likedByMe: boolean): Message => ({
     ...m,
     likes: { count, likedByMe },
   });
 
-  it("«Нравится» в меню ставит лайк и показывает сердечко", async () => {
-    vi.mocked(fetchMessages).mockResolvedValue({
-      messages: [msg(1, BOB.id, "чужое")],
-      nextCursor: null,
+  async function renderFlushed(list: Message[], extra: { blockedByMe?: boolean } = {}) {
+    vi.mocked(fetchMessages).mockResolvedValue({ messages: list, nextCursor: null, ...extra });
+    await act(async () => {
+      renderAt("/messages/5");
+      await vi.advanceTimersByTimeAsync(0);
     });
+  }
+
+  const advance = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  const zone = (id: number) => screen.getByTestId(`msg-hover-${id}`);
+  const heart = (id: number) => screen.queryByTestId(`like-hover-${id}`);
+
+  const hoverLong = async (id: number) => {
+    fireEvent.mouseEnter(zone(id));
+    await advance(400);
+  };
+
+  const click = async (el: HTMLElement) => {
+    fireEvent.click(el);
+    await advance(0);
+  };
+
+  it("кнопка лайка появляется только после 0,4 секунды наведения", async () => {
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+    expect(heart(1)).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(zone(1));
+    await advance(399);
+    expect(heart(1)).not.toBeInTheDocument();
+
+    await advance(1);
+    expect(heart(1)).toHaveAttribute("aria-label", "Нравится");
+  });
+
+  it("если убрать курсор раньше, кнопка не появляется", async () => {
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+
+    fireEvent.mouseEnter(zone(1));
+    await advance(200);
+    fireEvent.mouseLeave(zone(1));
+    await advance(2000);
+
+    expect(heart(1)).not.toBeInTheDocument();
+  });
+
+  it("после ухода курсора кнопка пропадает", async () => {
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+    await hoverLong(1);
+    expect(heart(1)).toBeInTheDocument();
+
+    fireEvent.mouseLeave(zone(1));
+    await advance(0);
+
+    expect(heart(1)).not.toBeInTheDocument();
+  });
+
+  it("у чужого сообщения кнопка в правом нижнем углу, у своего в левом", async () => {
+    await renderFlushed([msg(2, ME, "моё"), msg(1, BOB.id, "чужое")]);
+
+    await hoverLong(1);
+    expect(heart(1)?.className).toContain("left-full");
+    expect(heart(1)?.className).toContain("bottom-0");
+    fireEvent.mouseLeave(zone(1));
+    await advance(0);
+
+    await hoverLong(2);
+    expect(heart(2)?.className).toContain("right-full");
+    expect(heart(2)?.className).toContain("bottom-0");
+  });
+
+  it("клик по кнопке ставит лайк и показывает сердечко в пузыре", async () => {
     vi.mocked(likeMessage).mockResolvedValue({ count: 1, likedByMe: true });
-    const user = userEvent.setup();
-    renderAt("/messages/5");
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
 
-    await user.click(await screen.findByText("чужое"));
-    await user.click(screen.getByRole("menuitem", { name: "Нравится" }));
+    await hoverLong(1);
+    await click(heart(1) as HTMLElement);
 
-    await waitFor(() => expect(likeMessage).toHaveBeenCalledWith(5, 1));
-    expect(await screen.findByRole("button", { name: "Убрать лайк" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(likeMessage).toHaveBeenCalledWith(5, 1);
+    // и кнопка рядом, и бейдж в пузыре теперь «Убрать лайк»
+    expect(screen.getAllByRole("button", { name: "Убрать лайк" })).toHaveLength(2);
+    expect(heart(1)).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("у лайкнутого мной сообщения в меню «Убрать лайк», он снимает лайк и убирает сердечко", async () => {
-    vi.mocked(fetchMessages).mockResolvedValue({
-      messages: [withLikes(msg(1, BOB.id, "чужое"), 1, true)],
-      nextCursor: null,
-    });
+  it("кнопка есть и у своих сообщений", async () => {
+    vi.mocked(likeMessage).mockResolvedValue({ count: 1, likedByMe: true });
+    await renderFlushed([msg(2, ME, "моё")]);
+
+    await hoverLong(2);
+    await click(heart(2) as HTMLElement);
+
+    expect(likeMessage).toHaveBeenCalledWith(5, 2);
+  });
+
+  it("кнопка у лайкнутого мной сообщения снимает лайк", async () => {
     vi.mocked(unlikeMessage).mockResolvedValue({ count: 0, likedByMe: false });
-    const user = userEvent.setup();
-    renderAt("/messages/5");
+    await renderFlushed([withLikes(msg(1, BOB.id, "чужое"), 1, true)]);
 
-    await user.click(await screen.findByText("чужое"));
-    await user.click(screen.getByRole("menuitem", { name: "Убрать лайк" }));
+    await hoverLong(1);
+    expect(heart(1)).toHaveAttribute("aria-label", "Убрать лайк");
+    await click(heart(1) as HTMLElement);
 
-    await waitFor(() => expect(unlikeMessage).toHaveBeenCalledWith(5, 1));
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Убрать лайк" })).not.toBeInTheDocument(),
-    );
+    expect(unlikeMessage).toHaveBeenCalledWith(5, 1);
+    expect(screen.queryByRole("button", { name: "Убрать лайк" })).not.toBeInTheDocument();
+    expect(heart(1)).toHaveAttribute("aria-label", "Нравится");
     expect(likeMessage).not.toHaveBeenCalled();
   });
 
-  it("клик по сердечку переключает лайк и не открывает меню", async () => {
-    vi.mocked(fetchMessages).mockResolvedValue({
-      messages: [withLikes(msg(1, BOB.id, "чужое"), 1, false)],
-      nextCursor: null,
-    });
+  it("пока открыто меню, кнопка видна сразу, а клик по ней ставит лайк и закрывает меню", async () => {
+    vi.mocked(likeMessage).mockResolvedValue({ count: 1, likedByMe: true });
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+
+    await click(screen.getByText("чужое"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(heart(1)).toBeInTheDocument();
+
+    await click(heart(1) as HTMLElement);
+
+    expect(likeMessage).toHaveBeenCalledWith(5, 1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("в меню сообщения нет пункта лайка", async () => {
+    await renderFlushed([withLikes(msg(1, BOB.id, "чужое"), 1, true)]);
+
+    await click(screen.getByText("чужое"));
+
+    expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Убрать лайк" })).not.toBeInTheDocument();
+  });
+
+  it("клик по сердечку в пузыре переключает лайк и не открывает меню", async () => {
     vi.mocked(likeMessage).mockResolvedValue({ count: 2, likedByMe: true });
-    const user = userEvent.setup();
-    renderAt("/messages/5");
+    await renderFlushed([withLikes(msg(1, BOB.id, "чужое"), 1, false)]);
 
-    await user.click(await screen.findByRole("button", { name: "Поставить лайк" }));
+    await click(screen.getByRole("button", { name: "Поставить лайк" }));
 
-    await waitFor(() => expect(likeMessage).toHaveBeenCalledWith(5, 1));
-    expect(await screen.findByRole("button", { name: "Убрать лайк" })).toBeInTheDocument();
+    expect(likeMessage).toHaveBeenCalledWith(5, 1);
     // при двух и более лайках рядом с сердечком показывается число
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("при одном лайке числа нет, а у сообщения без лайков нет и сердечка", async () => {
-    vi.mocked(fetchMessages).mockResolvedValue({
-      messages: [
-        withLikes(msg(2, BOB.id, "с лайком"), 1, false),
-        withLikes(msg(1, BOB.id, "без лайков"), 0, false),
-      ],
-      nextCursor: null,
-    });
-    renderAt("/messages/5");
+  it("при одном лайке числа нет, а у сообщения без лайков нет и сердечка в пузыре", async () => {
+    await renderFlushed([
+      withLikes(msg(2, BOB.id, "с лайком"), 1, false),
+      withLikes(msg(1, BOB.id, "без лайков"), 0, false),
+    ]);
 
-    await screen.findByText("с лайком");
     expect(screen.getAllByRole("button", { name: "Поставить лайк" })).toHaveLength(1);
     expect(screen.queryByText("1")).not.toBeInTheDocument();
   });
 
-  it("при ошибке показывает её и не меняет сердечко", async () => {
-    vi.mocked(fetchMessages).mockResolvedValue({
-      messages: [withLikes(msg(1, BOB.id, "чужое"), 1, false)],
-      nextCursor: null,
-    });
+  it("при ошибке показывает её и не меняет кнопку", async () => {
     vi.mocked(likeMessage).mockRejectedValue(new Error("Этому пользователю нельзя отправить сообщение"));
-    const user = userEvent.setup();
-    renderAt("/messages/5");
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
 
-    await user.click(await screen.findByRole("button", { name: "Поставить лайк" }));
+    await hoverLong(1);
+    await click(heart(1) as HTMLElement);
 
     expect(
-      await screen.findByText("Этому пользователю нельзя отправить сообщение"),
+      screen.getByText("Этому пользователю нельзя отправить сообщение"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Поставить лайк" })).toBeInTheDocument();
+    expect(heart(1)).toHaveAttribute("aria-label", "Нравится");
   });
 
   it("у заблокированного собеседника нельзя поставить лайк, но можно снять свой", async () => {
-    vi.mocked(fetchMessages).mockResolvedValue({
-      messages: [
+    await renderFlushed(
+      [
         withLikes(msg(2, BOB.id, "лайкнуто"), 1, true),
         withLikes(msg(1, BOB.id, "не лайкнуто"), 0, false),
       ],
-      nextCursor: null,
-      blockedByMe: true,
-    });
-    const user = userEvent.setup();
-    renderAt("/messages/5");
+      { blockedByMe: true },
+    );
 
-    await user.click(await screen.findByText("не лайкнуто"));
-    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
+    await hoverLong(1);
+    expect(heart(1)).not.toBeInTheDocument();
+    fireEvent.mouseLeave(zone(1));
+    await advance(0);
 
-    await user.click(screen.getByText("лайкнуто"));
-    expect(screen.getByRole("menuitem", { name: "Убрать лайк" })).toBeInTheDocument();
+    await hoverLong(2);
+    expect(heart(2)).toHaveAttribute("aria-label", "Убрать лайк");
   });
 });
 

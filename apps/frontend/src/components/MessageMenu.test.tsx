@@ -5,18 +5,12 @@ import { MessageMenu } from "./MessageMenu";
 
 const anchor = { top: 100, bottom: 130, left: 50, right: 250 } as DOMRect;
 
-function setup(
-  mine: boolean,
-  opts: { canReply?: boolean; canEdit?: boolean; liked?: boolean; canLike?: boolean } = {},
-) {
+function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = {}) {
   const props = {
     anchor,
     mine,
-    liked: opts.liked ?? false,
-    canLike: opts.canLike ?? true,
     canReply: opts.canReply ?? true,
     canEdit: opts.canEdit ?? false,
-    onToggleLike: vi.fn(),
     onReply: vi.fn(),
     onForward: vi.fn(),
     onEdit: vi.fn(),
@@ -29,32 +23,18 @@ function setup(
 }
 
 describe("MessageMenu", () => {
-  it("shows «Нравится», «Ответить», «Переслать» and «Удалить» at first", () => {
+  it("shows «Ответить», «Переслать» and «Удалить» at first", () => {
     setup(true);
-    expect(screen.getByRole("menuitem", { name: "Нравится" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Удалить" })).toBeInTheDocument();
     expect(screen.queryByText("Удалить у меня")).not.toBeInTheDocument();
   });
 
-  it("«Нравится» calls onToggleLike", async () => {
-    const p = setup(false);
-    await userEvent.click(screen.getByRole("menuitem", { name: "Нравится" }));
-    expect(p.onToggleLike).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows «Убрать лайк» for an already liked message", async () => {
-    const p = setup(false, { liked: true });
+  it("has no like item: liking is done with the heart next to the message", () => {
+    setup(true);
     expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("menuitem", { name: "Убрать лайк" }));
-    expect(p.onToggleLike).toHaveBeenCalledTimes(1);
-  });
-
-  it("hides the like item when liking is not possible", () => {
-    setup(true, { canLike: false });
-    expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Убрать лайк" })).not.toBeInTheDocument();
   });
 
   it("«Ответить» calls onReply", async () => {
@@ -122,4 +102,27 @@ describe("MessageMenu", () => {
     await userEvent.click(document.body);
     expect(p.onClose).toHaveBeenCalledTimes(2);
   });
+
+  it("mousedown on the like button does not close the menu", async () => {
+    const onClose = vi.fn();
+    render(
+      <>
+        <MessageMenu
+          anchor={anchor}
+          mine={false}
+          onReply={vi.fn()}
+          onForward={vi.fn()}
+          onDeleteForMe={vi.fn()}
+          onDeleteForAll={vi.fn()}
+          onClose={onClose}
+        />
+        <button data-like-button>♥</button>
+      </>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "♥" }));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
 });
