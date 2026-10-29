@@ -11,7 +11,8 @@
     "test": "vitest run",
     "lint": "oxlint .",
     "typecheck": "tsc --noEmit",
-    "migrate:test": "dotenv -e .env.test -- drizzle-kit migrate"
+    "migrate:test": "dotenv -e .env.test -- drizzle-kit migrate",
+    "admin:grant": "tsx src/scripts/admin-grant.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

@@ -14,6 +14,7 @@ import searchRoutes from "./routes/search.js";
 import sitemapRoutes from "./routes/sitemap.js";
 import messagesRoutes from "./routes/messages.js";
 import blocksRoutes from "./routes/blocks.js";
+import adminRoutes from "./routes/admin/index.js";
 
 const app = Fastify({ logger: true });
 
@@ -35,6 +36,7 @@ const start = async () => {
   });
 
   await app.register(authRoutes, { prefix: "/api/auth" });
+  await app.register(adminRoutes, { prefix: "/api/admin" });
 
   await app.register(postsRoutes, { prefix: "/api/posts" });
   await app.register(followsRoutes, { prefix: "/api/follows" });

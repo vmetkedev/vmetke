@@ -1,4 +1,7 @@
-import { pgTable, uuid, varchar, timestamp, text, integer } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp, text, integer, pgEnum } from "drizzle-orm/pg-core";
+
+export const userRoleEnum = pgEnum("user_role", ["user", "moderator", "admin"]);
+export type UserRole = (typeof userRoleEnum.enumValues)[number];
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -10,4 +13,5 @@ export const users = pgTable("users", {
   bio: varchar('bio', { length: 500 }),
   deletedAt: timestamp("deleted_at"),
   avatarColor: integer("avatar_color"),
+  role: userRoleEnum("role").notNull().default("user"),
 });

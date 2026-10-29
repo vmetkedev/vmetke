@@ -134,6 +134,13 @@
       "when": 1792984194897,
       "tag": "0019_military_chimera",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793249631897,
+      "tag": "0020_even_kronos",
+      "breakpoints": true
     }
   ]
 }

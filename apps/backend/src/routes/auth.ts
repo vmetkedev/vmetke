@@ -41,7 +41,7 @@ export default async function authRoutes(app: FastifyInstance) {
         reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
         return {
           accessToken,
-          user: { id: user.id, username: user.username, avatarColor: user.avatarColor },
+          user: { id: user.id, username: user.username, avatarColor: user.avatarColor, role: "user" as const },
         };
       } catch (err) {
         if (err instanceof EmailTakenError) return reply.code(409).send({ error: err.message });
@@ -71,7 +71,7 @@ export default async function authRoutes(app: FastifyInstance) {
       reply.setCookie(REFRESH_COOKIE_NAME, refreshToken, REFRESH_COOKIE_OPTIONS);
       return {
         accessToken,
-        user: { id: user.id, username: user.username, avatarColor: user.avatarColor },
+        user: { id: user.id, username: user.username, avatarColor: user.avatarColor, role: user.role },
       };
     }
   );
@@ -98,7 +98,7 @@ export default async function authRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: [app.authenticate] }, async (request) => {
     const payload = request.user as { sub: string };
     const [user] = await db
-      .select({ id: users.id, username: users.username, avatarColor: users.avatarColor })
+      .select({ id: users.id, username: users.username, avatarColor: users.avatarColor, role: users.role })
       .from(users)
       .where(eq(users.id, payload.sub));
 

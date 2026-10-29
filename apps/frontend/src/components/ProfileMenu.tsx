@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { Settings, Bookmark, LogOut, Mail } from "lucide-react";
+import { Settings, Bookmark, LogOut, Mail, Shield } from "lucide-react";
+import { isStaff } from "../auth/roles";
 import { useAuth } from "../auth/AuthContext";
 import { fetchConversations, MESSAGES_CHANGED_EVENT } from "../lib/messages";
 import { Avatar } from "./Avatar";
@@ -97,6 +98,16 @@ export function ProfileMenu() {
               <Bookmark size={16} />
               Закладки
             </Link>
+            {isStaff(user) && (
+              <Link
+                to="/admin"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <Shield size={16} />
+                Админка
+              </Link>
+            )}
             <button
               onClick={() => {
                 setOpen(false);

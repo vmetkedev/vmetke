@@ -12,6 +12,7 @@ import notificationsRoutes from "../routes/notifications.js";
 import searchRoutes from "../routes/search.js";
 import messagesRoutes from "../routes/messages.js";
 import blocksRoutes from "../routes/blocks.js";
+import adminRoutes from "../routes/admin/index.js";
 
 export async function buildTestApp() {
   const app = Fastify({ logger: false });
@@ -23,13 +24,14 @@ export async function buildTestApp() {
   await app.register(rateLimit, { max: 1000, timeWindow: "1 minute" });
 
   await app.register(authRoutes, { prefix: "/api/auth" });
+  await app.register(adminRoutes, { prefix: "/api/admin" });
   await app.register(postsRoutes, { prefix: "/api/posts" });
   await app.register(followsRoutes, { prefix: "/api/follows" });
   await app.register(usersRoutes, { prefix: "/api/users" });
   await app.register(notificationsRoutes, { prefix: "/api/notifications" });
   await app.register(searchRoutes, { prefix: "/api/search" });
 
-    await app.register(blocksRoutes, { prefix: "/api/blocks" });
+  await app.register(blocksRoutes, { prefix: "/api/blocks" });
   await app.register(messagesRoutes, { prefix: "/api/conversations" });
 
   await app.ready();

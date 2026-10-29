@@ -13,10 +13,14 @@ import WysiwygHelpPage from "./pages/help/WysiwygHelpPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import SearchPage from "./pages/SearchPage";
 import MessagesPage from "./pages/MessagesPage";
+import { AdminGuard } from "./components/AdminGuard";
 
 export default function App() {
   return (
     <Routes>
+      <Route path="/admin" element={<AdminGuard />}>
+        <Route index element={<div className="max-w-4xl mx-auto p-6">Админка (в разработке)</div>} />
+      </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/" element={<FeedPage />} />
