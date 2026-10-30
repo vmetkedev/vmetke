@@ -222,7 +222,7 @@ describe("бан и разбан", () => {
       app.inject({ method: "GET", url: "/api/admin/whoami", headers: { authorization: `Bearer ${mod.token}` } });
     expect((await who()).statusCode).toBe(200);
     await call("POST", `/${mod.id}/ban`, admin.token, { reason: "проверка мгновенности" });
-    expect((await who()).statusCode).toBe(403);
+    expect((await who()).statusCode).toBe(401);
   });
 
   it("причина обязательна", async () => {
@@ -269,6 +269,15 @@ describe("бан и разбан", () => {
     const target = await registerUser();
     expect((await call("POST", `/${target.id}/unban`, admin.token)).statusCode).toBe(409);
   });
+
+	it("access-токен забаненного перестаёт работать на обычных эндпоинтах", async () => {
+  const target = await registerUser();
+  const me = () =>
+    app.inject({ method: "GET", url: "/api/auth/me", headers: { authorization: `Bearer ${target.token}` } });
+  expect((await me()).statusCode).toBe(200);
+  await call("POST", `/${target.id}/ban`, admin.token, { reason: "проверка authenticate" });
+  expect((await me()).statusCode).toBe(401);
+});
 });
 
 describe("смена роли", () => {
