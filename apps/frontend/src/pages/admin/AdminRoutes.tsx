@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { useAuth } from "../../auth/AuthContext";
 import { AdminLayout } from "./AdminLayout";
 import { AdminPlaceholder } from "./AdminPlaceholder";
+import { AdminOverviewPage } from "./AdminOverviewPage";
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -14,7 +15,7 @@ export default function AdminRoutes() {
   return (
     <Routes>
       <Route element={<AdminLayout />}>
-        <Route index element={<AdminPlaceholder title="Обзор" />} />
+        <Route index element={<AdminOverviewPage />} />
         <Route
           path="users"
           element={<RequireAdmin><AdminPlaceholder title="Пользователи" /></RequireAdmin>}

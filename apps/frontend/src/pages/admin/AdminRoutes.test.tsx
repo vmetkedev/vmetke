@@ -11,6 +11,10 @@ vi.mock("../../components/AppLayout", () => {
   return { AppLayout, default: AppLayout };
 });
 
+vi.mock("./AdminOverviewPage", () => ({
+  AdminOverviewPage: () => <h1>Обзор</h1>,
+}));
+
 function renderAt(path: string, role: "moderator" | "admin") {
   mockUseAuth.mockReturnValue({
     user: { id: "1", username: "u", avatarColor: null, role },
