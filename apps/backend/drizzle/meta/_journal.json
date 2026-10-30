@@ -141,6 +141,13 @@
       "when": 1793249631897,
       "tag": "0020_even_kronos",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793334528744,
+      "tag": "0021_foamy_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

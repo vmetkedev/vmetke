@@ -65,6 +65,14 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.code(401).send({ error: "Неверные данные для входа" });
       }
 
+      const [ban] = await db
+        .select({ bannedAt: users.bannedAt })
+        .from(users)
+        .where(eq(users.id, user.id));
+      if (ban?.bannedAt) {
+        return reply.code(403).send({ error: "Аккаунт заблокирован" });
+      }
+
       const accessToken = app.jwt.sign({ sub: user.id });
       const refreshToken = await createRefreshToken(user.id);
 

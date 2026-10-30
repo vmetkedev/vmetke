@@ -14,4 +14,6 @@ export const users = pgTable("users", {
   deletedAt: timestamp("deleted_at"),
   avatarColor: integer("avatar_color"),
   role: userRoleEnum("role").notNull().default("user"),
+  bannedAt: timestamp("banned_at"),
+  banReason: varchar("ban_reason", { length: 500 }),
 });

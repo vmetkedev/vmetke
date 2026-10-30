@@ -17,11 +17,11 @@ export function requireRole(min: Exclude<UserRole, "user">) {
     if (!sub) return reply.code(401).send({ error: "Требуется авторизация" });
 
     const [row] = await db
-      .select({ role: users.role, deletedAt: users.deletedAt })
+      .select({ role: users.role, deletedAt: users.deletedAt, bannedAt: users.bannedAt })
       .from(users)
       .where(eq(users.id, sub));
 
-    if (!row || row.deletedAt || RANK[row.role] < RANK[min]) {
+    if (!row || row.deletedAt || row.bannedAt || RANK[row.role] < RANK[min]) {
       return reply.code(403).send({ error: "Недостаточно прав" });
     }
     request.staffRole = row.role;
