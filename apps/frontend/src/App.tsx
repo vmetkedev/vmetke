@@ -13,13 +13,23 @@ import WysiwygHelpPage from "./pages/help/WysiwygHelpPage";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import SearchPage from "./pages/SearchPage";
 import MessagesPage from "./pages/MessagesPage";
+import { lazy, Suspense } from "react";
 import { AdminGuard } from "./components/AdminGuard";
+
+const AdminRoutes = lazy(() => import("./pages/admin/AdminRoutes"));
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/admin" element={<AdminGuard />}>
-        <Route index element={<div className="max-w-4xl mx-auto p-6">Админка (в разработке)</div>} />
+      <Route element={<AdminGuard />}>
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={<div className="max-w-6xl mx-auto px-4 py-6 text-sm text-gray-500">Загрузка…</div>}>
+              <AdminRoutes />
+            </Suspense>
+          }
+        />
       </Route>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
