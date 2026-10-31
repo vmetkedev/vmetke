@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { requireRole } from "../../plugins/roles.js";
 import { getAdminStats } from "../../services/admin-stats.service.js";
 import adminUsersRoutes from "./users.js";
+import adminContentRoutes from "./content.js";
 
 export default async function adminRoutes(app: FastifyInstance) {
   // Хуки на уровне плагина: любой будущий роут внутри защищён автоматически
@@ -13,4 +14,5 @@ export default async function adminRoutes(app: FastifyInstance) {
   app.get("/stats", async () => getAdminStats());
   
   await app.register(adminUsersRoutes, { prefix: "/users" });
+  await app.register(adminContentRoutes, { prefix: "/content" });
 }

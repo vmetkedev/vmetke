@@ -4,10 +4,12 @@ export function AdminDialog({
   title,
   onClose,
   children,
+  wide = false,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  wide?: boolean;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -24,7 +26,7 @@ export function AdminDialog({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 p-5 shadow-xl"
+        className={`w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-lg bg-white dark:bg-gray-800 p-5 shadow-xl`}
       >
         <h2 className="text-lg font-semibold dark:text-gray-100">{title}</h2>
         <div className="mt-3">{children}</div>

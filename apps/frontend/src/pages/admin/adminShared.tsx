@@ -1,4 +1,5 @@
 import type { UserRole } from "../../auth/AuthContext";
+import { useEffect, useState } from "react";
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   user: "Пользователь",
@@ -24,4 +25,27 @@ export function BannedBadge() {
       Заблокирован
     </span>
   );
+}
+
+export const BTN =
+  "px-3 py-1.5 text-sm rounded-md border dark:border-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700";
+export const BTN_DANGER = "px-3 py-1.5 text-sm rounded-md bg-red-600 text-white disabled:opacity-50";
+
+export function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+export const DELETE_FORBIDDEN_HINT = "Контент модераторов и администраторов удаляет только администратор";
+
+export function canDeleteContent(
+  me: { id: string; role: UserRole } | null,
+  author: { id: string; role: UserRole },
+) {
+  if (!me) return false;
+  return me.role === "admin" || author.role === "user" || author.id === me.id;
 }
