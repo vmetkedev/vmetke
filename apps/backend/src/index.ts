@@ -15,6 +15,7 @@ import sitemapRoutes from "./routes/sitemap.js";
 import messagesRoutes from "./routes/messages.js";
 import blocksRoutes from "./routes/blocks.js";
 import adminRoutes from "./routes/admin/index.js";
+import reportsRoutes from "./routes/reports.js";
 
 const app = Fastify({ logger: true });
 
@@ -47,6 +48,7 @@ const start = async () => {
 
   await app.register(messagesRoutes, { prefix: "/api/conversations" });
   await app.register(blocksRoutes, { prefix: "/api/blocks" });
+  await app.register(reportsRoutes, { prefix: "/api/reports" });
 
   app.get("/health", async () => ({ status: "ok" }));
 

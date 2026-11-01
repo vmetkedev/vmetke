@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Heart, Trash2 } from "lucide-react";
+import { Heart, Trash2, Flag } from "lucide-react";
+import { ReportDialog } from "./ReportDialog";
 import {
   fetchComments,
   createComment,
@@ -21,6 +22,7 @@ export function PostComments({
 }) {
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [reportingId, setReportingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -129,6 +131,18 @@ export function PostComments({
                   <Trash2 size={13} />
                 </button>
               )}
+
+              {user && user.id !== c.author.id && (
+                <button
+                  onClick={() => setReportingId(c.id)}
+                  aria-label="Пожаловаться на комментарий"
+                  title="Пожаловаться"
+                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 ml-2 shrink-0"
+                >
+                  <Flag size={13} />
+                </button>
+              )}
+
             </div>
           ))}
         </div>
@@ -149,6 +163,11 @@ export function PostComments({
           Отправить
         </button>
       </form>
+
+      {reportingId && (
+        <ReportDialog targetType="comment" targetId={reportingId} onClose={() => setReportingId(null)} />
+      )}
+
     </div>
   );
 }

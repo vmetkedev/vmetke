@@ -12,3 +12,4 @@ export * from "./blocks.js";
 export * from "./message-hides.js";
 export * from "./message-likes.js";
 export * from "./audit.js";
+export * from "./reports.js";

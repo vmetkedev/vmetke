@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CornerUpLeft, Forward, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, CornerUpLeft, Flag, Forward, Pencil, Trash2 } from "lucide-react";
 
 const MENU_WIDTH = 192;
 
@@ -14,6 +14,8 @@ export function MessageMenu({
   onDeleteForMe,
   onDeleteForAll,
   onClose,
+  canReport = false,
+  onReport,
 }: {
   anchor: DOMRect;
   mine: boolean;
@@ -25,6 +27,8 @@ export function MessageMenu({
   onDeleteForMe: () => void;
   onDeleteForAll: () => void;
   onClose: () => void;
+  canReport?: boolean;
+  onReport?: () => void;
 }) {
   const [view, setView] = useState<"main" | "delete">("main");
   const ref = useRef<HTMLDivElement>(null);
@@ -49,7 +53,7 @@ export function MessageMenu({
     };
   }, [onClose]);
 
-  const placeAbove = window.innerHeight - anchor.bottom < 190;
+  const placeAbove = window.innerHeight - anchor.bottom < 230;
   const rawLeft = mine ? anchor.right - MENU_WIDTH : anchor.left;
   const left = Math.max(8, Math.min(rawLeft, window.innerWidth - MENU_WIDTH - 8));
 
@@ -85,6 +89,12 @@ export function MessageMenu({
             <button role="menuitem" className={item} onClick={onEdit}>
               <Pencil size={14} />
               Изменить
+            </button>
+          )}
+          {canReport && (
+            <button role="menuitem" className={item} onClick={onReport}>
+              <Flag size={14} />
+              Пожаловаться
             </button>
           )}
           <button role="menuitem" className={item} onClick={() => setView("delete")}>

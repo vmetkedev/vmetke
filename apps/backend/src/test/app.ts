@@ -13,6 +13,7 @@ import searchRoutes from "../routes/search.js";
 import messagesRoutes from "../routes/messages.js";
 import blocksRoutes from "../routes/blocks.js";
 import adminRoutes from "../routes/admin/index.js";
+import reportsRoutes from "../routes/reports.js";
 
 export async function buildTestApp() {
   const app = Fastify({ logger: false });
@@ -32,6 +33,7 @@ export async function buildTestApp() {
   await app.register(searchRoutes, { prefix: "/api/search" });
 
   await app.register(blocksRoutes, { prefix: "/api/blocks" });
+  await app.register(reportsRoutes, { prefix: "/api/reports" });
   await app.register(messagesRoutes, { prefix: "/api/conversations" });
 
   await app.ready();

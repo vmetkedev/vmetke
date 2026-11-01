@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useRef } from "react";
 import { Link, useNavigate } from "react-router";
-import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark, Settings } from "lucide-react";
+import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark, Settings, Flag } from "lucide-react";
+import { ReportDialog } from "./ReportDialog";
 import {
   type Post,
   likePost,
@@ -45,6 +46,7 @@ export function PostCard({
 }) {
   const { user } = useAuth();
   const [post, setPost] = useState(initialPost);
+  const [showReport, setShowReport] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -274,8 +276,24 @@ export function PostCard({
           <Bookmark size={16} fill={post.isBookmarkedByMe ? "currentColor" : "none"} />
         </button>
 
+        {user && !isOwnPost && (
+          <button
+            onClick={() => setShowReport(true)}
+            aria-label="Пожаловаться на пост"
+            title="Пожаловаться"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <Flag size={16} />
+          </button>
+        )}
+
         {linkTitle && <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">{formatDate(post.createdAt)}</span>}
       </div>
+
+      {showReport && (
+        <ReportDialog targetType="post" targetId={post.id} onClose={() => setShowReport(false)} />
+      )}
+
     </div>
   );
 }

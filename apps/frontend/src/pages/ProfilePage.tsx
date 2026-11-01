@@ -11,7 +11,8 @@ import type { Post } from "../lib/posts";
 import { PostCard } from "../components/PostCard";
 import { AppLayout } from "../components/AppLayout";
 import { Avatar } from "../components/Avatar";
-import { Mail } from "lucide-react";
+import { Mail, Flag } from "lucide-react";
+import { ReportDialog } from "../components/ReportDialog";
 import { blockUser, fetchBlockedUsers, openConversation, unblockUser } from "../lib/messages";
 
 type Tab = "profile" | "posts";
@@ -43,6 +44,7 @@ export default function ProfilePage() {
   const [blockLoading, setBlockLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [showReport, setShowReport] = useState(false);
 
   const load = useCallback(async () => {
     if (!username) return;
@@ -207,6 +209,13 @@ export default function ProfilePage() {
                     >
                       {blocked ? "Разблокировать" : "Заблокировать"}
                     </button>
+                    <button
+                      onClick={() => setShowReport(true)}
+                      className="flex items-center gap-1.5 text-sm rounded px-3 py-1.5 border dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                      <Flag size={14} />
+                      Пожаловаться
+                    </button>
                   </div>
                 )}
               </div>
@@ -276,6 +285,9 @@ export default function ProfilePage() {
           </dl>
         </aside>
       </div>
+      {showReport && (
+        <ReportDialog targetType="user" targetId={profile.id} onClose={() => setShowReport(false)} />
+      )}
     </AppLayout>
   );
 }

@@ -8,6 +8,7 @@ import { ConversationMenu } from "../components/ConversationMenu";
 import { DeleteConversationModal } from "../components/DeleteConversationModal";
 import { ForwardModal } from "../components/ForwardModal";
 import { MessageMenu } from "../components/MessageMenu";
+import { ReportDialog } from "../components/ReportDialog";
 import {
   MAX_MESSAGE,
   blockUser,
@@ -92,6 +93,7 @@ function Thread({
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
+  const [reporting, setReporting] = useState<Message | null>(null);
   const [forwardBusy, setForwardBusy] = useState(false);
   const [forwardError, setForwardError] = useState<string | null>(null);
   // Сообщение, над которым курсор продержался LIKE_HOVER_DELAY_MS: рядом с ним показываем кнопку лайка
@@ -362,6 +364,12 @@ function Thread({
     if (!target) return;
     setForwardError(null);
     setForwarding(target);
+  };
+
+  const handleStartReport = (id: number) => {
+    const target = messages.find((m) => m.id === id);
+    setMenu(null);
+    if (target) setReporting(target);
   };
 
   const closeForward = () => {
@@ -725,6 +733,8 @@ function Thread({
           onEdit={() => handleStartEdit(menu.id)}
           onDeleteForMe={() => handleDeleteMessage(menu.id, "me")}
           onDeleteForAll={() => handleDeleteMessage(menu.id, "all")}
+          canReport={!menu.mine}
+          onReport={() => handleStartReport(menu.id)}
         />
       )}
 
@@ -736,6 +746,14 @@ function Thread({
           error={forwardError}
           onClose={closeForward}
           onConfirm={handleForward}
+        />
+      )}
+
+      {reporting && (
+        <ReportDialog
+          targetType="message"
+          targetId={String(reporting.id)}
+          onClose={() => setReporting(null)}
         />
       )}
 

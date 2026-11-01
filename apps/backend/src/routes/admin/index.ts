@@ -3,6 +3,7 @@ import { requireRole } from "../../plugins/roles.js";
 import { getAdminStats } from "../../services/admin-stats.service.js";
 import adminUsersRoutes from "./users.js";
 import adminContentRoutes from "./content.js";
+import adminReportsRoutes from "./reports.js";
 
 export default async function adminRoutes(app: FastifyInstance) {
   // Хуки на уровне плагина: любой будущий роут внутри защищён автоматически
@@ -15,4 +16,5 @@ export default async function adminRoutes(app: FastifyInstance) {
   
   await app.register(adminUsersRoutes, { prefix: "/users" });
   await app.register(adminContentRoutes, { prefix: "/content" });
+  await app.register(adminReportsRoutes, { prefix: "/reports" });
 }
