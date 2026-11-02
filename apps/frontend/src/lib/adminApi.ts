@@ -214,3 +214,47 @@ export async function resolveAdminReport(id: string, action: ReportAction, reaso
   const res = await api.post(`/admin/reports/${id}/resolve`, { action, reason: reason?.trim() || undefined });
   await ensureOk(res, "Не удалось обработать жалобу");
 }
+
+export type AdminAuditFilter = {
+  admin?: string;
+  action?: string;
+  targetType?: string;
+  targetId?: string;
+  from?: string;
+  to?: string;
+};
+
+export type AdminAuditItem = {
+  id: number;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  createdAt: string;
+  admin: { id: string; username: string } | null;
+  reason: string | null;
+  targetLabel: string | null;
+};
+
+export type AdminAuditDetail = Omit<AdminAuditItem, "reason" | "targetLabel"> & {
+  details: Record<string, unknown> | null;
+};
+
+export async function fetchAdminAudit(
+  filter: AdminAuditFilter,
+  cursor?: number,
+): Promise<{ entries: AdminAuditItem[]; nextCursor: number | null }> {
+  const params = new URLSearchParams({ limit: "25" });
+  for (const [key, value] of Object.entries(filter)) {
+    if (value) params.set(key, value);
+  }
+  if (cursor) params.set("cursor", String(cursor));
+  const res = await api.get(`/admin/audit?${params}`);
+  await ensureOk(res, "Не удалось загрузить журнал");
+  return res.json();
+}
+
+export async function fetchAdminAuditEntry(id: number): Promise<AdminAuditDetail> {
+  const res = await api.get(`/admin/audit/${id}`);
+  await ensureOk(res, "Не удалось загрузить запись");
+  return (await res.json()).entry;
+}

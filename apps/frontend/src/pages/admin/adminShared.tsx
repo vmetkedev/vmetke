@@ -76,3 +76,22 @@ export function StatusBadge({ status }: { status: ReportStatus }) {
         : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
   return <span className={`text-[11px] px-1.5 py-0.5 rounded ${cls}`}>{STATUS_LABELS[status]}</span>;
 }
+
+export const ACTION_LABELS: Record<string, string> = {
+  "role.grant": "Выдача роли",
+  "role.change": "Смена роли",
+  "user.ban": "Блокировка",
+  "user.unban": "Разблокировка",
+  "user.force_logout": "Принудительный выход",
+  "post.delete": "Удаление поста",
+  "comment.delete": "Удаление комментария",
+  "report.resolve": "Жалоба решена",
+  "report.dismiss": "Жалоба отклонена",
+};
+
+export const AUDIT_TARGET_LABELS: Record<string, string> = {
+  user: "Пользователь",
+  post: "Пост",
+  comment: "Комментарий",
+  report: "Жалоба",
+};
