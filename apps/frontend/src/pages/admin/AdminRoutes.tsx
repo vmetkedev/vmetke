@@ -7,6 +7,8 @@ import { AdminOverviewPage } from "./AdminOverviewPage";
 import { AdminUsersPage } from "./AdminUsersPage";
 import { AdminUserPage } from "./AdminUserPage";
 import { AdminContentPage } from "./AdminContentPage";
+import { AdminReportsPage } from "./AdminReportsPage";
+import { AdminReportPage } from "./AdminReportPage";
 
 function RequireAdmin({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -22,7 +24,8 @@ export default function AdminRoutes() {
         <Route path="users" element={<RequireAdmin><AdminUsersPage /></RequireAdmin>} />
         <Route path="users/:id" element={<RequireAdmin><AdminUserPage /></RequireAdmin>} />
         <Route path="content" element={<AdminContentPage />} />
-        <Route path="reports" element={<AdminPlaceholder title="Жалобы" />} />
+        <Route path="reports" element={<AdminReportsPage />} />
+        <Route path="reports/:id" element={<AdminReportPage />} />
         <Route
           path="audit"
           element={<RequireAdmin><AdminPlaceholder title="Журнал" /></RequireAdmin>}

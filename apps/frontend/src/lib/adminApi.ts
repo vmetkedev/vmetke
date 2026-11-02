@@ -1,8 +1,14 @@
 import { api } from "./api";
 import type { UserRole } from "../auth/AuthContext";
+import type { ReportReason, ReportTargetType } from "./reports";
 
 export type AdminContentFilter = { q?: string; author?: string; from?: string; to?: string };
 export type AdminContentAuthor = { id: string; username: string; avatarColor: number | null; role: UserRole };
+export type AdminReportsFilter = { status: ReportStatus | "all"; targetType: ReportTargetType | "" };
+
+export type ReportStatus = "open" | "resolved" | "dismissed";
+export type ReportAction = "delete_content" | "ban_author" | "dismiss";
+export type ReportResolution = "content_deleted" | "author_banned" | "dismissed";
 
 export type AdminStats = {
   users: { total: number; last24h: number; last7d: number };
@@ -33,6 +39,35 @@ export type AdminCommentListItem = {
   post: { id: string; title: string | null };
 };
 
+export type AdminReportListItem = {
+  id: string;
+  targetType: ReportTargetType;
+  targetId: string;
+  reason: ReportReason;
+  comment: string | null;
+  status: ReportStatus;
+  createdAt: string;
+  preview: string;
+  reporter: { id: string; username: string } | null;
+  targetUser: { id: string; username: string; role: UserRole } | null;
+};
+
+export type AdminReportDetail = Omit<AdminReportListItem, "preview" | "targetUser"> & {
+  snapshot: Record<string, unknown>;
+  resolvedAt: string | null;
+  resolutionAction: ReportResolution | null;
+  resolutionReason: string | null;
+  targetUser: {
+    id: string;
+    username: string;
+    role: UserRole;
+    bannedAt: string | null;
+    deletedAt: string | null;
+  } | null;
+  resolvedBy: { id: string; username: string } | null;
+  openReportsForTarget: number;
+  contentExists: boolean;
+};
 
 export async function fetchAdminStats(): Promise<AdminStats> {
   const res = await api.get("/admin/stats");
@@ -155,4 +190,27 @@ export async function fetchAdminComments(
 
 export async function deleteAdminComment(id: string, reason: string) {
   await ensureOk(await api.delete(`/admin/content/comments/${id}`, { reason }), "Не удалось удалить комментарий");
+}
+
+export async function fetchAdminReports(
+  filter: AdminReportsFilter,
+  cursor?: string,
+): Promise<{ reports: AdminReportListItem[]; nextCursor: string | null }> {
+  const params = new URLSearchParams({ limit: "25", status: filter.status });
+  if (filter.targetType) params.set("targetType", filter.targetType);
+  if (cursor) params.set("cursor", cursor);
+  const res = await api.get(`/admin/reports?${params}`);
+  await ensureOk(res, "Не удалось загрузить жалобы");
+  return res.json();
+}
+
+export async function fetchAdminReport(id: string): Promise<AdminReportDetail> {
+  const res = await api.get(`/admin/reports/${id}`);
+  await ensureOk(res, "Не удалось загрузить жалобу");
+  return (await res.json()).report;
+}
+
+export async function resolveAdminReport(id: string, action: ReportAction, reason?: string) {
+  const res = await api.post(`/admin/reports/${id}/resolve`, { action, reason: reason?.trim() || undefined });
+  await ensureOk(res, "Не удалось обработать жалобу");
 }

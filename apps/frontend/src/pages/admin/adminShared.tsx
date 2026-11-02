@@ -1,10 +1,27 @@
 import type { UserRole } from "../../auth/AuthContext";
 import { useEffect, useState } from "react";
+import { REPORT_REASONS, type ReportReason, type ReportTargetType } from "../../lib/reports";
+import type { ReportStatus } from "../../lib/adminApi";
+
+export const reasonLabel = (r: ReportReason) => REPORT_REASONS.find((x) => x.id === r)?.label ?? r;
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   user: "Пользователь",
   moderator: "Модератор",
   admin: "Администратор",
+};
+
+export const TARGET_LABELS: Record<ReportTargetType, string> = {
+  post: "Пост",
+  comment: "Комментарий",
+  user: "Пользователь",
+  message: "Сообщение",
+};
+
+export const STATUS_LABELS: Record<ReportStatus, string> = {
+  open: "Открыта",
+  resolved: "Решена",
+  dismissed: "Отклонена",
 };
 
 export const fmtDate = (iso: string | null) =>
@@ -48,4 +65,14 @@ export function canDeleteContent(
 ) {
   if (!me) return false;
   return me.role === "admin" || author.role === "user" || author.id === me.id;
+}
+
+export function StatusBadge({ status }: { status: ReportStatus }) {
+  const cls =
+    status === "open"
+      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+      : status === "resolved"
+        ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+        : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+  return <span className={`text-[11px] px-1.5 py-0.5 rounded ${cls}`}>{STATUS_LABELS[status]}</span>;
 }

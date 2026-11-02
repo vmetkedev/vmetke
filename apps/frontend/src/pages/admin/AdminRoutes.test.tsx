@@ -17,6 +17,8 @@ vi.mock("./AdminOverviewPage", () => ({
 vi.mock("./AdminUsersPage", () => ({ AdminUsersPage: () => <h1>Пользователи</h1> }));
 vi.mock("./AdminUserPage", () => ({ AdminUserPage: () => <h1>Пользователь</h1> }));
 vi.mock("./AdminContentPage", () => ({ AdminContentPage: () => <h1>Контент</h1> }));
+vi.mock("./AdminReportsPage", () => ({ AdminReportsPage: () => <h1>Жалобы</h1> }));
+vi.mock("./AdminReportPage", () => ({ AdminReportPage: () => <h1>Жалоба</h1> }));
 
 function renderAt(path: string, role: "moderator" | "admin") {
   mockUseAuth.mockReturnValue({
