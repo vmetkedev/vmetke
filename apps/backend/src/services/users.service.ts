@@ -7,6 +7,8 @@ import { users, follows, refreshTokens } from "../db/schema/index.js";
 export class InvalidPasswordError extends Error {}
 export class UserNotFoundError extends Error {}
 
+type Updater = Pick<typeof db, "update">;
+
 export async function getUserProfile(username: string, viewerId: string | null) {
   const [user] = await db
     .select({
@@ -56,21 +58,13 @@ export async function updateAvatarColor(userId: string, avatarColor: number) {
   await db.update(users).set({ avatarColor }).where(eq(users.id, userId));
 }
 
-export async function deleteAccount(userId: string, password: string) {
-  const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (!user) throw new UserNotFoundError("Пользователь не найден");
-
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) throw new InvalidPasswordError("Неверный пароль");
-
+export async function anonymizeAccount(executor: Updater, userId: string) {
   const dummyHash = await bcrypt.hash(crypto.randomUUID(), 10);
-  const anonymizedUsername = `deleted_${user.id.replace(/-/g, "").slice(0, 24)}`;
-
-  await db
+  await executor
     .update(users)
     .set({
-      email: `deleted_${user.id}@vmetke.local`,
-      username: anonymizedUsername,
+      email: `deleted_${userId}@vmetke.local`,
+      username: `deleted_${userId.replace(/-/g, "").slice(0, 24)}`,
       displayName: null,
       bio: null,
       avatarColor: null,
@@ -78,6 +72,15 @@ export async function deleteAccount(userId: string, password: string) {
       deletedAt: new Date(),
     })
     .where(eq(users.id, userId));
+  await executor.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.userId, userId));
+}
 
-  await db.update(refreshTokens).set({ revoked: true }).where(eq(refreshTokens.userId, userId));
+export async function deleteAccount(userId: string, password: string) {
+  const [user] = await db.select().from(users).where(eq(users.id, userId));
+  if (!user) throw new UserNotFoundError("Пользователь не найден");
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) throw new InvalidPasswordError("Неверный пароль");
+
+  await anonymizeAccount(db, userId);
 }

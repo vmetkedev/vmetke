@@ -1,5 +1,7 @@
 import { and, count, desc, eq, ilike, isNotNull, isNull, max, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
+import bcrypt from "bcrypt";
+import { anonymizeAccount } from "./users.service.js";
 import {
   users,
   posts,
@@ -155,8 +157,9 @@ export async function unbanUser(adminId: string, targetId: string) {
   });
 }
 
-export async function changeRole(adminId: string, targetId: string, role: UserRole) {
+export async function changeRole(adminId: string, targetId: string, role: UserRole, password: string) {
   if (adminId === targetId) throw new AdminActionError(400, "Нельзя изменить свою роль");
+  await requirePassword(adminId, password, "role.change");
 
   await db.transaction(async (tx) => {
     const t = await loadTarget(tx, targetId);
@@ -184,6 +187,64 @@ export async function forceLogout(adminId: string, targetId: string) {
       targetType: "user",
       targetId,
       details: { username: t.username },
+    });
+  });
+}
+
+/** Повторное подтверждение паролем админа. Неудачные попытки пишутся в журнал. */
+export async function requirePassword(adminId: string, password: string, forAction: string) {
+  const [row] = await db.select({ hash: users.passwordHash }).from(users).where(eq(users.id, adminId));
+  const ok = row ? await bcrypt.compare(password, row.hash) : false;
+  if (!ok) {
+    await db.insert(adminAuditLog).values({
+      adminId,
+      action: "admin.reauth_failed",
+      targetType: "user",
+      targetId: adminId,
+      details: { forAction },
+    });
+    throw new AdminActionError(403, "Неверный пароль");
+  }
+}
+
+export async function deleteUser(adminId: string, targetId: string, password: string, reason: string) {
+  if (adminId === targetId) {
+    throw new AdminActionError(400, "Свой аккаунт удаляется в настройках профиля");
+  }
+  await requirePassword(adminId, password, "user.delete");
+
+  await db.transaction(async (tx) => {
+    const [t] = await tx
+      .select({
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        role: users.role,
+        createdAt: users.createdAt,
+        bannedAt: users.bannedAt,
+      })
+      .from(users)
+      .where(and(eq(users.id, targetId), isNull(users.deletedAt)));
+    if (!t) throw new AdminActionError(404, "Пользователь не найден");
+    await assertNotLastAdmin(tx, t);
+
+    await anonymizeAccount(tx, targetId);
+    await tx.insert(adminAuditLog).values({
+      adminId,
+      action: "user.delete",
+      targetType: "user",
+      targetId,
+      // Без email и био: анонимизация не должна обходиться через журнал
+      details: {
+        reason,
+        snapshot: {
+          username: t.username,
+          displayName: t.displayName,
+          role: t.role,
+          createdAt: t.createdAt,
+          wasBanned: !!t.bannedAt,
+        },
+      },
     });
   });
 }

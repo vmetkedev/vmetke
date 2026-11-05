@@ -1,19 +1,21 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth, type UserRole } from "../../auth/AuthContext";
 import { Avatar } from "../../components/Avatar";
 import {
   banAdminUser,
   changeAdminUserRole,
+  deleteAdminUser,
   fetchAdminUser,
   forceLogoutAdminUser,
   unbanAdminUser,
 } from "../../lib/adminApi";
+import { PasswordField } from "./PasswordField";
 import { AdminDialog } from "./AdminDialog";
 import { BannedBadge, RoleBadge, ROLE_LABELS, fmtDate } from "./adminShared";
 
-type DialogKind = "ban" | "unban" | "role" | "logout" | null;
+type DialogKind = "ban" | "unban" | "role" | "logout" | "delete" | null;
 
 const BTN =
   "px-3 py-1.5 text-sm rounded-md border dark:border-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700";
@@ -29,7 +31,9 @@ export function AdminUserPage() {
     queryKey: ["admin", "user", id],
     queryFn: () => fetchAdminUser(id),
   });
-
+  
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [reason, setReason] = useState("");
   const [newRole, setNewRole] = useState<UserRole>("moderator");
@@ -46,6 +50,7 @@ export function AdminUserPage() {
   const open = (kind: Exclude<DialogKind, null>) => {
     act.reset();
     setReason("");
+    setPassword("");
     if (user) setNewRole(user.role === "moderator" ? "user" : "moderator");
     setDialog(kind);
   };
@@ -135,6 +140,9 @@ export function AdminUserPage() {
             <button className={BTN} onClick={() => open("logout")}>
               Завершить все сессии
             </button>
+            <button className={`${BTN} text-red-600 dark:text-red-400`} onClick={() => open("delete")}>
+              Удалить аккаунт
+            </button>
           </>
         )}
       </div>
@@ -205,6 +213,10 @@ export function AdminUserPage() {
               ))}
             </select>
           </label>
+          <PasswordField value={password} onChange={setPassword} />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Для смены роли нужно подтвердить действие вашим паролем.
+          </p>
           {errorText && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errorText}</p>}
           <div className="mt-4 flex justify-end gap-2">
             <button className={BTN} onClick={close}>
@@ -212,8 +224,8 @@ export function AdminUserPage() {
             </button>
             <button
               className={BTN_PRIMARY}
-              disabled={act.isPending || newRole === user.role}
-              onClick={() => act.mutate(() => changeAdminUserRole(user.id, newRole))}
+              disabled={act.isPending || newRole === user.role || password.length === 0}
+              onClick={() => act.mutate(() => changeAdminUserRole(user.id, newRole, password))}
             >
               Сменить роль
             </button>
@@ -237,6 +249,43 @@ export function AdminUserPage() {
               onClick={() => act.mutate(() => forceLogoutAdminUser(user.id))}
             >
               Завершить сессии
+            </button>
+          </div>
+        </AdminDialog>
+      )}
+
+      {dialog === "delete" && (
+        <AdminDialog title="Удалить аккаунт" onClose={close}>
+          <p className="text-sm dark:text-gray-200">
+            Аккаунт @{user.username} будет обезличен: имя, био и email сотрутся, все сессии завершатся. Посты и
+            комментарии останутся под анонимным именем, их удаляют на странице «Контент». Действие необратимо.
+          </p>
+          <label className="mt-3 block text-sm dark:text-gray-200">
+            Причина
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={500}
+              rows={3}
+              className="mt-1 w-full border rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-900 dark:border-gray-700 dark:text-gray-100"
+            />
+          </label>
+          <PasswordField value={password} onChange={setPassword} />
+          {errorText && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errorText}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <button className={BTN} onClick={close}>
+              Отмена
+            </button>
+            <button
+              className={BTN_DANGER}
+              disabled={act.isPending || reason.trim().length < 3 || password.length === 0}
+              onClick={() =>
+                act.mutate(() => deleteAdminUser(user.id, password, reason.trim()), {
+                  onSuccess: () => navigate("/admin/users"),
+                })
+              }
+            >
+              Удалить
             </button>
           </div>
         </AdminDialog>

@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { requireRole } from "../../plugins/roles.js";
+import { sensitiveRateLimit } from "./rate-limit.js";
 import {
   AdminActionError,
   banUser,
@@ -9,6 +10,7 @@ import {
   getUserDetail,
   listUsers,
   unbanUser,
+  deleteUser,
 } from "../../services/admin-users.service.js";
 
 const idParam = z.object({ id: z.string().uuid() });
@@ -20,7 +22,10 @@ const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
 });
 const banBody = z.object({ reason: z.string().trim().min(3, "укажите причину").max(500) });
-const roleBody = z.object({ role: z.enum(["user", "moderator", "admin"]) });
+
+const password = z.string().min(1, "введите пароль").max(200);
+const roleBody = z.object({ role: z.enum(["user", "moderator", "admin"]), password });
+const deleteBody = z.object({ password, reason: z.string().trim().min(3, "укажите причину").max(500) });
 
 function handleError(err: unknown, reply: FastifyReply) {
   if (err instanceof AdminActionError) return reply.code(err.status).send({ error: err.message });
@@ -71,13 +76,13 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
     }
   });
 
-  app.patch("/:id/role", async (request, reply) => {
+  app.patch("/:id/role", { config: { rateLimit: sensitiveRateLimit() } }, async (request, reply) => {
     const params = idParam.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ error: "Некорректный id" });
     const body = roleBody.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
     try {
-      await changeRole(actorId(request), params.data.id, body.data.role);
+      await changeRole(actorId(request), params.data.id, body.data.role, body.data.password);
       return { success: true };
     } catch (err) {
       return handleError(err, reply);
@@ -89,6 +94,19 @@ export default async function adminUsersRoutes(app: FastifyInstance) {
     if (!params.success) return reply.code(400).send({ error: "Некорректный id" });
     try {
       await forceLogout(actorId(request), params.data.id);
+      return { success: true };
+    } catch (err) {
+      return handleError(err, reply);
+    }
+  });
+
+  app.delete("/:id", { config: { rateLimit: sensitiveRateLimit() } }, async (request, reply) => {
+    const params = idParam.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: "Некорректный id" });
+    const body = deleteBody.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
+    try {
+      await deleteUser(actorId(request), params.data.id, body.data.password, body.data.reason);
       return { success: true };
     } catch (err) {
       return handleError(err, reply);

@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "./app.js";
 import { db } from "../db/client.js";
-import { adminAuditLog } from "../db/schema/index.js";
+import { adminAuditLog, posts, users } from "../db/schema/index.js";
 import { grantRole } from "../services/admin.service.js";
 
 let app: FastifyInstance;
@@ -19,6 +19,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
 });
+
+const PASSWORD = "Password123!";
 
 // Админ создаётся перед каждым тестом: сетап чистит БД между тестами
 beforeEach(async () => {
@@ -42,7 +44,7 @@ async function registerUser(prefix = "au"): Promise<TestUser> {
 }
 
 const call = (
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PATCH" | "DELETE",
   url: string,
   token?: string,
   payload?: Record<string, unknown>,
@@ -83,6 +85,7 @@ describe("доступ к /api/admin/users", () => {
     expect((await call("POST", `/${target.id}/unban`, mod.token)).statusCode).toBe(403);
     expect((await call("PATCH", `/${target.id}/role`, mod.token, { role: "moderator" })).statusCode).toBe(403);
     expect((await call("POST", `/${target.id}/logout`, mod.token)).statusCode).toBe(403);
+    expect((await call("DELETE", `/${target.id}`, mod.token, { password: "x", reason: "спам" })).statusCode).toBe(403);
   });
 
   it("401 на изменяющие роуты без токена", async () => {
@@ -283,7 +286,7 @@ describe("бан и разбан", () => {
 describe("смена роли", () => {
   it("админ повышает до модератора, действует сразу, пишется в журнал", async () => {
     const target = await registerUser();
-    const res = await call("PATCH", `/${target.id}/role`, admin.token, { role: "moderator" });
+    const res = await call("PATCH", `/${target.id}/role`, admin.token, { role: "moderator", password: PASSWORD });
     expect(res.statusCode).toBe(200);
 
     const who = await app.inject({
@@ -297,22 +300,45 @@ describe("смена роли", () => {
     const rows = await auditRows(target.id, "role.change");
     expect(rows).toHaveLength(1);
     expect(rows[0].details).toMatchObject({ previousRole: "user", role: "moderator" });
+    // пароль не должен попадать в журнал ни в каком виде
+    expect(JSON.stringify(rows[0].details)).not.toContain(PASSWORD);
   });
 
   it("нельзя менять свою роль", async () => {
-    const res = await call("PATCH", `/${admin.id}/role`, admin.token, { role: "user" });
+    const res = await call("PATCH", `/${admin.id}/role`, admin.token, { role: "user", password: PASSWORD });
     expect(res.statusCode).toBe(400);
   });
 
   it("400 на недопустимую роль, 409 если роль не меняется", async () => {
     const target = await registerUser();
     expect((await call("PATCH", `/${target.id}/role`, admin.token, { role: "superuser" })).statusCode).toBe(400);
-    expect((await call("PATCH", `/${target.id}/role`, admin.token, { role: "user" })).statusCode).toBe(409);
+    expect((await call("PATCH", `/${target.id}/role`, admin.token, { role: "user", password: PASSWORD })).statusCode).toBe(409);
   });
 
   it("404 для несуществующего пользователя", async () => {
-    const res = await call("PATCH", "/00000000-0000-4000-8000-000000000000/role", admin.token, { role: "user" });
+    const res = await call("PATCH", "/00000000-0000-4000-8000-000000000000/role", admin.token, { role: "user", password: PASSWORD });
     expect(res.statusCode).toBe(404);
+  });
+  
+  it("без пароля 400, с неверным 403: роль не меняется, попытка в журнале", async () => {
+    const target = await registerUser();
+    expect((await call("PATCH", `/${target.id}/role`, admin.token, { role: "moderator" })).statusCode).toBe(400);
+
+    const res = await call("PATCH", `/${target.id}/role`, admin.token, { role: "moderator", password: "wrong" });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("Неверный пароль");
+
+    const who = await app.inject({
+      method: "GET",
+      url: "/api/admin/whoami",
+      headers: { authorization: `Bearer ${target.token}` },
+    });
+    expect(who.statusCode).toBe(403); // всё ещё обычный пользователь
+    expect(await auditRows(target.id, "role.change")).toHaveLength(0);
+
+    const failed = await auditRows(admin.id, "admin.reauth_failed");
+    expect(failed).toHaveLength(1);
+    expect(failed[0].details).toMatchObject({ forAction: "role.change" });
   });
 });
 
@@ -329,5 +355,84 @@ describe("принудительный выход", () => {
 
   it("404 для несуществующего пользователя", async () => {
     expect((await call("POST", "/00000000-0000-4000-8000-000000000000/logout", admin.token)).statusCode).toBe(404);
+  });
+});
+
+describe("удаление пользователя админом", () => {
+  const del = (id: string, token: string, payload: Record<string, unknown>) =>
+    call("DELETE", `/${id}`, token, payload);
+
+  it("анонимизирует аккаунт, отзывает токены, пишет журнал без email", async () => {
+    const target = await registerUser();
+    const [post] = await db.insert(posts).values({ authorId: target.id, title: "Остаётся", content: "текст" }).returning();
+
+    const res = await del(target.id, admin.token, { password: PASSWORD, reason: "угрозы" });
+    expect(res.statusCode).toBe(200);
+
+    const [u] = await db.select().from(users).where(eq(users.id, target.id));
+    expect(u.deletedAt).not.toBeNull();
+    expect(u.username.startsWith("deleted_")).toBe(true);
+    expect(u.email).toBe(`deleted_${target.id}@vmetke.local`);
+
+    // токены умирают сразу
+    expect((await refreshWith(target.refresh)).statusCode).toBe(401);
+    const me = await app.inject({
+      method: "GET",
+      url: "/api/auth/me",
+      headers: { authorization: `Bearer ${target.token}` },
+    });
+    expect(me.statusCode).toBe(401);
+
+    // контент остаётся под анонимным именем
+    expect(await db.select().from(posts).where(eq(posts.id, post.id))).toHaveLength(1);
+
+    const rows = await auditRows(target.id, "user.delete");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].adminId).toBe(admin.id);
+    expect(rows[0].details).toMatchObject({
+      reason: "угрозы",
+      snapshot: { username: target.username, role: "user", wasBanned: false },
+    });
+    expect(JSON.stringify(rows[0].details)).not.toContain("@example.com");
+
+    // удалённого не видно ни в списке, ни в карточке
+    expect((await call("GET", `/${target.id}`, admin.token)).statusCode).toBe(404);
+    const list = (await call("GET", `?q=${target.username}`, admin.token)).json();
+    expect(list.users).toHaveLength(0);
+  });
+
+  it("400 без пароля или причины, неверный пароль 403: пользователь не удалён", async () => {
+    const target = await registerUser();
+    expect((await del(target.id, admin.token, { reason: "спам" })).statusCode).toBe(400);
+    expect((await del(target.id, admin.token, { password: PASSWORD })).statusCode).toBe(400);
+    expect((await del(target.id, admin.token, { password: PASSWORD, reason: "  " })).statusCode).toBe(400);
+
+    const res = await del(target.id, admin.token, { password: "wrong", reason: "спам" });
+    expect(res.statusCode).toBe(403);
+    const [u] = await db.select().from(users).where(eq(users.id, target.id));
+    expect(u.deletedAt).toBeNull();
+    expect(await auditRows(target.id, "user.delete")).toHaveLength(0);
+    expect(await auditRows(admin.id, "admin.reauth_failed")).toHaveLength(1);
+  });
+
+  it("себя нельзя; несуществующего и уже удалённого 404", async () => {
+    expect((await del(admin.id, admin.token, { password: PASSWORD, reason: "сам себя" })).statusCode).toBe(400);
+    expect(
+      (await del("00000000-0000-4000-8000-000000000000", admin.token, { password: PASSWORD, reason: "нет такого" }))
+        .statusCode,
+    ).toBe(404);
+
+    const target = await registerUser();
+    expect((await del(target.id, admin.token, { password: PASSWORD, reason: "первый раз" })).statusCode).toBe(200);
+    expect((await del(target.id, admin.token, { password: PASSWORD, reason: "второй раз" })).statusCode).toBe(404);
+  });
+
+  it("админ может удалить модератора; модератору роут закрыт", async () => {
+    const mod = await registerUser();
+    await grantRole(mod.username, "moderator");
+    const victim = await registerUser();
+
+    expect((await del(victim.id, mod.token, { password: PASSWORD, reason: "попытка" })).statusCode).toBe(403);
+    expect((await del(mod.id, admin.token, { password: PASSWORD, reason: "увольнение" })).statusCode).toBe(200);
   });
 });

@@ -26,12 +26,11 @@ export default fp(async (app: FastifyInstance) => {
       // Бан действует сразу, не дожидаясь истечения access-токена.
       // 401 (а не 403), чтобы клиент пошёл на refresh, получил отказ и разлогинил пользователя.
       const [row] = await db
-        .select({ bannedAt: users.bannedAt })
+        .select({ bannedAt: users.bannedAt, deletedAt: users.deletedAt })
         .from(users)
         .where(eq(users.id, sub));
-      if (row?.bannedAt) {
-        return reply.code(401).send({ error: "Аккаунт заблокирован" });
-      }
+      if (row?.deletedAt) return reply.code(401).send({ error: "Аккаунт удалён" });
+      if (row?.bannedAt) return reply.code(401).send({ error: "Аккаунт заблокирован" });
     },
   );
 

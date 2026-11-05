@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   unbanAdminUser: vi.fn(),
   changeAdminUserRole: vi.fn(),
   forceLogoutAdminUser: vi.fn(),
+  deleteAdminUser: vi.fn(),
 }));
 vi.mock("../../lib/adminApi", () => api);
 
@@ -99,14 +100,54 @@ describe("AdminUserPage", () => {
     expect(api.unbanAdminUser).toHaveBeenCalledWith("u1");
   });
 
-  it("смена роли отправляет выбранную роль", async () => {
+  it("смена роли: без пароля кнопка неактивна, затем отправляет роль и пароль", async () => {
     api.changeAdminUserRole.mockResolvedValue(undefined);
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: "Сменить роль" }));
     const dialog = screen.getByRole("dialog");
     await userEvent.selectOptions(within(dialog).getByLabelText("Новая роль"), "moderator");
+
+    const submit = within(dialog).getByRole("button", { name: "Сменить роль" });
+    expect(submit).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText("Ваш пароль"), "secret");
+    expect(submit).toBeEnabled();
+    await userEvent.click(submit);
+
+    expect(api.changeAdminUserRole).toHaveBeenCalledWith("u1", "moderator", "secret");
+  });
+
+  it("неверный пароль при смене роли показывается в диалоге", async () => {
+    api.changeAdminUserRole.mockRejectedValue(new Error("Неверный пароль"));
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Сменить роль" }));
+    const dialog = screen.getByRole("dialog");
+    await userEvent.type(within(dialog).getByLabelText("Ваш пароль"), "wrong");
     await userEvent.click(within(dialog).getByRole("button", { name: "Сменить роль" }));
-    expect(api.changeAdminUserRole).toHaveBeenCalledWith("u1", "moderator");
+    expect(await within(dialog).findByText("Неверный пароль")).toBeInTheDocument();
+  });
+
+  it("удаление аккаунта: нужны причина и пароль, затем вызывает API", async () => {
+    api.deleteAdminUser.mockResolvedValue(undefined);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Удалить аккаунт" }));
+    const dialog = screen.getByRole("dialog");
+    const submit = within(dialog).getByRole("button", { name: "Удалить" });
+    expect(submit).toBeDisabled();
+
+    await userEvent.type(within(dialog).getByLabelText(/Причина/), "  угрозы  ");
+    expect(submit).toBeDisabled();
+    await userEvent.type(within(dialog).getByLabelText("Ваш пароль"), "secret");
+    expect(submit).toBeEnabled();
+    await userEvent.click(submit);
+
+    await waitFor(() => expect(api.deleteAdminUser).toHaveBeenCalledWith("u1", "secret", "угрозы"));
+  });
+
+  it("над собой кнопки удаления нет", async () => {
+    mockUseAuth.mockReturnValue({ user: { id: "u1", username: "alice", avatarColor: null, role: "admin" } });
+    renderPage();
+    await screen.findByText("@alice");
+    expect(screen.queryByRole("button", { name: "Удалить аккаунт" })).not.toBeInTheDocument();
   });
 
   it("принудительный выход вызывает API", async () => {

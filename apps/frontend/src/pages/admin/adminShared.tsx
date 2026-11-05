@@ -87,6 +87,8 @@ export const ACTION_LABELS: Record<string, string> = {
   "comment.delete": "Удаление комментария",
   "report.resolve": "Жалоба решена",
   "report.dismiss": "Жалоба отклонена",
+  "user.delete": "Удаление пользователя",
+  "admin.reauth_failed": "Неверный пароль при подтверждении",
 };
 
 export const AUDIT_TARGET_LABELS: Record<string, string> = {

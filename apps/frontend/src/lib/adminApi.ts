@@ -142,8 +142,12 @@ export async function unbanAdminUser(id: string) {
   await ensureOk(await api.post(`/admin/users/${id}/unban`), "Не удалось разблокировать");
 }
 
-export async function changeAdminUserRole(id: string, role: UserRole) {
-  await ensureOk(await api.patch(`/admin/users/${id}/role`, { role }), "Не удалось сменить роль");
+export async function changeAdminUserRole(id: string, role: UserRole, password: string) {
+  await ensureOk(await api.patch(`/admin/users/${id}/role`, { role, password }), "Не удалось сменить роль");
+}
+
+export async function deleteAdminUser(id: string, password: string, reason: string) {
+  await ensureOk(await api.delete(`/admin/users/${id}`, { password, reason }), "Не удалось удалить пользователя");
 }
 
 export async function forceLogoutAdminUser(id: string) {

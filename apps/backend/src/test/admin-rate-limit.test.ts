@@ -6,8 +6,10 @@ import { grantRole } from "../services/admin.service.js";
 // Читается при регистрации плагина, то есть при buildTestApp() ниже
 const prevRead = process.env.ADMIN_RATE_LIMIT_READ;
 const prevWrite = process.env.ADMIN_RATE_LIMIT_WRITE;
+const prevSensitive = process.env.ADMIN_RATE_LIMIT_SENSITIVE;
 process.env.ADMIN_RATE_LIMIT_READ = "3";
 process.env.ADMIN_RATE_LIMIT_WRITE = "2";
+process.env.ADMIN_RATE_LIMIT_SENSITIVE = "2";
 
 const { buildTestApp } = await import("./app.js");
 
@@ -25,6 +27,8 @@ afterAll(async () => {
   else process.env.ADMIN_RATE_LIMIT_READ = prevRead;
   if (prevWrite === undefined) delete process.env.ADMIN_RATE_LIMIT_WRITE;
   else process.env.ADMIN_RATE_LIMIT_WRITE = prevWrite;
+  if (prevSensitive === undefined) delete process.env.ADMIN_RATE_LIMIT_SENSITIVE;
+  else process.env.ADMIN_RATE_LIMIT_SENSITIVE = prevSensitive;
 });
 
 beforeEach(async () => {
@@ -93,5 +97,21 @@ describe("rate-limit на /api/admin/*", () => {
       expect(res.statusCode).toBe(200);
     }
     expect(adminId).toBeTruthy();
+  });
+
+  it("роуты с подтверждением паролем лимитируются отдельно и строже", async () => {
+    const ip = "10.20.0.6";
+    const attempt = () =>
+      app.inject({
+        method: "PATCH",
+        url: "/api/admin/users/00000000-0000-4000-8000-000000000000/role",
+        remoteAddress: ip,
+        headers: { authorization: `Bearer ${token}` },
+        payload: { role: "user", password: "wrong" },
+      });
+    // записи о неверном пароле не нужны для проверки лимита: до пароля дело не дойдёт
+    expect((await attempt()).statusCode).not.toBe(429);
+    expect((await attempt()).statusCode).not.toBe(429);
+    expect((await attempt()).statusCode).toBe(429);
   });
 });
