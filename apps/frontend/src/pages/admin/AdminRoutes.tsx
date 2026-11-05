@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { useAuth } from "../../auth/AuthContext";
 import { AdminLayout } from "./AdminLayout";
-import { AdminPlaceholder } from "./AdminPlaceholder";
 import { AdminOverviewPage } from "./AdminOverviewPage";
 import { AdminUsersPage } from "./AdminUsersPage";
 import { AdminUserPage } from "./AdminUserPage";

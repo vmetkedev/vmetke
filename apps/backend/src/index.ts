@@ -16,6 +16,7 @@ import messagesRoutes from "./routes/messages.js";
 import blocksRoutes from "./routes/blocks.js";
 import adminRoutes from "./routes/admin/index.js";
 import reportsRoutes from "./routes/reports.js";
+import { applyAdminRateLimit } from "./routes/admin/rate-limit.js";
 
 const app = Fastify({ logger: true });
 
@@ -27,6 +28,11 @@ const start = async () => {
   });
   await app.register(cookie);
   await app.register(jwtPlugin);
+  applyAdminRateLimit(app);
+  await app.register(rateLimit, {
+    max: 300,
+    // ...как было
+  });
   await app.register(rateLimit, {
     max: 300,
     timeWindow: "1 minute",
