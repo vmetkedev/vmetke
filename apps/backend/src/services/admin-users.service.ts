@@ -2,6 +2,7 @@ import { and, count, desc, eq, ilike, isNotNull, isNull, max, or, sql } from "dr
 import { db } from "../db/client.js";
 import bcrypt from "bcrypt";
 import { anonymizeAccount } from "./users.service.js";
+import { sendTelegramAlert, telegramConfigured } from "./telegram.service.js";
 import {
   users,
   posts,
@@ -22,6 +23,17 @@ export class AdminActionError extends Error {
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+/** Алерт «кто сделал»: ничего не делает, если бот не настроен; не бросает исключений. */
+async function alert(adminId: string, build: (who: string) => string) {
+  if (!telegramConfigured()) return;
+  try {
+    const [a] = await db.select({ username: users.username }).from(users).where(eq(users.id, adminId));
+    await sendTelegramAlert(build(a ? `@${a.username}` : "админ"));
+  } catch {
+    // алерты не должны влиять на действие
+  }
+}
 
 export async function listUsers(params: {
   q?: string;
@@ -124,7 +136,7 @@ async function assertNotLastAdmin(tx: Tx, target: { role: UserRole; bannedAt: Da
 export async function banUser(adminId: string, targetId: string, reason: string) {
   if (adminId === targetId) throw new AdminActionError(400, "Нельзя заблокировать себя");
 
-  await db.transaction(async (tx) => {
+  const username = await db.transaction(async (tx) => {
     const t = await loadTarget(tx, targetId);
     if (t.bannedAt) throw new AdminActionError(409, "Пользователь уже заблокирован");
     await assertNotLastAdmin(tx, t);
@@ -138,7 +150,10 @@ export async function banUser(adminId: string, targetId: string, reason: string)
       targetId,
       details: { username: t.username, reason },
     });
+    return t.username;
   });
+
+  void alert(adminId, (who) => `🚫 Блокировка: @${username}\nКто: ${who}\nПричина: ${reason}`);
 }
 
 export async function unbanUser(adminId: string, targetId: string) {
@@ -161,7 +176,7 @@ export async function changeRole(adminId: string, targetId: string, role: UserRo
   if (adminId === targetId) throw new AdminActionError(400, "Нельзя изменить свою роль");
   await requirePassword(adminId, password, "role.change");
 
-  await db.transaction(async (tx) => {
+  const { username, previousRole } = await db.transaction(async (tx) => {
     const t = await loadTarget(tx, targetId);
     if (t.role === role) throw new AdminActionError(409, "У пользователя уже эта роль");
     if (t.role === "admin") await assertNotLastAdmin(tx, t);
@@ -174,7 +189,10 @@ export async function changeRole(adminId: string, targetId: string, role: UserRo
       targetId,
       details: { username: t.username, previousRole: t.role, role },
     });
+    return { username: t.username, previousRole: t.role };
   });
+
+  void alert(adminId, (who) => `🔐 Смена роли: @${username}: ${previousRole} → ${role}\nКто: ${who}`);
 }
 
 export async function forceLogout(adminId: string, targetId: string) {

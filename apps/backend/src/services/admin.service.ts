@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, adminAuditLog, type UserRole } from "../db/schema/index.js";
+import { sendTelegramAlert } from "./telegram.service.js";
 
 export async function logAdminAction(entry: {
   adminId: string | null;
@@ -16,6 +17,15 @@ export async function logAdminAction(entry: {
     targetId: entry.targetId ?? null,
     details: entry.details ?? null,
   });
+}
+
+/** Выдача роли из CLI: ждёт отправки алерта, потому что скрипт сразу завершает процесс. */
+export async function grantRoleViaCli(username: string, role: UserRole) {
+  const result = await grantRole(username, role);
+  if (result) {
+    await sendTelegramAlert(`🔐 Роль через CLI: @${result.username}: ${result.previousRole} → ${result.role}`);
+  }
+  return result;
 }
 
 /** Назначает роль и пишет в журнал в одной транзакции. null, если пользователя нет. */

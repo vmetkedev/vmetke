@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { grantRole } from "../services/admin.service.js";
+import { grantRoleViaCli } from "../services/admin.service.js";
 import type { UserRole } from "../db/schema/index.js";
 
 const ROLES = ["user", "moderator", "admin"];
@@ -10,7 +10,7 @@ async function main() {
     console.error("Usage: pnpm --filter backend admin:grant <username> [admin|moderator|user]");
     process.exit(1);
   }
-  const result = await grantRole(username, role as UserRole);
+  const result = await grantRoleViaCli(username, role as UserRole);
   if (!result) {
     console.error(`Пользователь «${username}» не найден`);
     process.exit(1);
