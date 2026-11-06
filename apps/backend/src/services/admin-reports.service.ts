@@ -197,3 +197,8 @@ export async function resolveReport(
     return { resolvedIds: updated.map((u) => u.id) };
   });
 }
+
+export async function countOpenReports() {
+  const [{ n }] = await db.select({ n: count() }).from(reports).where(eq(reports.status, "open"));
+  return n;
+}

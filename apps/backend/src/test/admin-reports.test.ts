@@ -449,3 +449,20 @@ describe("забанить автора", () => {
     expect((await getRow(id)).status).toBe("open");
   });
 });
+
+describe("счётчик открытых жалоб", () => {
+  const count = async (token: string) => (await call("GET", "/open-count", token)).json().count as number;
+
+  it("растёт с новой жалобой и падает после обработки; доступен модератору", async () => {
+    const mod = await moderator();
+    const before = await count(mod.token);
+
+    const author = await registerUser();
+    const reporter = await registerUser();
+    const id = await fileReport(reporter, "user", author.id);
+    expect(await count(mod.token)).toBe(before + 1);
+
+    expect((await resolve(id, mod.token, { action: "dismiss" })).statusCode).toBe(200);
+    expect(await count(mod.token)).toBe(before);
+  });
+});

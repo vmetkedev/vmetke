@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router";
 import { LayoutDashboard, Users, FileText, Flag, ScrollText } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { AppLayout } from "../../components/AppLayout";
+import { ReportsBadge } from "./ReportsBadge";
 
 const NAV = [
   { to: "/admin", label: "Обзор", icon: LayoutDashboard, end: true, adminOnly: false },
@@ -35,6 +36,7 @@ export function AdminLayout() {
               >
                 <Icon size={16} />
                 {label}
+                {to === "/admin/reports" && <ReportsBadge />}
               </NavLink>
             ))}
           </nav>

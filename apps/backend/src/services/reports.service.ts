@@ -1,5 +1,6 @@
-import { and, count, desc, eq, gt, gte, isNull, lt } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, isNull, lt, inArray } from "drizzle-orm";
 import { db } from "../db/client.js";
+import { sendTelegramAlert, telegramConfigured } from "./telegram.service.js";
 import {
   comments,
   conversations,
@@ -157,6 +158,69 @@ function isUniqueViolation(err: unknown) {
   return e?.code === "23505" || e?.cause?.code === "23505";
 }
 
+const TARGET_RU: Record<ReportTargetType, string> = {
+  post: "пост",
+  comment: "комментарий",
+  user: "пользователь",
+  message: "личное сообщение",
+};
+const REASON_RU: Record<ReportReason, string> = {
+  spam: "Спам или реклама",
+  abuse: "Оскорбления или травля",
+  illegal: "Незаконный контент",
+  other: "Другое",
+};
+
+// Не больше ALERT_MAX алертов за окно на весь сервер: защита чата от флуда
+const ALERT_WINDOW_MS = 10 * 60 * 1000;
+const ALERT_MAX = 10;
+let alertTimes: number[] = [];
+
+export function resetReportAlertThrottle() {
+  alertTimes = [];
+}
+
+function allowAlert() {
+  const now = Date.now();
+  alertTimes = alertTimes.filter((t) => now - t < ALERT_WINDOW_MS);
+  if (alertTimes.length >= ALERT_MAX) return false;
+  alertTimes.push(now);
+  return true;
+}
+
+/** Алерт о новой жалобе. Без содержимого жалобы; никогда не бросает исключений. */
+async function notifyNewReport(r: {
+  id: string;
+  reporterId: string;
+  targetUserId: string;
+  targetType: ReportTargetType;
+  reason: ReportReason;
+  comment: string | null;
+}) {
+  try {
+    if (!telegramConfigured() || !allowAlert()) return;
+
+    const names = await db
+      .select({ id: users.id, username: users.username })
+      .from(users)
+      .where(inArray(users.id, [r.reporterId, r.targetUserId]));
+    const name = (id: string) => `@${names.find((n) => n.id === id)?.username ?? "?"}`;
+
+    const base = process.env.NODE_ENV === "production" ? "https://vmetke.ru" : "http://localhost:5173";
+    const lines = [
+      `🚩 Новая жалоба: ${TARGET_RU[r.targetType]}`,
+      `Причина: ${REASON_RU[r.reason]}`,
+      `От: ${name(r.reporterId)} → на: ${name(r.targetUserId)}`,
+    ];
+    if (r.comment) lines.push(`«${r.comment.slice(0, 200)}»`);
+    lines.push(`${base}/admin/reports/${r.id}`);
+
+    await sendTelegramAlert(lines.join("\n"));
+  } catch {
+    // алерты не должны влиять на создание жалобы
+  }
+}
+
 export async function createReport(
   reporterId: string,
   input: { targetType: ReportTargetType; targetId: string; reason: ReportReason; comment: string | null },
@@ -199,6 +263,14 @@ export async function createReport(
         snapshot,
       })
       .returning({ id: reports.id });
+    void notifyNewReport({
+      id: row.id,
+      reporterId,
+      targetUserId,
+      targetType: input.targetType,
+      reason: input.reason,
+      comment: input.comment,
+    });
     return row;
   } catch (err) {
     if (isUniqueViolation(err)) throw new ReportError(409, dupMessage);

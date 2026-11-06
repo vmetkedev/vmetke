@@ -262,3 +262,9 @@ export async function fetchAdminAuditEntry(id: number): Promise<AdminAuditDetail
   await ensureOk(res, "Не удалось загрузить запись");
   return (await res.json()).entry;
 }
+
+export async function fetchAdminOpenReportsCount(): Promise<number> {
+  const res = await api.get("/admin/reports/open-count");
+  await ensureOk(res, "Не удалось загрузить счётчик жалоб");
+  return (await res.json()).count;
+}

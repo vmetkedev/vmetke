@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import type { UserRole } from "../../db/schema/index.js";
 import { AdminActionError } from "../../services/admin-users.service.js";
-import { getReportDetail, listReports, resolveReport } from "../../services/admin-reports.service.js";
+import { countOpenReports, getReportDetail, listReports, resolveReport } from "../../services/admin-reports.service.js";
 
 const idParam = z.object({ id: z.string().uuid() });
 const listQuery = z.object({
@@ -63,4 +63,6 @@ export default async function adminReportsRoutes(app: FastifyInstance) {
       return handleError(err, reply);
     }
   });
+
+    app.get("/open-count", async () => ({ count: await countOpenReports() }));
 }
