@@ -394,3 +394,85 @@ describe("права модератора на чужой контент", () =>
     expect(row.details).toMatchObject({ snapshot: { authorRole: "user" } });
   });
 });
+
+describe("уведомление автору об удалении модератором", () => {
+  const notes = (token: string) =>
+    app.inject({ method: "GET", url: "/api/notifications", headers: { authorization: `Bearer ${token}` } });
+
+  it("пост: автор получает уведомление с причиной, без данных модератора", async () => {
+    const author = await registerUser();
+    const post = await makePost(author.id, { title: "Прощай, пост", content: "текст" });
+
+    expect((await call("DELETE", `/posts/${post.id}`, admin.token, { reason: "  спам  " })).statusCode).toBe(200);
+
+    const res = await notes(author.token);
+    const { notifications, unreadCount } = res.json();
+    expect(unreadCount).toBe(1);
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      type: "moderation",
+      postId: null,
+      read: false,
+      actor: null,
+      details: { action: "post_deleted", title: "Прощай, пост", reason: "спам" },
+    });
+    expect(res.body).not.toContain(admin.username);
+    expect(res.body).not.toContain(admin.id);
+  });
+
+  it("пост без заголовка: title null", async () => {
+    const author = await registerUser();
+    const post = await makePost(author.id, { title: null });
+    await call("DELETE", `/posts/${post.id}`, admin.token, { reason: "без названия" });
+    const { notifications } = (await notes(author.token)).json();
+    expect(notifications[0].details).toMatchObject({ action: "post_deleted", title: null });
+  });
+
+  it("комментарий: начало текста обрезается до 100 символов", async () => {
+    const author = await registerUser();
+    const post = await makePost(author.id);
+    const comment = await makeComment(post.id, author.id, "ы".repeat(150));
+
+    expect((await call("DELETE", `/comments/${comment.id}`, admin.token, { reason: "оскорбление" })).statusCode).toBe(200);
+
+    const { notifications } = (await notes(author.token)).json();
+    expect(notifications[0]).toMatchObject({
+      type: "moderation",
+      details: { action: "comment_deleted", title: `${"ы".repeat(100)}…`, reason: "оскорбление" },
+    });
+  });
+
+  it("модератор удаляет свой контент: уведомления нет", async () => {
+    const mod = await registerUser();
+    await grantRole(mod.username, "moderator");
+    const post = await makePost(mod.id);
+    expect((await call("DELETE", `/posts/${post.id}`, mod.token, { reason: "свой" })).statusCode).toBe(200);
+    expect((await notes(mod.token)).json().notifications).toHaveLength(0);
+  });
+
+  it("отказ по правам уведомления не создаёт", async () => {
+    const mod = await registerUser();
+    await grantRole(mod.username, "moderator");
+    const authorMod = await registerUser();
+    await grantRole(authorMod.username, "moderator");
+    const post = await makePost(authorMod.id);
+
+    expect((await call("DELETE", `/posts/${post.id}`, mod.token, { reason: "попытка" })).statusCode).toBe(403);
+    expect((await notes(authorMod.token)).json().notifications).toHaveLength(0);
+  });
+
+  it("обычные уведомления (лайк, подписка) по-прежнему отдаются с актёром", async () => {
+    const author = await registerUser();
+    const fan = await registerUser();
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/follows/${author.id}`,
+      headers: { authorization: `Bearer ${fan.token}` },
+    });
+    expect(res.statusCode).toBeLessThan(300);
+
+    const { notifications } = (await notes(author.token)).json();
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({ type: "follow", actor: { username: fan.username }, details: null });
+  });
+});

@@ -375,6 +375,24 @@ describe("удалить контент", () => {
     expect((await resolve(msgReport, admin.token, { action: "delete_content", reason: "нечего" })).statusCode).toBe(400);
     expect(await db.select().from(messages).where(eq(messages.id, m.id))).toHaveLength(1);
   });
+
+  it("удаление по жалобе уведомляет автора", async () => {
+    const author = await registerUser();
+    const r = await registerUser();
+    const post = await makePost(author.id);
+    const id = await fileReport(r, "post", post.id);
+    expect((await resolve(id, admin.token, { action: "delete_content", reason: "спам" })).statusCode).toBe(200);
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/notifications",
+      headers: { authorization: `Bearer ${author.token}` },
+    });
+    expect(res.json().notifications[0]).toMatchObject({
+      type: "moderation",
+      details: { action: "post_deleted", reason: "спам" },
+    });
+  });
 });
 
 describe("забанить автора", () => {

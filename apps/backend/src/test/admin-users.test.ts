@@ -203,6 +203,7 @@ describe("бан и разбан", () => {
       payload: { identifier: target.username, password: "Password123!" },
     });
     expect(login.statusCode).toBe(403);
+    expect(login.json()).toMatchObject({ error: "Аккаунт заблокирован", reason: "спам" });
 
     expect((await refreshWith(target.refresh)).statusCode).toBe(401);
     // контроль: чужой токен продолжает работать
@@ -280,7 +281,20 @@ describe("бан и разбан", () => {
   expect((await me()).statusCode).toBe(200);
   await call("POST", `/${target.id}/ban`, admin.token, { reason: "проверка authenticate" });
   expect((await me()).statusCode).toBe(401);
-});
+  });
+  
+  it("неверный пароль у забаненного: 401, причина блокировки не раскрывается", async () => {
+    const target = await registerUser();
+    await call("POST", `/${target.id}/ban`, admin.token, { reason: "секретная причина" });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      remoteAddress: "10.9.0.3",
+      payload: { identifier: target.username, password: "Wrong123!pass" },
+    });
+    expect(login.statusCode).toBe(401);
+    expect(login.body).not.toContain("секретная причина");
+  });
 });
 
 describe("смена роли", () => {

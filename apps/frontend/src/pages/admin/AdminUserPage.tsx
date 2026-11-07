@@ -160,7 +160,8 @@ export function AdminUserPage() {
             />
           </label>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Вход будет закрыт, все сессии завершены. Причина попадёт в журнал.
+            Вход будет закрыт, все сессии завершены. Причина сохранится в журнале и будет показана пользователю при
+            попытке войти.
           </p>
           {errorText && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{errorText}</p>}
           <div className="mt-4 flex justify-end gap-2">

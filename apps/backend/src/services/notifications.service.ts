@@ -21,6 +21,7 @@ export async function getNotifications(userId: string, limit = 30) {
       id: notifications.id,
       type: notifications.type,
       postId: notifications.postId,
+      details: notifications.details,
       read: notifications.read,
       createdAt: notifications.createdAt,
       actor: {
@@ -31,7 +32,7 @@ export async function getNotifications(userId: string, limit = 30) {
       },
     })
     .from(notifications)
-    .innerJoin(users, eq(notifications.actorId, users.id))
+    .leftJoin(users, eq(notifications.actorId, users.id))
     .where(eq(notifications.userId, userId))
     .orderBy(desc(notifications.createdAt))
     .limit(limit);

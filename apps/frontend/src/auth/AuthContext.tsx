@@ -45,7 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (identifier: string, password: string) => {
     const res = await api.post("/auth/login", { identifier, password });
-    if (res.status === 403) throw new Error("Аккаунт заблокирован");
+    if (res.status === 403) {
+      let reason: string | undefined;
+      try {
+        reason = (await res.json()).reason;
+      } catch {
+        // тело не JSON
+      }
+      throw new Error(reason ? `Аккаунт заблокирован. Причина: ${reason}` : "Аккаунт заблокирован");
+    }
     if (!res.ok) throw new Error("Неверные данные для входа");
     const data = await res.json();
     setAccessToken(data.accessToken);

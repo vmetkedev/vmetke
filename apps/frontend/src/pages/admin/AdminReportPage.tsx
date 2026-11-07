@@ -250,7 +250,7 @@ export function AdminReportPage() {
         <ResolveDialog
           title="Удалить контент"
           description="Контент будет удалён безвозвратно. Все открытые жалобы на него закроются."
-          hint="Снимок содержимого и причина сохранятся в журнале."
+          hint="Причина будет показана автору. Снимок содержимого и причина сохранятся в журнале."
           reasonRequired
           danger
           confirmLabel="Удалить"
@@ -277,6 +277,7 @@ export function AdminReportPage() {
         <ResolveDialog
           title="Отклонить жалобу"
           description="Жалоба будет закрыта без действий над контентом и автором."
+          hint="Причина будет показана пользователю при попытке войти."
           reasonRequired={false}
           confirmLabel="Отклонить"
           onClose={() => setDialog(null)}

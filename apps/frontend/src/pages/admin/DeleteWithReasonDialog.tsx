@@ -42,7 +42,7 @@ export function DeleteWithReasonDialog({
         />
       </label>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        Удаление необратимо. Снимок содержимого и причина сохранятся в журнале.
+        Удаление необратимо. Причина будет показана автору, а снимок содержимого и причина сохранятся в журнале.
       </p>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <div className="mt-4 flex justify-end gap-2">

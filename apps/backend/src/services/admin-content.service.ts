@@ -1,9 +1,8 @@
 import { and, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "../db/client.js";
-import { posts, comments, likes, users, adminAuditLog, type UserRole } from "../db/schema/index.js";
+import { posts, comments, likes, users, adminAuditLog, notifications, type UserRole } from "../db/schema/index.js";
 import { AdminActionError } from "./admin-users.service.js";
-
 
 export type ContentListParams = {
   q?: string;
@@ -16,6 +15,7 @@ export type ContentListParams = {
 
 export type Actor = { id: string; role: UserRole };
 
+const excerpt = (s: string | null, n = 100) => (s ? (s.length > n ? `${s.slice(0, n)}…` : s) : null);
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 const dayStart = (d: string) => new Date(`${d}T00:00:00.000Z`);
 const dayAfter = (d: string) => {
@@ -129,6 +129,15 @@ export async function deletePost(actor: Actor, postId: string, reason: string) {
       targetId: postId,
       details: { reason, snapshot: post },
     });
+    if (post.authorId !== actor.id) {
+      await tx.insert(notifications).values({
+        userId: post.authorId,
+        actorId: null,
+        type: "moderation",
+        // postId не ставим: каскад удалил бы уведомление вместе с постом
+        details: { action: "post_deleted", title: excerpt(post.title), reason },
+      });
+    }
   });
 }
 
@@ -187,5 +196,13 @@ export async function deleteComment(actor: Actor, commentId: string, reason: str
       targetId: commentId,
       details: { reason, snapshot: comment },
     });
+    if (comment.authorId !== actor.id) {
+      await tx.insert(notifications).values({
+        userId: comment.authorId,
+        actorId: null,
+        type: "moderation",
+        details: { action: "comment_deleted", title: excerpt(comment.content), reason },
+      });
+    }
   });
 }

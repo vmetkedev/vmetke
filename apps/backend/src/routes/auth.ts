@@ -66,11 +66,11 @@ export default async function authRoutes(app: FastifyInstance) {
       }
 
       const [ban] = await db
-        .select({ bannedAt: users.bannedAt })
+        .select({ bannedAt: users.bannedAt, banReason: users.banReason })
         .from(users)
         .where(eq(users.id, user.id));
       if (ban?.bannedAt) {
-        return reply.code(403).send({ error: "Аккаунт заблокирован" });
+        return reply.code(403).send({ error: "Аккаунт заблокирован", reason: ban.banReason });
       }
 
       const accessToken = app.jwt.sign({ sub: user.id });
