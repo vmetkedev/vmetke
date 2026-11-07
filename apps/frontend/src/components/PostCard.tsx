@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useRef } from "react";
+import { useState, useRef, lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router";
 import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark, Settings, Flag } from "lucide-react";
 import { ReportDialog } from "./ReportDialog";
@@ -17,13 +16,14 @@ import { truncateMarkdown } from "../lib/preview";
 import { estimateReadingMinutes } from "../lib/readingTime";
 import { useAuth } from "../auth/AuthContext";
 import { Avatar } from "./Avatar";
-import { BlockEditor } from "./editor/BlockEditor";
 import { EditorSettingsModal } from "./editor/EditorSettingsModal";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 import { TagInput } from "./TagInput";
 import { PostTags } from "./PostTags";
 
 const PREVIEW_LENGTH = 500;
+
+const BlockEditor = lazy(() => import("./editor/BlockEditor").then((m) => ({ default: m.BlockEditor })));
 
 function formatDate(iso: string) {
   const date = new Date(iso);
@@ -167,7 +167,9 @@ export function PostCard({
           </div>
           {editMode === "wysiwyg" ? (
             <div className="border dark:border-gray-600 rounded px-2 py-1.5">
-              <BlockEditor key={editEditorKey} content={editContent} onChange={setEditContent} />
+              <Suspense fallback={<p className="py-2 text-sm text-gray-400 dark:text-gray-500">Загрузка редактора…</p>}>
+                <BlockEditor key={editEditorKey} content={editContent} onChange={setEditContent} />
+              </Suspense>
             </div>
           ) : (
             <div className="border dark:border-gray-600 rounded px-2 py-1.5">
