@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
+import { publish } from "./realtime.service.js";
 import {
   conversations,
   messageHides,
@@ -22,6 +23,11 @@ type MessageRow = typeof messages.$inferSelect;
 export type DeleteScope = "me" | "all";
 
 const REPLY_PREVIEW_LEN = 140;
+
+const pairOf = (conv: { userLowId: string; userHighId: string }) => [
+  conv.userLowId,
+  conv.userHighId,
+];
 
 type ReplyPreview = {
   id: number;
@@ -396,6 +402,7 @@ export async function sendMessage(
 
   const msg = await insertMessage(conv, me, { content, replyToId });
   const [serialized] = await hydrate([msg], me, clearedFor(conv, me));
+  publish(pairOf(conv), { type: "message.new", conversationId });
   return serialized;
 }
 
@@ -424,6 +431,7 @@ export async function forwardMessage(
     forwardedFromId: src.forwardedFromId ?? src.senderId,
   });
   const [serialized] = await hydrate([msg], me, clearedFor(targetConv, me));
+  publish(pairOf(targetConv), { type: "message.new", conversationId: targetConv.id });
   return serialized;
 }
 
@@ -460,6 +468,7 @@ export async function editMessage(
     .returning();
 
   const [result] = await hydrate([updated], me, cleared);
+  publish(pairOf(conv), { type: "message.edited", conversationId });
   return result;
 }
 
@@ -471,7 +480,12 @@ export async function likeMessage(conversationId: number, messageId: number, me:
   if (!msg) throw new MessagingError(404, "Сообщение не найдено");
   assertCanMessage(await blockState(me, otherOf(conv, me)));
 
-  await db.insert(messageLikes).values({ messageId, userId: me }).onConflictDoNothing();
+  const added = await db
+    .insert(messageLikes)
+    .values({ messageId, userId: me })
+    .onConflictDoNothing()
+    .returning({ messageId: messageLikes.messageId });
+  if (added.length > 0) publish(pairOf(conv), { type: "message.like", conversationId });
 
   return (await likesOf([messageId], me)).get(messageId) ?? NO_LIKES;
 }
@@ -481,9 +495,11 @@ export async function unlikeMessage(conversationId: number, messageId: number, m
   const msg = await findVisibleMessage(conv, conversationId, messageId, me);
   if (!msg) throw new MessagingError(404, "Сообщение не найдено");
 
-  await db
+  const removed = await db
     .delete(messageLikes)
-    .where(and(eq(messageLikes.messageId, messageId), eq(messageLikes.userId, me)));
+    .where(and(eq(messageLikes.messageId, messageId), eq(messageLikes.userId, me)))
+    .returning({ messageId: messageLikes.messageId });
+  if (removed.length > 0) publish(pairOf(conv), { type: "message.like", conversationId });
 
   return (await likesOf([messageId], me)).get(messageId) ?? NO_LIKES;
 }
@@ -527,6 +543,7 @@ export async function deleteMessage(
 
   if (scope === "me") {
     await db.insert(messageHides).values({ messageId, userId: me }).onConflictDoNothing();
+    publish([me], { type: "message.deleted", conversationId });
     return;
   }
 
@@ -555,6 +572,7 @@ export async function deleteMessage(
       .set({ lastMessageId: prev?.id ?? null, lastMessageAt: prev?.createdAt ?? null })
       .where(and(eq(conversations.id, conversationId), eq(conversations.lastMessageId, messageId)));
   });
+  publish(pairOf(conv), { type: "message.deleted", conversationId });
 }
 
 export async function deleteConversation(conversationId: number, me: string, scope: DeleteScope) {
@@ -565,6 +583,7 @@ export async function deleteConversation(conversationId: number, me: string, sco
       .update(conversations)
       .set({ deletedAt: new Date() })
       .where(eq(conversations.id, conversationId));
+      publish(pairOf(conv), { type: "conversation.deleted", conversationId });
     return;
   }
 
@@ -579,6 +598,7 @@ export async function deleteConversation(conversationId: number, me: string, sco
         : { clearedHighId: cleared, lastReadHighId: cleared },
     )
     .where(eq(conversations.id, conversationId));
+    publish([me], { type: "conversation.deleted", conversationId });
 }
 
 export async function blockUser(me: string, targetId: string) {
@@ -588,12 +608,14 @@ export async function blockUser(me: string, targetId: string) {
   if (!target) throw new MessagingError(404, "Пользователь не найден");
 
   await db.insert(userBlocks).values({ blockerId: me, blockedId: targetId }).onConflictDoNothing();
+  publish([me], { type: "block.changed" });
 }
 
 export async function unblockUser(me: string, targetId: string) {
   await db
     .delete(userBlocks)
     .where(and(eq(userBlocks.blockerId, me), eq(userBlocks.blockedId, targetId)));
+    publish([me], { type: "block.changed" });
 }
 
 export async function listBlockedUsers(me: string) {

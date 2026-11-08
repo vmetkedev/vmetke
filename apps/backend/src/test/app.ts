@@ -15,6 +15,7 @@ import blocksRoutes from "../routes/blocks.js";
 import adminRoutes from "../routes/admin/index.js";
 import reportsRoutes from "../routes/reports.js";
 import { applyAdminRateLimit } from "../routes/admin/rate-limit.js";
+import eventsRoutes from "../routes/events.js";
 
 export async function buildTestApp() {
   const app = Fastify({ logger: false });
@@ -38,6 +39,7 @@ export async function buildTestApp() {
   await app.register(blocksRoutes, { prefix: "/api/blocks" });
   await app.register(reportsRoutes, { prefix: "/api/reports" });
   await app.register(messagesRoutes, { prefix: "/api/conversations" });
+  await app.register(eventsRoutes, { prefix: "/api/events" });
 
   await app.ready();
   return app;
