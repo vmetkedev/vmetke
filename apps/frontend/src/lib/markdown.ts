@@ -1,47 +1,46 @@
-import katex from "katex";
-import hljs from "highlight.js/lib/core";
-import javascript from "highlight.js/lib/languages/javascript";
-import typescript from "highlight.js/lib/languages/typescript";
-import python from "highlight.js/lib/languages/python";
-import bash from "highlight.js/lib/languages/bash";
-import json from "highlight.js/lib/languages/json";
-import css from "highlight.js/lib/languages/css";
-import xml from "highlight.js/lib/languages/xml";
-import sql from "highlight.js/lib/languages/sql";
-import go from "highlight.js/lib/languages/go";
-import rust from "highlight.js/lib/languages/rust";
-import java from "highlight.js/lib/languages/java";
-import cpp from "highlight.js/lib/languages/cpp";
-import csharp from "highlight.js/lib/languages/csharp";
-import php from "highlight.js/lib/languages/php";
-import yaml from "highlight.js/lib/languages/yaml";
-import markdownLang from "highlight.js/lib/languages/markdown";
+// KaTeX и highlight.js тяжёлые (около 44% основного чанка), поэтому грузятся лениво
+// отдельным чанком и только когда в тексте есть формула или блок кода.
+type Heavy = typeof import("./markdownHeavy");
+let heavy: Heavy | null = null;
+let loading: Promise<void> | null = null;
 
-hljs.registerLanguage("javascript", javascript);
-hljs.registerLanguage("js", javascript);
-hljs.registerLanguage("typescript", typescript);
-hljs.registerLanguage("ts", typescript);
-hljs.registerLanguage("python", python);
-hljs.registerLanguage("py", python);
-hljs.registerLanguage("bash", bash);
-hljs.registerLanguage("sh", bash);
-hljs.registerLanguage("json", json);
-hljs.registerLanguage("css", css);
-hljs.registerLanguage("html", xml);
-hljs.registerLanguage("xml", xml);
-hljs.registerLanguage("sql", sql);
-hljs.registerLanguage("go", go);
-hljs.registerLanguage("rust", rust);
-hljs.registerLanguage("java", java);
-hljs.registerLanguage("cpp", cpp);
-hljs.registerLanguage("c", cpp);
-hljs.registerLanguage("csharp", csharp);
-hljs.registerLanguage("cs", csharp);
-hljs.registerLanguage("php", php);
-hljs.registerLanguage("yaml", yaml);
-hljs.registerLanguage("yml", yaml);
-hljs.registerLanguage("markdown", markdownLang);
-hljs.registerLanguage("md", markdownLang);
+export function markdownEnginesReady(): boolean {
+  return heavy !== null;
+}
+
+/** Нужны ли тексту формулы или подсветка кода: те же признаки, что использует сам рендерер. */
+export function markdownNeedsEngines(raw: string): boolean {
+  return /^```|\$[^$\n]+\$|^\$\$\s*$/m.test(raw);
+}
+
+export function loadMarkdownEngines(): Promise<void> {
+  if (heavy) return Promise.resolve();
+  loading ??= import("./markdownHeavy")
+    .then((m) => {
+      heavy = m;
+    })
+    .catch((err) => {
+      loading = null; // следующая попытка попробует снова
+      throw err;
+    });
+  return loading;
+}
+
+function renderFormula(latex: string, displayMode: boolean): string {
+  if (!heavy) {
+    // Библиотека ещё не загружена: показываем исходный текст, хук перерисует после загрузки
+    return displayMode
+      ? '<span class="text-gray-500 dark:text-gray-400 font-mono text-xs">$$ ' + escapeHtml(latex) + " $$</span>"
+      : '<span class="text-gray-500 dark:text-gray-400">$' + escapeHtml(latex) + "$</span>";
+  }
+  try {
+    return heavy.katex.renderToString(latex, { throwOnError: true, displayMode });
+  } catch {
+    return displayMode
+      ? `<span class="text-red-500 text-xs">Ошибка в формуле: ${escapeHtml(latex)}</span>`
+      : '<span class="text-red-500 text-xs">Ошибка в формуле</span>';
+  }
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -53,7 +52,8 @@ function escapeHtml(text: string): string {
 
 function highlightCode(code: string, lang: string): string {
   const language = lang.toLowerCase();
-  if (language && hljs.getLanguage(language)) {
+  const hljs = heavy?.hljs;
+  if (hljs && language && hljs.getLanguage(language)) {
     try {
       return hljs.highlight(code, { language }).value;
     } catch {
@@ -65,13 +65,8 @@ function highlightCode(code: string, lang: string): string {
 
 function inline(rawText: string): string {
   const formulaPlaceholders: string[] = [];
-  const withPlaceholders = rawText.replace(/\$([^$\n]+)\$/g, (_, latex) => {
-    let renderedHtml: string;
-    try {
-      renderedHtml = katex.renderToString(latex, { throwOnError: true, displayMode: false });
-    } catch {
-      renderedHtml = '<span class="text-red-500 text-xs">Ошибка в формуле</span>';
-    }
+    const withPlaceholders = rawText.replace(/\$([^$\n]+)\$/g, (_, latex) => {
+    const renderedHtml = renderFormula(latex, false);
     formulaPlaceholders.push(renderedHtml);
     return `\u0000FORMULA${formulaPlaceholders.length - 1}\u0000`;
   });
@@ -216,14 +211,8 @@ export function renderMarkdown(raw: string): string {
         i++;
       }
       i++; // пропустить закрывающую $$
-      const latex = mathLines.join("\n");
-      let mathHtml: string;
-      try {
-        mathHtml = katex.renderToString(latex, { throwOnError: true, displayMode: true });
-      } catch {
-        mathHtml = `<span class="text-red-500 text-xs">Ошибка в формуле: ${escapeHtml(latex)}</span>`;
-      }
-      html.push(`<div class="my-1 text-center overflow-x-auto">${mathHtml}</div>`);
+      const latex = mathLines.join("\n")
+      html.push(`<div class="my-1 text-center overflow-x-auto">${renderFormula(latex, true)}</div>`);
       continue;
     }
 

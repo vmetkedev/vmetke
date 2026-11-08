@@ -11,7 +11,7 @@ import {
   bookmarkPost,
   unbookmarkPost,
 } from "../lib/posts";
-import { renderMarkdown } from "../lib/markdown";
+import { useMarkdownHtml } from "../hooks/useMarkdownHtml";
 import { truncateMarkdown } from "../lib/preview";
 import { estimateReadingMinutes } from "../lib/readingTime";
 import { useAuth } from "../auth/AuthContext";
@@ -66,6 +66,7 @@ export function PostCard({
   const preview = linkTitle ? truncateMarkdown(post.content, PREVIEW_LENGTH) : null;
   const isTruncated = preview?.truncated ?? false;
   const displayText = preview ? preview.text : post.content;
+  const bodyHtml = useMarkdownHtml(displayText);
 
   const navigate = useNavigate();
 
@@ -235,7 +236,7 @@ export function PostCard({
 
           <div
             className="text-sm text-gray-700 dark:text-gray-300 wrap-anywhere"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(displayText) }}
+            dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
           {isTruncated && (
             <Link to={`/post/${post.id}`} className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">

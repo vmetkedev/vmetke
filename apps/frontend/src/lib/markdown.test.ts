@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { renderMarkdown } from "./markdown";
+import { describe, it, expect, beforeAll } from "vitest";
+import { renderMarkdown, loadMarkdownEngines } from "./markdown";
+
+beforeAll(async () => {
+  await loadMarkdownEngines();
+});
 
 describe("renderMarkdown — базовый инлайн-синтаксис", () => {
   it("рендерит жирный текст", () => {
