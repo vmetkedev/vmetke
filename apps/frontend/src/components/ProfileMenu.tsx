@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Settings, Bookmark, LogOut, Mail, Shield } from "lucide-react";
 import { isStaff } from "../auth/roles";
 import { useAuth } from "../auth/AuthContext";
 import { fetchConversations, MESSAGES_CHANGED_EVENT } from "../lib/messages";
 import { Avatar } from "./Avatar";
+import { coalesce } from "../lib/coalesce";
+import { useRealtime } from "../lib/useRealtime";
+
+const UNREAD_FALLBACK_POLL_MS = 60000;
+// Только эти события меняют счётчик непрочитанных
+const UNREAD_EVENTS = new Set([
+  "message.new",
+  "message.deleted",
+  "conversation.read",
+  "conversation.deleted",
+]);
 
 export function ProfileMenu() {
   const { user, logout } = useAuth();
@@ -23,6 +34,17 @@ export function ProfileMenu() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  const loadRef = useRef<() => void>(() => {});
+  const refresh = useMemo(() => coalesce(() => loadRef.current(), 150), []);
+  useEffect(() => () => refresh.cancel(), [refresh]);
+
+  const { connected } = useRealtime(user?.id, {
+    onEvent: (e) => {
+      if (UNREAD_EVENTS.has(e.type)) refresh();
+    },
+    onCatchUp: () => loadRef.current(),
+  });
+
   useEffect(() => {
     if (!user) return;
     const load = () =>
@@ -31,14 +53,21 @@ export function ProfileMenu() {
           setMessagesUnread(data.conversations.reduce((sum, c) => sum + c.unreadCount, 0)),
         )
         .catch(() => {});
+    loadRef.current = load;
     load();
-    const interval = setInterval(load, 10000);
     window.addEventListener(MESSAGES_CHANGED_EVENT, load);
     return () => {
-      clearInterval(interval);
+      loadRef.current = () => {};
       window.removeEventListener(MESSAGES_CHANGED_EVENT, load);
     };
   }, [user]);
+
+  // Пока SSE не подключён, бейдж обновляется редким опросом
+  useEffect(() => {
+    if (!user || connected) return;
+    const interval = setInterval(() => loadRef.current(), UNREAD_FALLBACK_POLL_MS);
+    return () => clearInterval(interval);
+  }, [user, connected]);
 
   if (!user) return null;
 

@@ -45,6 +45,12 @@ vi.mock("../lib/messages", async (importOriginal) => ({
   markConversationRead: vi.fn(),
 }));
 
+vi.mock("../lib/realtime", () => ({
+  subscribeRealtime: () => () => {},
+  subscribeStatus: () => () => {},
+  isRealtimeConnected: () => false,
+}));
+
 
 const BOB: ConversationUser = { id: "bob-id", username: "bob", displayName: "Боб", avatarColor: 1 };
 const ALICE: ConversationUser = { id: "alice-id", username: "alice", displayName: null, avatarColor: 2 };
@@ -923,7 +929,7 @@ describe("MessagesPage: polling", () => {
       messages: [msg(2, BOB.id, "второе"), msg(1, BOB.id, "первое")],
       nextCursor: null,
     });
-    await tick(4000);
+    await tick(15000);
 
     expect(fetchMessages).toHaveBeenCalledTimes(2);
     expect(screen.getByText("второе")).toBeInTheDocument();
@@ -935,7 +941,7 @@ describe("MessagesPage: polling", () => {
       nextCursor: null,
     });
     await renderFlushed("/messages/5");
-    await tick(8000);
+    await tick(30000);
 
     expect(fetchMessages).toHaveBeenCalledTimes(3);
     expect(markConversationRead).toHaveBeenCalledTimes(1);
@@ -956,7 +962,7 @@ describe("MessagesPage: polling", () => {
       messages: [{ ...msg(1, BOB.id, ""), deleted: true }],
       nextCursor: null,
     });
-    await tick(4000);
+    await tick(15000);
 
     expect(queryCancelReply()).not.toBeInTheDocument();
   });
@@ -968,7 +974,7 @@ describe("MessagesPage: polling", () => {
     vi.mocked(fetchConversations).mockResolvedValue({
       conversations: [conv({ otherUser: ALICE })],
     });
-    await tick(10000);
+    await tick(60000);
 
     expect(fetchConversations).toHaveBeenCalledTimes(2);
     expect(screen.getByText("alice")).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, Check, Heart, Send, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
@@ -30,10 +30,14 @@ import {
   type Message,
   type RequestError,
 } from "../lib/messages";
+import { coalesce } from "../lib/coalesce";
+import { useRealtime } from "../lib/useRealtime";
 
-const LIST_POLL_MS = 10000;
-const THREAD_POLL_MS = 4000;
-// Через сколько наведения на сообщение рядом с ним появляется кнопка лайка
+// Пока SSE не подключён, список и открытый тред обновляются редким опросом
+const LIST_FALLBACK_POLL_MS = 60000;
+const THREAD_FALLBACK_POLL_MS = 15000;
+// Серия событий подряд превращается в один запрос
+const EVENT_COALESCE_MS = 150;
 const LIKE_HOVER_DELAY_MS = 400;
 
 function isToday(d: Date) {
@@ -135,13 +139,19 @@ function Thread({
     [conversationId, myId, onChanged],
   );
 
+  const loadRef = useRef<(initial: boolean) => Promise<void>>(async () => {});
+  const loadSeq = useRef({ started: 0, applied: 0 });
+
   useEffect(() => {
     let cancelled = false;
 
     const load = async (initial: boolean) => {
+      const seq = ++loadSeq.current.started;
       try {
         const data = await fetchMessages(conversationId);
-        if (cancelled) return;
+        // ответ старее уже применённого не должен откатывать правки и лайки
+        if (cancelled || seq < loadSeq.current.applied) return;
+        loadSeq.current.applied = seq;
         const asc = [...data.messages].reverse();
         setMessages((prev) => mergeMessages(prev, asc));
         if (initial) setNextCursor(data.nextCursor);
@@ -162,13 +172,36 @@ function Thread({
       }
     };
 
+    loadRef.current = load;
     load(true);
-    const interval = setInterval(() => load(false), THREAD_POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      loadRef.current = async () => {};
     };
   }, [conversationId, markIfNeeded, navigate, onChanged]);
+
+  const refreshThread = useMemo(
+    () => coalesce(() => void loadRef.current(false), EVENT_COALESCE_MS),
+    [],
+  );
+  useEffect(() => () => refreshThread.cancel(), [refreshThread]);
+
+  const { connected } = useRealtime(myId, {
+    onEvent: (e) => {
+      // отметка «прочитано» на сами сообщения не влияет
+      if (e.type === "conversation.read") return;
+      if (e.conversationId !== undefined && e.conversationId !== conversationId) return;
+      refreshThread();
+    },
+    onCatchUp: () => void loadRef.current(false),
+  });
+
+  // Пока SSE не подключён, тред обновляется редким опросом
+  useEffect(() => {
+    if (connected) return;
+    const interval = setInterval(() => void loadRef.current(false), THREAD_FALLBACK_POLL_MS);
+    return () => clearInterval(interval);
+  }, [connected]);
 
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -782,20 +815,43 @@ export default function MessagesPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const listSeq = useRef({ started: 0, applied: 0 });
+
   const loadConversations = useCallback(async () => {
+    const seq = ++listSeq.current.started;
     try {
       const data = await fetchConversations();
+      if (seq < listSeq.current.applied) return;
+      listSeq.current.applied = seq;
       setConversations(data.conversations);
     } catch {
-      // следующий poll попробует снова
+      // следующее событие или опрос попробует снова
     }
   }, []);
 
   useEffect(() => {
     loadConversations().finally(() => setLoading(false));
-    const interval = setInterval(loadConversations, LIST_POLL_MS);
-    return () => clearInterval(interval);
   }, [loadConversations]);
+
+  const refreshList = useMemo(
+    () => coalesce(() => void loadConversations(), EVENT_COALESCE_MS),
+    [loadConversations],
+  );
+  useEffect(() => () => refreshList.cancel(), [refreshList]);
+
+  const { connected } = useRealtime(user?.id, {
+    // лайки на список диалогов не влияют
+    onEvent: (e) => {
+      if (e.type !== "message.like") refreshList();
+    },
+    onCatchUp: () => void loadConversations(),
+  });
+
+  useEffect(() => {
+    if (connected) return;
+    const interval = setInterval(() => void loadConversations(), LIST_FALLBACK_POLL_MS);
+    return () => clearInterval(interval);
+  }, [connected, loadConversations]);
 
   const stateUser = (location.state as { otherUser?: ConversationUser } | null)?.otherUser ?? null;
   const activeUser = conversations.find((c) => c.id === activeId)?.otherUser ?? stateUser;
