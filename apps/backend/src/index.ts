@@ -19,7 +19,7 @@ import reportsRoutes from "./routes/reports.js";
 import { applyAdminRateLimit } from "./routes/admin/rate-limit.js";
 import eventsRoutes from "./routes/events.js";
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, trustProxy: "127.0.0.1" });
 
 const start = async () => {
   await app.register(helmet);
@@ -30,10 +30,6 @@ const start = async () => {
   await app.register(cookie);
   await app.register(jwtPlugin);
   applyAdminRateLimit(app);
-  await app.register(rateLimit, {
-    max: 300,
-    // ...как было
-  });
   await app.register(rateLimit, {
     max: 300,
     timeWindow: "1 minute",
