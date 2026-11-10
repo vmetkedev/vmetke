@@ -23,6 +23,7 @@ import {
   sendMessage,
   unblockUser,
   unlikeMessage,
+  sendTyping,
   type Conversation,
   type ConversationUser,
   type DeleteScope,
@@ -39,6 +40,9 @@ const THREAD_FALLBACK_POLL_MS = 15000;
 // Серия событий подряд превращается в один запрос
 const EVENT_COALESCE_MS = 150;
 const LIKE_HOVER_DELAY_MS = 400;
+// Отправитель шлёт сигнал не чаще раза в 3 с; без новых сигналов «печатает…» гаснет через 5 с
+const TYPING_SEND_INTERVAL_MS = 3000;
+const TYPING_TTL_MS = 5000;
 
 function isToday(d: Date) {
   const now = new Date();
@@ -72,12 +76,14 @@ function Thread({
   conversations,
   otherUser,
   myId,
+  otherTyping,
   onChanged,
 }: {
   conversationId: number;
   conversations: Conversation[];
   otherUser: ConversationUser | null;
   myId: string;
+  otherTyping: boolean;
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
@@ -141,6 +147,7 @@ function Thread({
 
   const loadRef = useRef<(initial: boolean) => Promise<void>>(async () => {});
   const loadSeq = useRef({ started: 0, applied: 0 });
+  const lastTypingSent = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -195,6 +202,13 @@ function Thread({
     },
     onCatchUp: () => void loadRef.current(false),
   });
+
+  const notifyTyping = () => {
+    const now = Date.now();
+    if (now - lastTypingSent.current < TYPING_SEND_INTERVAL_MS) return;
+    lastTypingSent.current = now;
+    Promise.resolve(sendTyping(conversationId)).catch(() => {});
+  };
 
   // Пока SSE не подключён, тред обновляется редким опросом
   useEffect(() => {
@@ -251,7 +265,7 @@ function Thread({
       setMessages((prev) => mergeMessages(prev, [...data.messages].reverse()));
       setNextCursor(data.nextCursor);
     } catch (e) {
-      setError((e as Error).message);
+      Promise.resolve(sendTyping(conversationId)).catch(() => {});
     } finally {
       setLoadingMore(false);
     }
@@ -289,6 +303,7 @@ function Thread({
         setMessages((prev) => mergeMessages(prev, [msg]));
         setText("");
         setReplyTo(null);
+        lastTypingSent.current = 0;
       }
       setError(null);
       onChanged();
@@ -700,6 +715,12 @@ function Thread({
         </div>
       ) : (
         <div className="border-t dark:border-gray-700">
+          <div
+            aria-live="polite"
+            className="h-5 px-4 pt-1 text-xs italic text-gray-500 dark:text-gray-400"
+          >
+            {otherTyping ? `${otherName ?? "Собеседник"} печатает…` : ""}
+          </div>
           {editing ? (
             <div className="flex items-center gap-2 px-3 pt-2 text-xs">
               <div className="flex-1 min-w-0 border-l-2 border-amber-500 pl-2">
@@ -735,7 +756,10 @@ function Thread({
             <textarea
               ref={inputRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (e.target.value.trim() && !editing && !blockedByMe) notifyTyping();
+              }}
               onKeyDown={handleKeyDown}
               maxLength={MAX_MESSAGE}
               rows={1}
@@ -816,6 +840,41 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
 
   const listSeq = useRef({ started: 0, applied: 0 });
+  const [typingIds, setTypingIds] = useState<Set<number>>(new Set());
+  const typingTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  const clearTyping = useCallback((conversationId: number) => {
+    const timer = typingTimers.current.get(conversationId);
+    if (timer) clearTimeout(timer);
+    typingTimers.current.delete(conversationId);
+    setTypingIds((prev) => {
+      if (!prev.has(conversationId)) return prev;
+      const next = new Set(prev);
+      next.delete(conversationId);
+      return next;
+    });
+  }, []);
+
+  const markTyping = useCallback(
+    (conversationId: number) => {
+      const timer = typingTimers.current.get(conversationId);
+      if (timer) clearTimeout(timer);
+      typingTimers.current.set(
+        conversationId,
+        setTimeout(() => clearTyping(conversationId), TYPING_TTL_MS),
+      );
+      setTypingIds((prev) => (prev.has(conversationId) ? prev : new Set(prev).add(conversationId)));
+    },
+    [clearTyping],
+  );
+
+  useEffect(() => {
+    const timers = typingTimers.current;
+    return () => {
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
+    };
+  }, []);
 
   const loadConversations = useCallback(async () => {
     const seq = ++listSeq.current.started;
@@ -840,9 +899,16 @@ export default function MessagesPage() {
   useEffect(() => () => refreshList.cancel(), [refreshList]);
 
   const { connected } = useRealtime(user?.id, {
-    // лайки на список диалогов не влияют
     onEvent: (e) => {
-      if (e.type !== "message.like") refreshList();
+      if (e.type === "typing") {
+        if (e.conversationId !== undefined) markTyping(e.conversationId);
+        return;
+      }
+      // новое сообщение гасит «печатает…» в этом диалоге
+      if (e.type === "message.new" && e.conversationId !== undefined) clearTyping(e.conversationId);
+      // лайки и уведомления на список диалогов не влияют
+      if (e.type === "message.like" || e.type.startsWith("notification.")) return;
+      refreshList();
     },
     onCatchUp: () => void loadConversations(),
   });
@@ -905,8 +971,14 @@ export default function MessagesPage() {
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {mine ? "Вы: " : ""}
-                            {c.lastMessage.content}
+                            {typingIds.has(c.id) ? (
+                              <span className="italic text-blue-600 dark:text-blue-400">печатает…</span>
+                            ) : (
+                              <>
+                                {mine ? "Вы: " : ""}
+                                {c.lastMessage.content}
+                              </>
+                            )}
                           </span>
                           {c.unreadCount > 0 && c.id !== activeId && (
                             <span className="bg-blue-600 text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center shrink-0">
@@ -930,6 +1002,7 @@ export default function MessagesPage() {
                 conversationId={activeId}
                 conversations={conversations}
                 otherUser={activeUser}
+                otherTyping={typingIds.has(activeId)}
                 myId={user.id}
                 onChanged={loadConversations}
               />

@@ -13,6 +13,7 @@ import {
   MessagingError,
   sendMessage,
   unlikeMessage,
+  notifyTyping,
 } from "../services/messages.service.js";
 
 export const MAX_MESSAGE = 5000;
@@ -20,6 +21,7 @@ export const SEND_LIMIT = 20;
 export const CREATE_LIMIT = 10;
 export const LIKE_LIMIT = 60;
 const LIMIT_WINDOW = "1 minute";
+export const TYPING_LIMIT = 40;
 
 const createBody = z.object({ userId: z.string().uuid() });
 const idParams = z.object({ id: z.coerce.number().int().positive() });
@@ -218,6 +220,27 @@ export default async function messagesRoutes(app: FastifyInstance) {
       try {
         const likes = await unlikeMessage(params.data.id, params.data.messageId, payload.sub);
         return { likes };
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
+
+  // Клиент шлёт не чаще раза в 3 с (≈20 в минуту), лимит с запасом
+  app.post(
+    "/:id/typing",
+    {
+      preHandler: [app.authenticate],
+      config: { rateLimit: { max: TYPING_LIMIT, timeWindow: LIMIT_WINDOW, keyGenerator: userKey } },
+    },
+    async (request, reply) => {
+      const params = idParams.safeParse(request.params);
+      if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
+
+      const payload = request.user as { sub: string };
+      try {
+        await notifyTyping(params.data.id, payload.sub);
+        return { success: true };
       } catch (e) {
         return fail(reply, e);
       }

@@ -518,6 +518,16 @@ export async function markRead(conversationId: number, me: string) {
     .where(eq(conversations.id, conversationId));
 }
 
+// «Печатает…»: ничего не пишем в БД, сигнал уходит только собеседнику.
+// При блокировке в любую сторону молча ничего не делаем, чтобы не раскрывать её.
+export async function notifyTyping(conversationId: number, me: string) {
+  const conv = await getConversationFor(conversationId, me);
+  const other = otherOf(conv, me);
+  const state = await blockState(me, other);
+  if (state.blockedByMe || state.blockedMe) return;
+  publish([other], { type: "typing", conversationId });
+}
+
 // scope=all: удалить своё сообщение у всех (soft delete), повторное удаление идемпотентно.
 // scope=me: скрыть любое видимое мне сообщение (своё или чужое) только для себя.
 export async function deleteMessage(

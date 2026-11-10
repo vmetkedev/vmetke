@@ -10,7 +10,8 @@ export type RealtimeEvent = {
     | "conversation.deleted"
     | "block.changed"
     | "notification.new"
-    | "notification.changed";
+    | "notification.changed"
+    | "typing";
   conversationId?: number;
 };
 

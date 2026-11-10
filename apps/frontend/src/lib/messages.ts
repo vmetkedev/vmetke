@@ -188,3 +188,7 @@ export async function blockUser(userId: string): Promise<void> {
 export async function unblockUser(userId: string): Promise<void> {
   await parse(await api.delete(`/blocks/${userId}`));
 }
+
+export async function sendTyping(conversationId: number): Promise<void> {
+  await parse(await api.post(`/conversations/${conversationId}/typing`));
+}

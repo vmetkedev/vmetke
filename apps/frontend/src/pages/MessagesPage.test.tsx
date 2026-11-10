@@ -42,6 +42,7 @@ vi.mock("../lib/messages", async (importOriginal) => ({
   forwardMessage: vi.fn(),
   likeMessage: vi.fn(),
   unlikeMessage: vi.fn(),
+  sendTyping: vi.fn().mockResolvedValue(undefined),
   markConversationRead: vi.fn(),
 }));
 
