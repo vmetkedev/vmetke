@@ -3,6 +3,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "../db/client.js";
 import { posts, comments, likes, users, adminAuditLog, notifications, type UserRole } from "../db/schema/index.js";
 import { AdminActionError } from "./admin-users.service.js";
+import { announceNotification } from "./notifications.service.js";
 
 export type ContentListParams = {
   q?: string;
@@ -99,6 +100,7 @@ function assertCanModerate(actor: Actor, authorId: string, authorRole: UserRole)
 }
 
 export async function deletePost(actor: Actor, postId: string, reason: string) {
+  let notifyUserId = null as string | null;
   await db.transaction(async (tx) => {
     const [post] = await tx
       .select({
@@ -137,8 +139,10 @@ export async function deletePost(actor: Actor, postId: string, reason: string) {
         // postId не ставим: каскад удалил бы уведомление вместе с постом
         details: { action: "post_deleted", title: excerpt(post.title), reason },
       });
+      notifyUserId = post.authorId;
     }
   });
+  if (notifyUserId) announceNotification(notifyUserId);
 }
 
 export async function listComments(p: ContentListParams) {
@@ -171,6 +175,7 @@ export async function listComments(p: ContentListParams) {
 }
 
 export async function deleteComment(actor: Actor, commentId: string, reason: string) {
+  let notifyUserId = null as string | null;
   await db.transaction(async (tx) => {
     const [comment] = await tx
       .select({
@@ -203,6 +208,8 @@ export async function deleteComment(actor: Actor, commentId: string, reason: str
         type: "moderation",
         details: { action: "comment_deleted", title: excerpt(comment.content), reason },
       });
+      notifyUserId = comment.authorId;
     }
   });
+  if (notifyUserId) announceNotification(notifyUserId);
 }

@@ -8,6 +8,15 @@ const api = vi.hoisted(() => ({
   markNotificationsRead: vi.fn(),
   deleteNotification: vi.fn(),
 }));
+vi.mock("../auth/AuthContext", () => ({
+  useAuth: () => ({ user: { id: "u1", username: "me", avatarColor: null, role: "user" } }),
+}));
+
+vi.mock("../lib/realtime", () => ({
+  subscribeRealtime: () => () => {},
+  subscribeStatus: () => () => {},
+  isRealtimeConnected: () => false,
+}));
 vi.mock("../lib/notifications", () => api);
 vi.mock("../components/AppLayout", () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,

@@ -8,7 +8,9 @@ export type RealtimeEvent = {
     | "message.like"
     | "conversation.read"
     | "conversation.deleted"
-    | "block.changed";
+    | "block.changed"
+    | "notification.new"
+    | "notification.changed";
   conversationId?: number;
 };
 

@@ -1,24 +1,57 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Bell, Search, SquarePen } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { fetchNotifications } from "../lib/notifications";
+import { coalesce } from "../lib/coalesce";
+import { fetchNotifications, NOTIFICATIONS_CHANGED_EVENT } from "../lib/notifications";
+import { useRealtime } from "../lib/useRealtime";
 import { ProfileMenu } from "./ProfileMenu";
 
+// Пока SSE не подключён, счётчик обновляется редким опросом
+const FALLBACK_POLL_MS = 30000;
 export function AppHeader() {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const loadRef = useRef<() => void>(() => {});
+  const seq = useRef({ started: 0, applied: 0 });
+  const refresh = useMemo(() => coalesce(() => loadRef.current(), 150), []);
+  useEffect(() => () => refresh.cancel(), [refresh]);
+
+  const { connected } = useRealtime(user?.id, {
+    onEvent: (e) => {
+      if (e.type.startsWith("notification.")) refresh();
+    },
+    onCatchUp: () => loadRef.current(),
+  });
+
   useEffect(() => {
     if (!user) return;
-    const load = () => 
+    const load = () => {
+      const n = ++seq.current.started;
       fetchNotifications()
-        .then((data) => 
-          setUnreadCount(data.unreadCount));
+        .then((data) => {
+          // ответ старее уже применённого не должен откатывать счётчик
+          if (n < seq.current.applied) return;
+          seq.current.applied = n;
+          setUnreadCount(data.unreadCount);
+        })
+        .catch(() => {});
+    };
+    loadRef.current = load;
     load();
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, load);
+    return () => {
+      loadRef.current = () => {};
+      window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, load);
+    };
   }, [user]);
+
+  useEffect(() => {
+    if (!user || connected) return;
+    const interval = setInterval(() => loadRef.current(), FALLBACK_POLL_MS);
+    return () => clearInterval(interval);
+  }, [user, connected]);
 
   if (!user) {
     return (

@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../auth/AuthContext";
+import { coalesce } from "../lib/coalesce";
+import { useRealtime } from "../lib/useRealtime";
 import { Link } from "react-router";
 import { Heart, MessageCircle, UserPlus, Trash2, ShieldAlert } from "lucide-react";
 import {
@@ -9,7 +12,8 @@ import {
 } from "../lib/notifications";
 import { AppLayout } from "../components/AppLayout";
 
-const POLL_INTERVAL_MS = 10000;
+// Пока SSE не подключён, список обновляется редким опросом
+const FALLBACK_POLL_MS = 30000;
 
 function formatDate(iso: string) {
   const date = new Date(iso);
@@ -46,24 +50,52 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const { user } = useAuth();
+  const loadRef = useRef<(markRead: boolean) => Promise<void>>(async () => {});
+  const seq = useRef({ started: 0, applied: 0 });
+
   useEffect(() => {
     let cancelled = false;
 
     const load = async (markRead: boolean) => {
-      const data = await fetchNotifications();
-      if (cancelled) return;
-      setNotifications(data.notifications);
-      if (markRead && data.unreadCount > 0) markNotificationsRead();
+      const n = ++seq.current.started;
+      try {
+        const data = await fetchNotifications();
+        // ответ старее уже применённого не должен откатывать список
+        if (cancelled || n < seq.current.applied) return;
+        seq.current.applied = n;
+        setNotifications(data.notifications);
+        if (markRead && data.unreadCount > 0) markNotificationsRead().catch(() => {});
+      } catch {
+        // следующее событие или опрос попробует снова
+      }
     };
 
-    load(true).finally(() => setLoading(false));
-
-    const interval = setInterval(() => load(false), POLL_INTERVAL_MS);
+    loadRef.current = load;
+    load(true).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      loadRef.current = async () => {};
     };
   }, []);
+
+  const refresh = useMemo(() => coalesce(() => void loadRef.current(false), 150), []);
+  useEffect(() => () => refresh.cancel(), [refresh]);
+
+  const { connected } = useRealtime(user?.id, {
+    onEvent: (e) => {
+      if (e.type.startsWith("notification.")) refresh();
+    },
+    onCatchUp: () => void loadRef.current(false),
+  });
+
+  useEffect(() => {
+    if (connected) return;
+    const interval = setInterval(() => void loadRef.current(false), FALLBACK_POLL_MS);
+    return () => clearInterval(interval);
+  }, [connected]);
 
   const handleDelete = async (id: string) => {
     setNotifications((prev) => prev.filter((n) => n.id !== id));

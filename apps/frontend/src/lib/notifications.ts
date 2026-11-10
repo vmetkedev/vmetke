@@ -1,5 +1,7 @@
 import { api } from "./api";
 
+export const NOTIFICATIONS_CHANGED_EVENT = "notifications:changed";
+
 export type Notification = {
   id: string;
   type: "like" | "comment" | "follow" | "moderation";
@@ -25,11 +27,13 @@ export async function fetchNotifications(): Promise<{ notifications: Notificatio
 export async function markNotificationsRead() {
   const res = await api.post("/notifications/read");
   if (!res.ok) throw new Error("Не удалось отметить как прочитанное");
+  window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
 }
 
 export async function deleteNotification(id: string) {
   const res = await api.delete(`/notifications/${id}`);
   if (!res.ok) throw new Error("Не удалось удалить уведомление");
+  window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED_EVENT));
 }
 
 export type ModerationDetails = {

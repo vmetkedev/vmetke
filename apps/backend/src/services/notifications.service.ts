@@ -1,6 +1,7 @@
 import { and, desc, eq, count } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { notifications, users } from "../db/schema/index.js";
+import { publish } from "./realtime.service.js";
 
 type NotificationType = "like" | "comment" | "follow";
 
@@ -13,6 +14,7 @@ export async function createNotification(
   if (userId === actorId) return; // не уведомляем самого себя
 
   await db.insert(notifications).values({ userId, actorId, type, postId: postId ?? null });
+  announceNotification(userId);
 }
 
 export async function getNotifications(userId: string, limit = 30) {
@@ -47,14 +49,23 @@ export async function getUnreadCount(userId: string) {
 }
 
 export async function markAllRead(userId: string) {
-  await db
+  const updated = await db
     .update(notifications)
     .set({ read: true })
-    .where(and(eq(notifications.userId, userId), eq(notifications.read, false)));
+    .where(and(eq(notifications.userId, userId), eq(notifications.read, false)))
+    .returning({ id: notifications.id });
+  if (updated.length > 0) publish([userId], { type: "notification.changed" });
 }
 
 export async function deleteNotification(notificationId: string, userId: string) {
-  await db
+  const deleted = await db
     .delete(notifications)
-    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)));
+    .where(and(eq(notifications.id, notificationId), eq(notifications.userId, userId)))
+    .returning({ id: notifications.id });
+  if (deleted.length > 0) publish([userId], { type: "notification.changed" });
+}
+
+// Для мест, где уведомление вставляется в обход createNotification (например, модерация)
+export function announceNotification(userId: string) {
+  publish([userId], { type: "notification.new" });
 }
