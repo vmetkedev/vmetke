@@ -4,7 +4,7 @@ import {
   submitReport,
   type ReportReason,
   type ReportTargetType,
-} from "../lib/reports";
+} from "@/entities/report";
 
 const TITLES: Record<ReportTargetType, string> = {
   post: "Пожаловаться на пост",

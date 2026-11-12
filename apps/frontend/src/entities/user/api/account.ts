@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api } from "@/shared/api/client";
 
 export async function deleteAccount(password: string): Promise<void> {
   const res = await api.delete("/users/me", { password });

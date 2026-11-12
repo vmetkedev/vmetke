@@ -6,9 +6,9 @@ import {
   fetchAdminComments,
   type AdminCommentListItem,
   type AdminContentFilter,
-} from "../../lib/adminApi";
+} from "@/features/admin";
 import { DeleteWithReasonDialog } from "./DeleteWithReasonDialog";
-import { useAuth } from "../../auth/AuthContext";
+import { useAuth } from "@/entities/session";
 import { BTN, DELETE_FORBIDDEN_HINT, canDeleteContent, fmtDate } from "./adminShared";
 
 export function AdminCommentsList({ filter }: { filter: AdminContentFilter }) {

@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { AdminGuard } from "./AdminGuard";
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
-vi.mock("../auth/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
+vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
 
 function renderAt() {
   render(

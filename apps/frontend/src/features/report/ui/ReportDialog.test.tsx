@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { ReportDialog } from "./ReportDialog";
 
 const { mockSubmit } = vi.hoisted(() => ({ mockSubmit: vi.fn() }));
-vi.mock("../lib/reports", async (orig) => ({
-  ...(await orig<typeof import("../lib/reports")>()),
+vi.mock("@/entities/report", async (orig) => ({
+  ...(await orig<typeof import("@/entities/report")>()),
   submitReport: mockSubmit,
 }));
 

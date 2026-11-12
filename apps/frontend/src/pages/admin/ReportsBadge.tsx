@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchAdminOpenReportsCount } from "../../lib/adminApi";
+import { fetchAdminOpenReportsCount } from "@/features/admin";
 
 export function ReportsBadge() {
   const { data } = useQuery({

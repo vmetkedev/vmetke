@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, Check, Heart, Send, X } from "lucide-react";
-import { useAuth } from "../auth/AuthContext";
-import { AppLayout } from "../components/AppLayout";
-import { Avatar } from "../components/Avatar";
-import { ConversationMenu } from "../components/ConversationMenu";
-import { DeleteConversationModal } from "../components/DeleteConversationModal";
-import { ForwardModal } from "../components/ForwardModal";
-import { MessageMenu } from "../components/MessageMenu";
-import { ReportDialog } from "../components/ReportDialog";
+import { useAuth } from "@/entities/session";
+import { AppLayout } from "@/app/layouts/AppLayout";
+import { Avatar } from "@/shared/ui/Avatar";
+import { ConversationMenu } from "@/features/conversation-actions";
+import { DeleteConversationModal } from "@/features/conversation-actions";
+import { ForwardModal } from "@/features/message-actions";
+import { MessageMenu } from "@/features/message-actions";
+import { ReportDialog } from "@/features/report";
 import {
   MAX_MESSAGE,
   blockUser,
@@ -30,9 +30,9 @@ import {
   type ForwardAuthor,
   type Message,
   type RequestError,
-} from "../lib/messages";
-import { coalesce } from "../lib/coalesce";
-import { useRealtime } from "../lib/useRealtime";
+} from "@/entities/message";
+import { coalesce } from "@/shared/lib/coalesce";
+import { useRealtime } from "@/shared/api/useRealtime";
 
 // Пока SSE не подключён, список и открытый тред обновляются редким опросом
 const LIST_FALLBACK_POLL_MS = 60000;

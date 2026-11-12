@@ -2,12 +2,12 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router";
 import { PostCard } from "./PostCard";
-import * as postsLib from "../lib/posts";
-import * as authContext from "../auth/AuthContext";
-import type { Post } from "../lib/posts";
+import * as postsLib from "@/entities/post";
+import * as authContext from "@/entities/session";
+import type { Post } from "@/entities/post";
 
-vi.mock("../lib/posts", async () => {
-  const actual = await vi.importActual<typeof import("../lib/posts")>("../lib/posts");
+vi.mock("@/entities/post", async () => {
+  const actual = await vi.importActual<typeof import("@/entities/post")>("@/entities/post");
   return {
     ...actual,
     updatePost: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock("../lib/posts", async () => {
     unbookmarkPost: vi.fn(),
   };
 });
-vi.mock("../auth/AuthContext");
+vi.mock("@/entities/session/model/AuthContext");
 
 const mockUser = { id: "user-1", username: "admin", avatarColor: "#123456" };
 

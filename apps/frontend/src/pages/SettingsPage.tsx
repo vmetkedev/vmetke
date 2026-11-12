@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { AppLayout } from "../components/AppLayout";
-import { useAuth } from "../auth/AuthContext";
-import { deleteAccount } from "../lib/account";
-import { updateAvatarColor } from "../lib/users";
-import { fetchBlockedUsers, unblockUser, type BlockedUser } from "../lib/messages";
-import { Avatar } from "../components/Avatar";
-import { AVATAR_PALETTE } from "../lib/avatarPalette";
+import { AppLayout } from "@/app/layouts/AppLayout";
+import { useAuth } from "@/entities/session";
+import { deleteAccount } from "@/entities/user";
+import { updateAvatarColor } from "@/entities/user";
+import { fetchBlockedUsers, unblockUser, type BlockedUser } from "@/entities/message";
+import { Avatar } from "@/shared/ui/Avatar";
+import { AVATAR_PALETTE } from "@/shared/ui/avatarPalette";
 
 export default function SettingsPage() {
   const { user, logout, updateUser } = useAuth();

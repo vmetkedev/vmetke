@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { createPost } from "../lib/posts";
-import { useAuth } from "../auth/AuthContext";
-import { Avatar } from "./Avatar";
-import { BlockEditor } from "./editor/BlockEditor";
-import { MarkdownToolbar } from "./MarkdownToolbar";
-import { TagInput } from "./TagInput";
-import { useDraftAutosave } from "../hooks/useDraftAutosave";
-import { DraftRestoreBanner } from "./editor/DraftRestoreBanner";
+import { createPost } from "@/entities/post";
+import { useAuth } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
+import { BlockEditor } from "@/features/block-editor";
+import { MarkdownToolbar } from "@/features/markdown-toolbar";
+import { TagInput } from "@/shared/ui/TagInput";
+import { useDraftAutosave } from "@/features/draft-autosave";
+import { DraftRestoreBanner } from "@/features/draft-autosave";
 
 const MAX_TITLE = 100;
 const MAX_CONTENT = 55000;

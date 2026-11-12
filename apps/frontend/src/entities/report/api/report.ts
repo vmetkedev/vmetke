@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api } from "@/shared/api/client";
 
 export type ReportTargetType = "post" | "comment" | "user" | "message";
 export type ReportReason = "spam" | "abuse" | "illegal" | "other";

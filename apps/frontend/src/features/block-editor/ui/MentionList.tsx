@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
-import { Avatar } from "../Avatar";
+import { Avatar } from "@/shared/ui/Avatar";
 
 type MentionItem = { id: string; username: string; displayName: string | null; avatarColor: number | null };
 

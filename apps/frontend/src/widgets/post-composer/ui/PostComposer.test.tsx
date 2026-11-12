@@ -1,11 +1,11 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PostComposer } from "./PostComposer";
-import * as postsLib from "../lib/posts";
-import * as authContext from "../auth/AuthContext";
+import * as postsLib from "@/entities/post";
+import * as authContext from "@/entities/session";
 
-vi.mock("../lib/posts");
-vi.mock("../auth/AuthContext");
+vi.mock("@/entities/post");
+vi.mock("@/entities/session/model/AuthContext");
 
 const mockUser = { username: "admin", avatarColor: "#123456" };
 

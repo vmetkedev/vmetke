@@ -3,12 +3,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { PostCard } from "./PostCard";
-import type { Post } from "../lib/posts";
+import type { Post } from "@/entities/post";
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
-vi.mock("../auth/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
-vi.mock("./editor/BlockEditor", () => ({ BlockEditor: () => <div /> }));
-vi.mock("./ReportDialog", () => ({
+vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
+vi.mock("@/features/block-editor", () => ({ BlockEditor: () => <div /> }));
+vi.mock("@/features/report", () => ({
   ReportDialog: ({ targetType, targetId }: { targetType: string; targetId: string }) => (
     <div role="dialog">{`${targetType}:${targetId}`}</div>
   ),

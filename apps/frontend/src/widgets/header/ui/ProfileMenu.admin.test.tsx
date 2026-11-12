@@ -5,8 +5,8 @@ import { MemoryRouter } from "react-router";
 import { ProfileMenu } from "./ProfileMenu";
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
-vi.mock("../auth/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
-vi.mock("../lib/messages", () => ({
+vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
+vi.mock("@/entities/message", () => ({
   fetchConversations: vi.fn().mockResolvedValue({ conversations: [] }),
   MESSAGES_CHANGED_EVENT: "messages-changed",
 }));

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { Eye, EyeOff } from "lucide-react";
-import { useAuth } from "../auth/AuthContext";
-import { FieldHint } from "../components/FieldHint";
-import { PasswordChecklist } from "../components/PasswordChecklist";
+import { useAuth } from "@/entities/session";
+import { FieldHint } from "@/shared/ui/FieldHint";
+import { PasswordChecklist } from "@/shared/ui/PasswordChecklist";
 
 export default function RegisterPage() {
   const { register } = useAuth();

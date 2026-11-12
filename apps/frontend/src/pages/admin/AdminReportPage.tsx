@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../../auth/AuthContext";
+import { useAuth } from "@/entities/session";
 import {
   fetchAdminReport,
   resolveAdminReport,
   type ReportAction,
   type ReportResolution,
-} from "../../lib/adminApi";
-import type { ReportTargetType } from "../../lib/reports";
+} from "@/features/admin";
+import type { ReportTargetType } from "@/entities/report";
 import { ResolveDialog } from "./ResolveDialog";
 import {
   BTN,

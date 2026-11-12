@@ -1,19 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import {
-  fetchUserProfile,
-  fetchUserPosts,
-  followUser,
-  unfollowUser,
-  type UserProfile,
-} from "../lib/users";
-import type { Post } from "../lib/posts";
-import { PostCard } from "../components/PostCard";
-import { AppLayout } from "../components/AppLayout";
-import { Avatar } from "../components/Avatar";
+import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/entities/user";
+import { fetchUserPosts } from "@/entities/post";
+import type { Post } from "@/entities/post";
+import { PostCard } from "@/widgets/post-card";
+import { AppLayout } from "@/app/layouts/AppLayout";
+import { Avatar } from "@/shared/ui/Avatar";
 import { Mail, Flag } from "lucide-react";
-import { ReportDialog } from "../components/ReportDialog";
-import { blockUser, fetchBlockedUsers, openConversation, unblockUser } from "../lib/messages";
+import { ReportDialog } from "@/features/report";
+import { blockUser, fetchBlockedUsers, openConversation, unblockUser } from "@/entities/message";
 
 type Tab = "profile" | "posts";
 

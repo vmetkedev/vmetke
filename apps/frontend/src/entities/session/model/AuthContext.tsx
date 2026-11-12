@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { api, setAccessToken } from "../lib/api";
+import { api, setAccessToken } from "@/shared/api/client";
 
-export type UserRole = "user" | "moderator" | "admin";
+import type { UserRole } from "@/shared/config/roles";
+export type { UserRole };
 export type User = { id: string; username: string; avatarColor: number | null; role: UserRole };
 
 type AuthContextValue = {

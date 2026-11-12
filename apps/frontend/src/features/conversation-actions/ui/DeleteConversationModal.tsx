@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { DeleteScope } from "../lib/messages";
+import type { DeleteScope } from "@/entities/message";
 
 type Props = {
   open: boolean;

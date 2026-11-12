@@ -1,6 +1,6 @@
-import { api } from "./api";
-import type { UserRole } from "../auth/AuthContext";
-import type { ReportReason, ReportTargetType } from "./reports";
+import { api } from "@/shared/api/client";
+import type { UserRole } from "@/shared/config/roles";
+import type { ReportReason, ReportTargetType } from "@/entities/report";
 
 export type AdminContentFilter = { q?: string; author?: string; from?: string; to?: string };
 export type AdminContentAuthor = { id: string; username: string; avatarColor: number | null; role: UserRole };

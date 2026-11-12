@@ -5,7 +5,7 @@ import {
   fetchAdminAuditEntry,
   type AdminAuditFilter,
   type AdminAuditItem,
-} from "../../lib/adminApi";
+} from "@/features/admin";
 import { ACTION_LABELS, AUDIT_TARGET_LABELS, BTN, fmtDate, useDebounced } from "./adminShared";
 
 const INPUT =

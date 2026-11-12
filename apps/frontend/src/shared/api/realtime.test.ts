@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
-vi.mock("./api", () => ({ api: { get: getMock } }));
+vi.mock("./client", () => ({ api: { get: getMock } }));
 
 import {
   __resetRealtimeForTests,

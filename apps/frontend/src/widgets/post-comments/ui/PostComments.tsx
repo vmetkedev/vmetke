@@ -1,17 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Heart, Trash2, Flag } from "lucide-react";
-import { ReportDialog } from "./ReportDialog";
-import {
-  fetchComments,
-  createComment,
-  deleteComment,
-  likeComment,
-  unlikeComment,
-  type Comment,
-} from "../lib/posts";
-import { useAuth } from "../auth/AuthContext";
-import { Avatar } from "./Avatar";
+import { ReportDialog } from "@/features/report";
+import { fetchComments, createComment, deleteComment, likeComment, unlikeComment, type Comment } from "@/entities/comment";
+import { useAuth } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
 
 export function PostComments({
   postId,

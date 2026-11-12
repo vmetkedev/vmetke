@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("./Avatar", () => ({ Avatar: () => null }));
+vi.mock("@/shared/ui/Avatar", () => ({ Avatar: () => null }));
 
 import { ForwardModal } from "./ForwardModal";
-import type { Conversation, ConversationUser } from "../lib/messages";
+import type { Conversation, ConversationUser } from "@/entities/message";
 
 const BOB: ConversationUser = { id: "bob-id", username: "bob", displayName: "Боб", avatarColor: 1 };
 const ALICE: ConversationUser = { id: "alice-id", username: "alice", displayName: null, avatarColor: 2 };

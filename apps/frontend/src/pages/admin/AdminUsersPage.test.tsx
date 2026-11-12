@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminUsersPage } from "./AdminUsersPage";
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
-vi.mock("../../lib/adminApi", () => ({ fetchAdminUsers: mockFetch }));
+vi.mock("@/features/admin", () => ({ fetchAdminUsers: mockFetch }));
 
 const item = (id: string, username: string, extra = {}) => ({
   id,

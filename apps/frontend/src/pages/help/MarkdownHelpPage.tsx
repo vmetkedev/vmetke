@@ -1,4 +1,4 @@
-import { AppLayout } from "../../components/AppLayout";
+import { AppLayout } from "@/app/layouts/AppLayout";
 
 export default function MarkdownHelpPage() {
   return (

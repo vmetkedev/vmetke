@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/core";
-import { ToolbarDropdown } from "./ToolbarDropdown";
+import { ToolbarDropdown } from "@/shared/ui/ToolbarDropdown";
 import {
   Type,
   Bold,

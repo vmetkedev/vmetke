@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchAdminStats } from "../../lib/adminApi";
+import { fetchAdminStats } from "@/features/admin";
 
 const fmt = (n: number) => n.toLocaleString("ru-RU");
 

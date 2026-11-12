@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Bell, Search, SquarePen } from "lucide-react";
-import { useAuth } from "../auth/AuthContext";
-import { coalesce } from "../lib/coalesce";
-import { fetchNotifications, NOTIFICATIONS_CHANGED_EVENT } from "../lib/notifications";
-import { useRealtime } from "../lib/useRealtime";
+import { useAuth } from "@/entities/session";
+import { coalesce } from "@/shared/lib/coalesce";
+import { fetchNotifications, NOTIFICATIONS_CHANGED_EVENT } from "@/entities/notification";
+import { useRealtime } from "@/shared/api/useRealtime";
 import { ProfileMenu } from "./ProfileMenu";
 
 // Пока SSE не подключён, счётчик обновляется редким опросом

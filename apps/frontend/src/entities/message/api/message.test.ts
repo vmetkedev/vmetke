@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./api", () => ({
+vi.mock("@/shared/api/client", () => ({
   api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
 }));
 
-import { api } from "./api";
+import { api } from "@/shared/api/client";
 import {
   MESSAGES_CHANGED_EVENT,
   deleteConversation,
@@ -18,7 +18,7 @@ import {
   forwardMessage,
   likeMessage,
   unlikeMessage,
-} from "./messages";
+} from "./message";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });

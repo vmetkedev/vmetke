@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReportsBadge } from "./ReportsBadge";
 
 const { mockCount } = vi.hoisted(() => ({ mockCount: vi.fn() }));
-vi.mock("../../lib/adminApi", () => ({ fetchAdminOpenReportsCount: mockCount }));
+vi.mock("@/features/admin", () => ({ fetchAdminOpenReportsCount: mockCount }));
 
 function renderBadge() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

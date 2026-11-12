@@ -8,20 +8,20 @@ const auth = vi.hoisted(() => ({
   logout: vi.fn(),
 }));
 
-vi.mock("../auth/AuthContext", () => ({
+vi.mock("@/entities/session/model/AuthContext", () => ({
   useAuth: () => ({ user: auth.user, logout: auth.logout }),
 }));
 
-vi.mock("./Avatar", () => ({
+vi.mock("@/shared/ui/Avatar", () => ({
   Avatar: () => null,
 }));
 
-vi.mock("../lib/messages", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/messages")>()),
+vi.mock("@/entities/message", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/entities/message")>()),
   fetchConversations: vi.fn(),
 }));
 
-import { MESSAGES_CHANGED_EVENT, fetchConversations, type Conversation } from "../lib/messages";
+import { MESSAGES_CHANGED_EVENT, fetchConversations, type Conversation } from "@/entities/message";
 import { ProfileMenu } from "./ProfileMenu";
 
 const conv = (id: number, unreadCount: number): Conversation => ({

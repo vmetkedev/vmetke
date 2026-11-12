@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 const { mockPost } = vi.hoisted(() => ({ mockPost: vi.fn() }));
-vi.mock("../lib/api", () => ({
+vi.mock("@/shared/api/client", () => ({
   api: { post: mockPost, get: vi.fn() },
   setAccessToken: vi.fn(),
 }));

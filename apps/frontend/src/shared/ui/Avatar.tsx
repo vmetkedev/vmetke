@@ -1,4 +1,4 @@
-import { AVATAR_PALETTE, DEFAULT_AVATAR_COLOR } from "../lib/avatarPalette";
+import { AVATAR_PALETTE, DEFAULT_AVATAR_COLOR } from "./avatarPalette";
 
 type AvatarProps = {
   username: string;

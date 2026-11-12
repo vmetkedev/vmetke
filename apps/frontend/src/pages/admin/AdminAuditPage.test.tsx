@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminAuditPage } from "./AdminAuditPage";
 
 const api = vi.hoisted(() => ({ fetchAdminAudit: vi.fn(), fetchAdminAuditEntry: vi.fn() }));
-vi.mock("../../lib/adminApi", () => api);
+vi.mock("@/features/admin", () => api);
 
 const entry = (id: number, extra = {}) => ({
   id,

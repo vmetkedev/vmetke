@@ -6,10 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminReportPage } from "./AdminReportPage";
 
 const api = vi.hoisted(() => ({ fetchAdminReport: vi.fn(), resolveAdminReport: vi.fn() }));
-vi.mock("../../lib/adminApi", () => api);
+vi.mock("@/features/admin", () => api);
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
-vi.mock("../../auth/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
+vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
 
 const me = (role: "moderator" | "admin", id = "me") => ({ user: { id, username: "root", avatarColor: null, role } });
 

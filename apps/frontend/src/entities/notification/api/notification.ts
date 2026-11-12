@@ -1,4 +1,4 @@
-import { api } from "./api";
+import { api } from "@/shared/api/client";
 
 export const NOTIFICATIONS_CHANGED_EVENT = "notifications:changed";
 

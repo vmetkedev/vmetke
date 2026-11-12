@@ -1,7 +1,7 @@
 import { useState, useRef, lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router";
 import { Heart, MessageCircle, Pencil, Trash2, Check, X, Clock, Eye, Bookmark, Settings, Flag } from "lucide-react";
-import { ReportDialog } from "./ReportDialog";
+import { ReportDialog } from "@/features/report";
 import {
   type Post,
   likePost,
@@ -10,20 +10,20 @@ import {
   deletePost,
   bookmarkPost,
   unbookmarkPost,
-} from "../lib/posts";
-import { useMarkdownHtml } from "../hooks/useMarkdownHtml";
-import { truncateMarkdown } from "../lib/preview";
-import { estimateReadingMinutes } from "../lib/readingTime";
-import { useAuth } from "../auth/AuthContext";
-import { Avatar } from "./Avatar";
-import { EditorSettingsModal } from "./editor/EditorSettingsModal";
-import { MarkdownToolbar } from "./MarkdownToolbar";
-import { TagInput } from "./TagInput";
-import { PostTags } from "./PostTags";
+} from "@/entities/post";
+import { useMarkdownHtml } from "@/shared/lib/useMarkdownHtml";
+import { truncateMarkdown } from "@/shared/lib/preview";
+import { estimateReadingMinutes } from "@/shared/lib/readingTime";
+import { useAuth } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
+import { EditorSettingsModal } from "@/features/editor-settings";
+import { MarkdownToolbar } from "@/features/markdown-toolbar";
+import { TagInput } from "@/shared/ui/TagInput";
+import { PostTags } from "@/entities/post";
 
 const PREVIEW_LENGTH = 500;
 
-const BlockEditor = lazy(() => import("./editor/BlockEditor").then((m) => ({ default: m.BlockEditor })));
+const BlockEditor = lazy(() => import("@/features/block-editor").then((m) => ({ default: m.BlockEditor })));
 
 function formatDate(iso: string) {
   const date = new Date(iso);

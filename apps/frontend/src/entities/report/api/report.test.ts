@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { submitReport } from "./reports";
+import { submitReport } from "./report";
 
 const { mockPost } = vi.hoisted(() => ({ mockPost: vi.fn() }));
-vi.mock("./api", () => ({ api: { post: mockPost } }));
+vi.mock("@/shared/api/client", () => ({ api: { post: mockPost } }));
 
 const base = { targetType: "post" as const, targetId: "p1", reason: "spam" as const };
 const fail = (status: number, body: unknown) => ({ ok: false, status, json: async () => body });

@@ -4,9 +4,9 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import AdminRoutes from "./AdminRoutes";
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
-vi.mock("../../auth/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
+vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
 
-vi.mock("../../components/AppLayout", () => {
+vi.mock("@/app/layouts/AppLayout", () => {
   const AppLayout = ({ children }: { children: React.ReactNode }) => <>{children}</>;
   return { AppLayout, default: AppLayout };
 });

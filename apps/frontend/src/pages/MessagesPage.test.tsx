@@ -16,25 +16,25 @@ import {
   type ConversationUser,
   type Message,
   type ReplyPreview,
-} from "../lib/messages";
+} from "@/entities/message";
 import MessagesPage from "./MessagesPage";
 
 const { ME } = vi.hoisted(() => ({ ME: "me-id" }));
 
-vi.mock("../auth/AuthContext", () => ({
+vi.mock("@/entities/session/model/AuthContext", () => ({
   useAuth: () => ({ user: { id: ME, username: "me", avatarColor: null } }),
 }));
 
-vi.mock("../components/AppLayout", () => ({
+vi.mock("@/app/layouts/AppLayout", () => ({
   AppLayout: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock("../components/Avatar", () => ({
+vi.mock("@/shared/ui/Avatar", () => ({
   Avatar: () => null,
 }));
 
-vi.mock("../lib/messages", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../lib/messages")>()),
+vi.mock("@/entities/message", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/entities/message")>()),
   fetchConversations: vi.fn(),
   fetchMessages: vi.fn(),
   sendMessage: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock("../lib/messages", async (importOriginal) => ({
   markConversationRead: vi.fn(),
 }));
 
-vi.mock("../lib/realtime", () => ({
+vi.mock("@/shared/api/realtime", () => ({
   subscribeRealtime: () => () => {},
   subscribeStatus: () => () => {},
   isRealtimeConnected: () => false,

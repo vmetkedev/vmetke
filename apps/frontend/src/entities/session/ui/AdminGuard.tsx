@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from "react-router";
-import { useAuth } from "../auth/AuthContext";
-import { isStaff } from "../auth/roles";
+import { useAuth } from "../model/AuthContext";
+import { isStaff } from "../model/roles";
 
 export function AdminGuard() {
   const { user, loading } = useAuth();

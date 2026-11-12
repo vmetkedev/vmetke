@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
-import { fetchPost, type Post } from "../lib/posts";
-import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "../lib/users";
-import { PostCard } from "../components/PostCard";
-import { PostComments } from "../components/PostComments";
-import { AppLayout } from "../components/AppLayout";
-import { useAuth } from "../auth/AuthContext";
-import { Avatar } from "../components/Avatar";
+import { fetchPost, type Post } from "@/entities/post";
+import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/entities/user";
+import { PostCard } from "@/widgets/post-card";
+import { PostComments } from "@/widgets/post-comments";
+import { AppLayout } from "@/app/layouts/AppLayout";
+import { useAuth } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
 
 export default function PostPage() {
   const { user } = useAuth();

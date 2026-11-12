@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAuth } from "../auth/AuthContext";
-import { coalesce } from "../lib/coalesce";
-import { useRealtime } from "../lib/useRealtime";
+import { useAuth } from "@/entities/session";
+import { coalesce } from "@/shared/lib/coalesce";
+import { useRealtime } from "@/shared/api/useRealtime";
 import { Link } from "react-router";
 import { Heart, MessageCircle, UserPlus, Trash2, ShieldAlert } from "lucide-react";
 import {
@@ -9,8 +9,8 @@ import {
   markNotificationsRead,
   deleteNotification,
   type Notification,
-} from "../lib/notifications";
-import { AppLayout } from "../components/AppLayout";
+} from "@/entities/notification";
+import { AppLayout } from "@/app/layouts/AppLayout";
 
 // Пока SSE не подключён, список обновляется редким опросом
 const FALLBACK_POLL_MS = 30000;

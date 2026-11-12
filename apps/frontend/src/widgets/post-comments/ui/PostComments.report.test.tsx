@@ -5,15 +5,15 @@ import { MemoryRouter } from "react-router";
 import { PostComments } from "./PostComments";
 
 const { mockUseAuth, mockFetch } = vi.hoisted(() => ({ mockUseAuth: vi.fn(), mockFetch: vi.fn() }));
-vi.mock("../auth/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
-vi.mock("../lib/posts", () => ({
+vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
+vi.mock("@/entities/comment", () => ({
   fetchComments: mockFetch,
   createComment: vi.fn(),
   deleteComment: vi.fn(),
   likeComment: vi.fn(),
   unlikeComment: vi.fn(),
 }));
-vi.mock("./ReportDialog", () => ({
+vi.mock("@/features/report", () => ({
   ReportDialog: ({ targetType, targetId }: { targetType: string; targetId: string }) => (
     <div role="dialog">{`${targetType}:${targetId}`}</div>
   ),

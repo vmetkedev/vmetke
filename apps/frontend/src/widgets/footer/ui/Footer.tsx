@@ -1,5 +1,5 @@
 import { Sun, Moon, Monitor } from "lucide-react";
-import { useTheme } from "../theme/ThemeContext";
+import { useTheme } from "@/shared/lib/ThemeContext";
 
 export function Footer() {
   const { theme, setTheme } = useTheme();

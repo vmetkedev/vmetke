@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminAuditPage } from "./AdminAuditPage";
 
 const { mockGet } = vi.hoisted(() => ({ mockGet: vi.fn() }));
-vi.mock("../../lib/api", () => ({ api: { get: mockGet } }));
+vi.mock("@/shared/api/client", () => ({ api: { get: mockGet } }));
 
 describe("AdminAuditPage: ошибка загрузки", () => {
   it("показывает сообщение и кнопку «Повторить»", async () => {

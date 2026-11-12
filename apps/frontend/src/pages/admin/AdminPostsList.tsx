@@ -7,10 +7,10 @@ import {
   fetchAdminPosts,
   type AdminContentFilter,
   type AdminPostDetail,
-} from "../../lib/adminApi";
+} from "@/features/admin";
 import { AdminDialog } from "./AdminDialog";
 import { DeleteWithReasonDialog } from "./DeleteWithReasonDialog";
-import { useAuth } from "../../auth/AuthContext";
+import { useAuth } from "@/entities/session";
 import { BTN, BTN_DANGER, DELETE_FORBIDDEN_HINT, canDeleteContent, fmtDate } from "./adminShared";
 
 type DeleteTarget = { id: string; title: string | null; author: { username: string } };

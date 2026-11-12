@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth, type UserRole } from "../../auth/AuthContext";
-import { Avatar } from "../../components/Avatar";
+import { useAuth, type UserRole } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
 import {
   banAdminUser,
   changeAdminUserRole,
@@ -10,7 +10,7 @@ import {
   fetchAdminUser,
   forceLogoutAdminUser,
   unbanAdminUser,
-} from "../../lib/adminApi";
+} from "@/features/admin";
 import { PasswordField } from "./PasswordField";
 import { AdminDialog } from "./AdminDialog";
 import { BannedBadge, RoleBadge, ROLE_LABELS, fmtDate } from "./adminShared";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchBookmarks, type Post } from "../lib/posts";
-import { PostCard } from "../components/PostCard";
-import { AppLayout } from "../components/AppLayout";
+import { fetchBookmarks, type Post } from "@/entities/post";
+import { PostCard } from "@/widgets/post-card";
+import { AppLayout } from "@/app/layouts/AppLayout";
 
 export default function BookmarksPage() {
   const [posts, setPosts] = useState<Post[]>([]);

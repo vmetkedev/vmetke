@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar } from "./Avatar";
-import type { Conversation } from "../lib/messages";
+import { Avatar } from "@/shared/ui/Avatar";
+import type { Conversation } from "@/entities/message";
 
 export function ForwardModal({
   conversations,

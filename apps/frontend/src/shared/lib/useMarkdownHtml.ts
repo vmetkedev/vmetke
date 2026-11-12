@@ -4,7 +4,7 @@ import {
   markdownEnginesReady,
   markdownNeedsEngines,
   renderMarkdown,
-} from "../lib/markdown";
+} from "@/shared/lib/markdown";
 
 /**
  * HTML поста. Сразу отдаёт быстрый вариант; если в тексте есть формулы или код,

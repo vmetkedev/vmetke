@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { ToolbarDropdown } from "./editor/ToolbarDropdown";
+import { ToolbarDropdown } from "@/shared/ui/ToolbarDropdown";
 import {
   Type,
   Bold,

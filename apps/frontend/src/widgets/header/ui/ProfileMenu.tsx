@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Settings, Bookmark, LogOut, Mail, Shield } from "lucide-react";
-import { isStaff } from "../auth/roles";
-import { useAuth } from "../auth/AuthContext";
-import { fetchConversations, MESSAGES_CHANGED_EVENT } from "../lib/messages";
-import { Avatar } from "./Avatar";
-import { coalesce } from "../lib/coalesce";
-import { useRealtime } from "../lib/useRealtime";
+import { isStaff, useAuth } from "@/entities/session";
+import { fetchConversations, MESSAGES_CHANGED_EVENT } from "@/entities/message";
+import { Avatar } from "@/shared/ui/Avatar";
+import { coalesce } from "@/shared/lib/coalesce";
+import { useRealtime } from "@/shared/api/useRealtime";
 
 const UNREAD_FALLBACK_POLL_MS = 60000;
 // Только эти события меняют счётчик непрочитанных
