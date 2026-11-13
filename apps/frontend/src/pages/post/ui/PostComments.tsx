@@ -1,0 +1,166 @@
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
+import { Heart, Trash2, Flag } from "lucide-react";
+import { ReportDialog } from "@/features/report";
+import { fetchComments, createComment, deleteComment, likeComment, unlikeComment, type Comment } from "../api/comment";
+import { useAuth } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
+
+export function PostComments({
+  postId,
+  onCountChange,
+}: {
+  postId: string;
+  onCountChange?: (delta: number) => void;
+}) {
+  const { user } = useAuth();
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [reportingId, setReportingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [newComment, setNewComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set());
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchComments(postId)
+      .then(setComments)
+      .finally(() => setLoading(false));
+  }, [postId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return navigate("/login");
+    if (!newComment.trim()) return;
+    setSubmitting(true);
+    try {
+      const comment = await createComment(postId, newComment.trim());
+      setComments((prev) => [...prev, comment]);
+      setNewComment("");
+      onCountChange?.(1);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (commentId: string) => {
+    await deleteComment(commentId);
+    setComments((prev) => prev.filter((c) => c.id !== commentId));
+    onCountChange?.(-1);
+  };
+
+  const handleToggleLike = async (c: Comment) => {
+    if (!user) return navigate("/login");
+    if (pendingLikes.has(c.id)) return;
+
+    const wasLiked = c.isLikedByMe;
+    const apply = (liked: boolean) =>
+      setComments((prev) =>
+        prev.map((x) =>
+          x.id === c.id ? { ...x, isLikedByMe: liked, likesCount: x.likesCount + (liked ? 1 : -1) } : x
+        )
+      );
+
+    setPendingLikes((s) => new Set(s).add(c.id));
+    apply(!wasLiked);
+    try {
+      if (wasLiked) await unlikeComment(c.id);
+      else await likeComment(c.id);
+    } catch {
+      apply(wasLiked);
+    } finally {
+      setPendingLikes((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
+      });
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
+      <h3 className="text-sm font-medium dark:text-gray-100">Комментарии</h3>
+      {loading ? (
+        <p className="text-xs text-gray-400 dark:text-gray-500">Загрузка...</p>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-gray-400 dark:text-gray-500">Пока нет комментариев.</p>
+      ) : (
+        <div className="space-y-2">
+          {comments.map((c) => (
+            <div key={c.id} className="flex items-start justify-between text-sm group">
+              <div className="flex items-start gap-2">
+                <Avatar
+                  username={c.author.username}
+                  displayName={c.author.displayName}
+                  avatarColor={c.author.avatarColor}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <Link to={`/u/${c.author.username}`} className="font-medium hover:underline dark:text-gray-100">
+                    {c.author.displayName || c.author.username}
+                  </Link>
+                  <span className="text-gray-700 dark:text-gray-300 ml-1.5 wrap-anywhere">{c.content}</span>
+                  <div className="mt-0.5">
+                    <button
+                      onClick={() => handleToggleLike(c)}
+                      disabled={pendingLikes.has(c.id)}
+                      aria-label={c.isLikedByMe ? "Убрать лайк" : "Поставить лайк"}
+                      className={`flex items-center gap-1 text-xs ${
+                        c.isLikedByMe ? "text-red-500" : "text-gray-400 dark:text-gray-500 hover:text-red-400"
+                      } disabled:opacity-50`}
+                    >
+                      <Heart size={13} fill={c.isLikedByMe ? "currentColor" : "none"} />
+                      {c.likesCount > 0 && c.likesCount}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              {user?.id === c.author.id && (
+                <button
+                  onClick={() => handleDelete(c.id)}
+                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 ml-2 shrink-0"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+
+              {user && user.id !== c.author.id && (
+                <button
+                  onClick={() => setReportingId(c.id)}
+                  aria-label="Пожаловаться на комментарий"
+                  title="Пожаловаться"
+                  className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100 ml-2 shrink-0"
+                >
+                  <Flag size={13} />
+                </button>
+              )}
+
+            </div>
+          ))}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="flex gap-2 pt-2 border-t">
+        <input
+          type="text"
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          placeholder="Написать комментарий..."
+          className="flex-1 border dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm mt-2"
+        />
+        <button
+          type="submit"
+          disabled={submitting || !newComment.trim()}
+          className="text-sm text-blue-600 dark:text-blue-400 disabled:opacity-50 mt-2"
+        >
+          Отправить
+        </button>
+      </form>
+
+      {reportingId && (
+        <ReportDialog targetType="comment" targetId={reportingId} onClose={() => setReportingId(null)} />
+      )}
+
+    </div>
+  );
+}

@@ -1,32 +1,35 @@
-# React + TypeScript + Vite
+# Vmetke: фронтенд
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript + Vite, стили на Tailwind, тесты на Vitest.
 
-Currently, two official plugins are available:
+## Команды
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `pnpm --filter frontend dev`: dev-сервер (API проксируется на `localhost:3000`)
+- `pnpm --filter frontend build`: сборка
+- `pnpm --filter frontend test`: тесты
+- `pnpm --filter frontend lint:fsd`: проверка границ слоёв (запускается в CI)
 
-## React Compiler
+## Структура (Feature-Sliced Design)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+`src` разбит на слои. Слой может импортировать только из слоёв ниже:
 
-## Expanding the Oxlint configuration
+`app` → `pages` → `widgets` → `features` → `entities` → `shared`
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+| Слой | Что лежит |
+| --- | --- |
+| `app` | точка входа, роутинг, глобальные стили |
+| `pages` | страницы; весь код, нужный только одной странице, лежит внутри неё |
+| `widgets` | крупные блоки интерфейса, общие для нескольких страниц (`layout`, `post-card`) |
+| `features` | пользовательские сценарии, нужные нескольким местам (редактор, жалобы) |
+| `entities` | предметные сущности и их API (`post`, `user`, `session`, `message`, ...) |
+| `shared` | универсальный код без предметной логики (`api`, `lib`, `ui`, `config`) |
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+Правила:
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- слайс снаружи импортируется только через его `index.ts`;
+- слайсы одного слоя друг на друга не ссылаются;
+- код, которым пользуется только одна страница, остаётся внутри этой страницы;
+- внутри слайса импорты относительные, между слайсами через алиас `@/`;
+- в тестах `vi.mock` указывает на конкретный файл слайса, а не на его `index.ts`.
+
+Тяжёлые части (редактор, KaTeX, подсветка кода) грузятся лениво отдельными чанками. Не импортируй их статически в основной бандл.

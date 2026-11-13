@@ -1,0 +1,995 @@
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { MemoryRouter, Route, Routes } from "react-router";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  editMessage,
+  fetchConversations,
+  fetchMessages,
+  forwardMessage,
+  likeMessage,
+  markConversationRead,
+  sendMessage,
+  unlikeMessage,
+  type Conversation,
+  type ConversationUser,
+  type Message,
+  type ReplyPreview,
+} from "@/entities/message";
+import MessagesPage from "./MessagesPage";
+
+const { ME } = vi.hoisted(() => ({ ME: "me-id" }));
+
+vi.mock("@/entities/session/model/AuthContext", () => ({
+  useAuth: () => ({ user: { id: ME, username: "me", avatarColor: null } }),
+}));
+
+vi.mock("@/widgets/layout", () => ({
+  AppLayout: ({ children }: { children: ReactNode }) => children,
+}));
+
+vi.mock("@/shared/ui/Avatar", () => ({
+  Avatar: () => null,
+}));
+
+vi.mock("@/entities/message", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/entities/message")>()),
+  fetchConversations: vi.fn(),
+  fetchMessages: vi.fn(),
+  sendMessage: vi.fn(),
+  editMessage: vi.fn(),
+  forwardMessage: vi.fn(),
+  likeMessage: vi.fn(),
+  unlikeMessage: vi.fn(),
+  sendTyping: vi.fn().mockResolvedValue(undefined),
+  markConversationRead: vi.fn(),
+}));
+
+vi.mock("@/shared/api/realtime", () => ({
+  subscribeRealtime: () => () => {},
+  subscribeStatus: () => () => {},
+  isRealtimeConnected: () => false,
+}));
+
+
+const BOB: ConversationUser = { id: "bob-id", username: "bob", displayName: "Боб", avatarColor: 1 };
+const ALICE: ConversationUser = { id: "alice-id", username: "alice", displayName: null, avatarColor: 2 };
+
+const now = () => new Date().toISOString();
+
+const msg = (
+  id: number,
+  senderId: string,
+  content: string,
+  conversationId = 5,
+  replyTo: ReplyPreview | null = null,
+): Message => ({
+  id,
+  conversationId,
+  senderId,
+  content,
+  createdAt: now(),
+  deleted: false,
+  replyTo,
+});
+
+const conv = (over: Partial<Conversation> = {}): Conversation => ({
+  id: 5,
+  otherUser: BOB,
+  lastMessage: { id: 2, content: "последнее", senderId: BOB.id, createdAt: now(), deleted: false },
+  unreadCount: 0,
+  ...over,
+});
+
+function renderAt(entry: string | { pathname: string; state?: unknown }) {
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      <Routes>
+        <Route path="/messages" element={<MessagesPage />} />
+        <Route path="/messages/:id" element={<MessagesPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function expectBefore(a: HTMLElement, b: HTMLElement) {
+  expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+}
+
+const input = () => screen.getByPlaceholderText("Напишите сообщение...");
+const sendButton = () => screen.getByRole("button", { name: "Отправить" });
+const cancelReplyButton = () => screen.getByRole("button", { name: "Отменить ответ" });
+const queryCancelReply = () => screen.queryByRole("button", { name: "Отменить ответ" });
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(fetchConversations).mockResolvedValue({ conversations: [] });
+  vi.mocked(fetchMessages).mockResolvedValue({ messages: [], nextCursor: null });
+  vi.mocked(markConversationRead).mockResolvedValue(undefined);
+});
+
+describe("MessagesPage: список диалогов", () => {
+  it("показывает загрузку, пока список не получен", () => {
+    vi.mocked(fetchConversations).mockReturnValue(new Promise(() => {}));
+    renderAt("/messages");
+
+    expect(screen.getByText("Загрузка...")).toBeInTheDocument();
+  });
+
+  it("показывает пустое состояние и заглушку переписки", async () => {
+    renderAt("/messages");
+
+    expect(await screen.findByText(/Пока нет диалогов/)).toBeInTheDocument();
+    expect(screen.getByText("Выберите диалог")).toBeInTheDocument();
+  });
+
+  it("рисует диалоги: имя, username, префикс «Вы:» и бейдж непрочитанных", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({
+      conversations: [
+        conv({ unreadCount: 3, lastMessage: { id: 2, content: "привет, как дела", senderId: BOB.id, createdAt: now(), deleted: false } }),
+        conv({
+          id: 6,
+          otherUser: ALICE,
+          lastMessage: { id: 9, content: "ок", senderId: ME, createdAt: now(), deleted: false },
+        }),
+      ],
+    });
+    renderAt("/messages");
+
+    expect(await screen.findByText("Боб")).toBeInTheDocument();
+    expect(screen.getByText("привет, как дела")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("alice")).toBeInTheDocument();
+    expect(screen.getByText("Вы: ок")).toBeInTheDocument();
+  });
+
+  it("ссылка на диалог открывает переписку", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv()] });
+    const user = userEvent.setup();
+    renderAt("/messages");
+
+    await user.click(await screen.findByRole("link", { name: /Боб/ }));
+
+    expect(await screen.findByPlaceholderText("Напишите сообщение...")).toBeInTheDocument();
+    expect(fetchMessages).toHaveBeenCalledWith(5);
+  });
+
+  it("не показывает бейдж непрочитанных у открытого диалога", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv({ unreadCount: 3 })] });
+    renderAt("/messages/5");
+
+    await screen.findByText("последнее");
+    expect(screen.queryByText("3")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: переписка", () => {
+  it("выводит сообщения по возрастанию id (API отдаёт новые первыми)", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "второе"), msg(1, BOB.id, "первое")],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    const first = await screen.findByText("первое");
+    const second = screen.getByText("второе");
+    expectBefore(first, second);
+  });
+
+  it("показывает пустое состояние пустого диалога", async () => {
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("Сообщений пока нет. Напишите первым.")).toBeInTheDocument();
+  });
+
+  it("показывает ошибку, если история не загрузилась", async () => {
+    vi.mocked(fetchMessages).mockRejectedValue(new Error("Диалог не найден"));
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("Диалог не найден")).toBeInTheDocument();
+  });
+
+  it("в шапке показывает собеседника из списка диалогов со ссылкой на профиль", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv()] });
+    renderAt("/messages/5");
+
+    const link = await screen.findByRole("link", { name: "Боб" });
+    expect(link).toHaveAttribute("href", "/u/bob");
+  });
+
+  it("если диалога нет в списке, берёт собеседника из location.state", async () => {
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    const link = await screen.findByRole("link", { name: "Боб" });
+    expect(link).toHaveAttribute("href", "/u/bob");
+  });
+
+  it("помечает диалог прочитанным, если есть входящие", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "привет")],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    await screen.findByText("привет");
+    await waitFor(() => expect(markConversationRead).toHaveBeenCalledWith(5));
+  });
+
+  it("не помечает прочитанным, если в диалоге только свои сообщения", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, ME, "мое")],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    await screen.findByText("мое");
+    expect(markConversationRead).not.toHaveBeenCalled();
+  });
+});
+
+describe("MessagesPage: отправка", () => {
+  it("кнопка отправки неактивна для пустого и пробельного текста", async () => {
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+    await screen.findByText("Сообщений пока нет. Напишите первым.");
+
+    expect(sendButton()).toBeDisabled();
+    await user.type(input(), "   ");
+    expect(sendButton()).toBeDisabled();
+  });
+
+  it("отправляет обрезанный текст, очищает поле и показывает сообщение", async () => {
+    vi.mocked(sendMessage).mockResolvedValue(msg(1, ME, "привет"));
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+    await screen.findByText("Сообщений пока нет. Напишите первым.");
+
+    await user.type(input(), "  привет  ");
+    await user.click(sendButton());
+
+    expect(await screen.findByText("привет")).toBeInTheDocument();
+    expect(sendMessage).toHaveBeenCalledWith(5, "привет");
+    expect(input()).toHaveValue("");
+    await waitFor(() => expect(fetchConversations).toHaveBeenCalledTimes(2));
+  });
+
+  it("Enter отправляет сообщение", async () => {
+    vi.mocked(sendMessage).mockResolvedValue(msg(1, ME, "привет"));
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+    await screen.findByText("Сообщений пока нет. Напишите первым.");
+
+    await user.type(input(), "привет{Enter}");
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith(5, "привет"));
+  });
+
+  it("Shift+Enter переносит строку и ничего не отправляет", async () => {
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+    await screen.findByText("Сообщений пока нет. Напишите первым.");
+
+    await user.type(input(), "a{Shift>}{Enter}{/Shift}b");
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(input()).toHaveValue("a\nb");
+  });
+
+  it("при ошибке показывает её и сохраняет текст", async () => {
+    vi.mocked(sendMessage).mockRejectedValue(new Error("Диалог не найден"));
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+    await screen.findByText("Сообщений пока нет. Напишите первым.");
+
+    await user.type(input(), "привет");
+    await user.click(sendButton());
+
+    expect(await screen.findByText("Диалог не найден")).toBeInTheDocument();
+    expect(input()).toHaveValue("привет");
+  });
+});
+
+describe("MessagesPage: ответы", () => {
+  async function openReplyBar(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "оригинал")],
+      nextCursor: null,
+    });
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    await user.click(await screen.findByText("оригинал"));
+    await user.click(screen.getByRole("menuitem", { name: "Ответить" }));
+  }
+
+  it("«Ответить» в меню показывает плашку с автором и текстом и фокусирует поле ввода", async () => {
+    const user = userEvent.setup();
+    await openReplyBar(user);
+
+    const bar = cancelReplyButton().parentElement as HTMLElement;
+    expect(within(bar).getByText("Боб")).toBeInTheDocument();
+    expect(within(bar).getByText("оригинал")).toBeInTheDocument();
+    expect(input()).toHaveFocus();
+    // меню после выбора закрывается
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("крестик убирает плашку, дальше сообщение уходит без replyToId", async () => {
+    vi.mocked(sendMessage).mockResolvedValue(msg(2, ME, "обычное"));
+    const user = userEvent.setup();
+    await openReplyBar(user);
+
+    await user.click(cancelReplyButton());
+    expect(queryCancelReply()).not.toBeInTheDocument();
+
+    await user.type(input(), "обычное");
+    await user.click(sendButton());
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith(5, "обычное"));
+  });
+
+  it("Escape в поле ввода убирает плашку", async () => {
+    const user = userEvent.setup();
+    await openReplyBar(user);
+
+    await user.keyboard("{Escape}");
+
+    expect(queryCancelReply()).not.toBeInTheDocument();
+  });
+
+  it("отправка с плашкой передаёт id оригинала и убирает плашку", async () => {
+    vi.mocked(sendMessage).mockResolvedValue(msg(2, ME, "ответ", 5, {
+      id: 1,
+      senderId: BOB.id,
+      content: "оригинал",
+      deleted: false,
+    }));
+    const user = userEvent.setup();
+    await openReplyBar(user);
+
+    await user.type(input(), "ответ");
+    await user.click(sendButton());
+
+    await waitFor(() => expect(sendMessage).toHaveBeenCalledWith(5, "ответ", 1));
+    await waitFor(() => expect(queryCancelReply()).not.toBeInTheDocument());
+    // новое сообщение сразу показывается с цитатой
+    expect(await screen.findByText("ответ")).toBeInTheDocument();
+  });
+
+  it("рисует цитату в пузыре: чужое сообщение подписано «Собеседник», своё «Вы»", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        msg(4, BOB.id, "ответ боба", 5, { id: 3, senderId: ME, content: "моя мысль", deleted: false }),
+        msg(2, ME, "мой ответ", 5, { id: 1, senderId: BOB.id, content: "чужая мысль", deleted: false }),
+      ],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("чужая мысль")).toBeInTheDocument();
+    expect(screen.getByText("моя мысль")).toBeInTheDocument();
+    expect(screen.getByText("Собеседник")).toBeInTheDocument();
+    expect(screen.getByText("Вы")).toBeInTheDocument();
+  });
+
+  it("цитата удалённого оригинала показывает «Сообщение удалено» без текста", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        msg(2, ME, "мой ответ", 5, { id: 1, senderId: null, content: "", deleted: true }),
+      ],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("Сообщение удалено")).toBeInTheDocument();
+    expect(screen.getByText("мой ответ")).toBeInTheDocument();
+  });
+
+  it("клик по цитате не открывает меню сообщения", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        msg(2, ME, "мой ответ", 5, { id: 1, senderId: BOB.id, content: "цитата", deleted: false }),
+      ],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+
+    // оригинала нет в загруженной истории: scrollToMessage ничего не находит и молча выходит
+    await user.click(await screen.findByText("цитата"));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: редактирование", () => {
+  const cancelEditButton = () => screen.getByRole("button", { name: "Отменить редактирование" });
+  const queryCancelEdit = () => screen.queryByRole("button", { name: "Отменить редактирование" });
+  const saveButton = () => screen.getByRole("button", { name: "Сохранить" });
+
+  async function renderConversation(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "моё"), msg(1, BOB.id, "чужое")],
+      nextCursor: null,
+    });
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+    await screen.findByText("моё");
+    return user;
+  }
+
+  async function startEdit(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByText("моё"));
+    await user.click(screen.getByRole("menuitem", { name: "Изменить" }));
+  }
+
+  it("«Изменить» есть только у своих сообщений", async () => {
+    const user = await renderConversation(userEvent.setup());
+
+    await user.click(screen.getByText("чужое"));
+    expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Изменить" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("моё"));
+    expect(screen.getByRole("menuitem", { name: "Изменить" })).toBeInTheDocument();
+  });
+
+  it("«Изменить» кладёт текст в поле ввода, показывает плашку и фокусирует поле", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    expect(input()).toHaveValue("моё");
+    expect(input()).toHaveFocus();
+    expect(screen.getByText("Редактирование")).toBeInTheDocument();
+    expect(saveButton()).toBeEnabled();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("сохранение отправляет новый текст, показывает «изменено» и возвращает черновик", async () => {
+    vi.mocked(editMessage).mockResolvedValue({ ...msg(2, ME, "новое"), editedAt: now() });
+    const user = await renderConversation(userEvent.setup());
+    await user.type(input(), "черновик");
+    await startEdit(user);
+
+    await user.clear(input());
+    await user.type(input(), "новое");
+    await user.click(saveButton());
+
+    expect(await screen.findByText("новое")).toBeInTheDocument();
+    expect(editMessage).toHaveBeenCalledWith(5, 2, "новое");
+    expect(screen.getByText("изменено")).toBeInTheDocument();
+    expect(input()).toHaveValue("черновик");
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Отправить" })).toBeInTheDocument();
+  });
+
+  it("крестик отменяет правку и возвращает черновик", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await user.type(input(), "черновик");
+    await startEdit(user);
+
+    await user.click(cancelEditButton());
+
+    expect(input()).toHaveValue("черновик");
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(editMessage).not.toHaveBeenCalled();
+  });
+
+  it("Escape отменяет правку", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.keyboard("{Escape}");
+
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(input()).toHaveValue("");
+  });
+
+  it("Enter сохраняет правку", async () => {
+    vi.mocked(editMessage).mockResolvedValue({ ...msg(2, ME, "моё!"), editedAt: now() });
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.type(input(), "!{Enter}");
+
+    await waitFor(() => expect(editMessage).toHaveBeenCalledWith(5, 2, "моё!"));
+  });
+
+  it("если текст не изменился, запрос не отправляется и правка закрывается", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.click(saveButton());
+
+    expect(editMessage).not.toHaveBeenCalled();
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+  });
+
+  it("при ошибке показывает её и остаётся в режиме правки", async () => {
+    vi.mocked(editMessage).mockRejectedValue(new Error("Нельзя править"));
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.type(input(), "!");
+    await user.click(saveButton());
+
+    expect(await screen.findByText("Нельзя править")).toBeInTheDocument();
+    expect(cancelEditButton()).toBeInTheDocument();
+    expect(input()).toHaveValue("моё!");
+  });
+
+  it("начало ответа во время правки отменяет правку", async () => {
+    const user = await renderConversation(userEvent.setup());
+    await startEdit(user);
+
+    await user.click(screen.getByText("чужое"));
+    await user.click(screen.getByRole("menuitem", { name: "Ответить" }));
+
+    expect(queryCancelEdit()).not.toBeInTheDocument();
+    expect(cancelReplyButton()).toBeInTheDocument();
+    expect(input()).toHaveValue("");
+  });
+
+  it("показывает «изменено» у уже отредактированного сообщения", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [{ ...msg(1, ME, "правленое"), editedAt: now() }],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("изменено")).toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: пересылка", () => {
+  const forwardDialog = () => screen.findByRole("dialog", { name: "Переслать сообщение" });
+  const queryForwardDialog = () => screen.queryByRole("dialog", { name: "Переслать сообщение" });
+
+  const BOB_AUTHOR = { id: BOB.id, username: "bob", displayName: "Боб" };
+
+  async function openForward(user: ReturnType<typeof userEvent.setup>) {
+    vi.mocked(fetchConversations).mockResolvedValue({
+      conversations: [conv(), conv({ id: 6, otherUser: ALICE })],
+    });
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "моё"), msg(1, BOB.id, "чужое")],
+      nextCursor: null,
+    });
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    await user.click(await screen.findByText("чужое"));
+    await user.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    return forwardDialog();
+  }
+
+  it("«Переслать» открывает окно со списком диалогов и превью сообщения", async () => {
+    const dialog = await openForward(userEvent.setup());
+
+    expect(within(dialog).getByText("чужое")).toBeInTheDocument();
+    expect(await within(dialog).findByRole("radio", { name: /alice/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: /Боб/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Переслать" })).toBeDisabled();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("пересылка в другой диалог вызывает API и переходит в этот диалог", async () => {
+    vi.mocked(forwardMessage).mockResolvedValue({
+      ...msg(9, ME, "чужое", 6),
+      forwardedFrom: BOB_AUTHOR,
+    });
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.click(await within(dialog).findByRole("radio", { name: /alice/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Переслать" }));
+
+    await waitFor(() => expect(forwardMessage).toHaveBeenCalledWith(5, 1, 6));
+    await waitFor(() => expect(queryForwardDialog()).not.toBeInTheDocument());
+    await waitFor(() => expect(fetchMessages).toHaveBeenLastCalledWith(6));
+  });
+
+  it("пересылка в тот же диалог добавляет копию с пометкой автора", async () => {
+    vi.mocked(forwardMessage).mockResolvedValue({
+      ...msg(9, ME, "чужое"),
+      forwardedFrom: BOB_AUTHOR,
+    });
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.click(await within(dialog).findByRole("radio", { name: /Боб/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Переслать" }));
+
+    expect(await screen.findByText("Переслано от Боб")).toBeInTheDocument();
+    expect(forwardMessage).toHaveBeenCalledWith(5, 1, 5);
+    expect(queryForwardDialog()).not.toBeInTheDocument();
+  });
+
+  it("при ошибке показывает её и оставляет окно открытым", async () => {
+    vi.mocked(forwardMessage).mockRejectedValue(new Error("Этому пользователю нельзя отправить сообщение"));
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.click(await within(dialog).findByRole("radio", { name: /alice/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Переслать" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Этому пользователю нельзя отправить сообщение",
+    );
+    expect(queryForwardDialog()).toBeInTheDocument();
+  });
+
+  it("Escape и «Отмена» закрывают окно без запроса", async () => {
+    const user = userEvent.setup();
+    const dialog = await openForward(user);
+
+    await user.keyboard("{Escape}");
+    expect(queryForwardDialog()).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("чужое"));
+    await user.click(screen.getByRole("menuitem", { name: "Переслать" }));
+    await user.click(within(await forwardDialog()).getByRole("button", { name: "Отмена" }));
+
+    expect(queryForwardDialog()).not.toBeInTheDocument();
+    expect(forwardMessage).not.toHaveBeenCalled();
+    expect(dialog).not.toBeInTheDocument();
+  });
+
+  it("пометка «Переслано от»: чужой автор по имени, свой как «Вы»", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        { ...msg(2, ME, "вторая"), forwardedFrom: { id: ME, username: "me", displayName: null } },
+        { ...msg(1, ME, "первая"), forwardedFrom: BOB_AUTHOR },
+      ],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+
+    expect(await screen.findByText("Переслано от Боб")).toBeInTheDocument();
+    expect(screen.getByText("Переслано от Вы")).toBeInTheDocument();
+  });
+
+  it("у своего пересланного сообщения нет пункта «Изменить»", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [{ ...msg(1, ME, "пересланное"), forwardedFrom: BOB_AUTHOR }],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+
+    await user.click(await screen.findByText("пересланное"));
+
+    expect(screen.getByRole("menuitem", { name: "Переслать" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Изменить" })).not.toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: лайки", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const withLikes = (m: Message, count: number, likedByMe: boolean): Message => ({
+    ...m,
+    likes: { count, likedByMe },
+  });
+
+  async function renderFlushed(list: Message[], extra: { blockedByMe?: boolean } = {}) {
+    vi.mocked(fetchMessages).mockResolvedValue({ messages: list, nextCursor: null, ...extra });
+    await act(async () => {
+      renderAt("/messages/5");
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  }
+
+  const advance = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  const zone = (id: number) => screen.getByTestId(`msg-hover-${id}`);
+  const heart = (id: number) => screen.queryByTestId(`like-hover-${id}`);
+
+  const hoverLong = async (id: number) => {
+    fireEvent.mouseEnter(zone(id));
+    await advance(400);
+  };
+
+  const click = async (el: HTMLElement) => {
+    fireEvent.click(el);
+    await advance(0);
+  };
+
+  it("кнопка лайка появляется только после 0,4 секунды наведения", async () => {
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+    expect(heart(1)).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(zone(1));
+    await advance(399);
+    expect(heart(1)).not.toBeInTheDocument();
+
+    await advance(1);
+    expect(heart(1)).toHaveAttribute("aria-label", "Нравится");
+  });
+
+  it("если убрать курсор раньше, кнопка не появляется", async () => {
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+
+    fireEvent.mouseEnter(zone(1));
+    await advance(200);
+    fireEvent.mouseLeave(zone(1));
+    await advance(2000);
+
+    expect(heart(1)).not.toBeInTheDocument();
+  });
+
+  it("после ухода курсора кнопка пропадает", async () => {
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+    await hoverLong(1);
+    expect(heart(1)).toBeInTheDocument();
+
+    fireEvent.mouseLeave(zone(1));
+    await advance(0);
+
+    expect(heart(1)).not.toBeInTheDocument();
+  });
+
+  it("у чужого сообщения кнопка в правом нижнем углу, у своего в левом", async () => {
+    await renderFlushed([msg(2, ME, "моё"), msg(1, BOB.id, "чужое")]);
+
+    await hoverLong(1);
+    expect(heart(1)?.className).toContain("left-full");
+    expect(heart(1)?.className).toContain("bottom-0");
+    fireEvent.mouseLeave(zone(1));
+    await advance(0);
+
+    await hoverLong(2);
+    expect(heart(2)?.className).toContain("right-full");
+    expect(heart(2)?.className).toContain("bottom-0");
+  });
+
+  it("клик по кнопке ставит лайк и показывает сердечко в пузыре", async () => {
+    vi.mocked(likeMessage).mockResolvedValue({ count: 1, likedByMe: true });
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+
+    await hoverLong(1);
+    await click(heart(1) as HTMLElement);
+
+    expect(likeMessage).toHaveBeenCalledWith(5, 1);
+    // и кнопка рядом, и бейдж в пузыре теперь «Убрать лайк»
+    expect(screen.getAllByRole("button", { name: "Убрать лайк" })).toHaveLength(2);
+    expect(heart(1)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("кнопка есть и у своих сообщений", async () => {
+    vi.mocked(likeMessage).mockResolvedValue({ count: 1, likedByMe: true });
+    await renderFlushed([msg(2, ME, "моё")]);
+
+    await hoverLong(2);
+    await click(heart(2) as HTMLElement);
+
+    expect(likeMessage).toHaveBeenCalledWith(5, 2);
+  });
+
+  it("кнопка у лайкнутого мной сообщения снимает лайк", async () => {
+    vi.mocked(unlikeMessage).mockResolvedValue({ count: 0, likedByMe: false });
+    await renderFlushed([withLikes(msg(1, BOB.id, "чужое"), 1, true)]);
+
+    await hoverLong(1);
+    expect(heart(1)).toHaveAttribute("aria-label", "Убрать лайк");
+    await click(heart(1) as HTMLElement);
+
+    expect(unlikeMessage).toHaveBeenCalledWith(5, 1);
+    expect(screen.queryByRole("button", { name: "Убрать лайк" })).not.toBeInTheDocument();
+    expect(heart(1)).toHaveAttribute("aria-label", "Нравится");
+    expect(likeMessage).not.toHaveBeenCalled();
+  });
+
+  it("пока открыто меню, кнопка видна сразу, а клик по ней ставит лайк и закрывает меню", async () => {
+    vi.mocked(likeMessage).mockResolvedValue({ count: 1, likedByMe: true });
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+
+    await click(screen.getByText("чужое"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(heart(1)).toBeInTheDocument();
+
+    await click(heart(1) as HTMLElement);
+
+    expect(likeMessage).toHaveBeenCalledWith(5, 1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("в меню сообщения нет пункта лайка", async () => {
+    await renderFlushed([withLikes(msg(1, BOB.id, "чужое"), 1, true)]);
+
+    await click(screen.getByText("чужое"));
+
+    expect(screen.getByRole("menuitem", { name: "Ответить" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Нравится" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Убрать лайк" })).not.toBeInTheDocument();
+  });
+
+  it("клик по сердечку в пузыре переключает лайк и не открывает меню", async () => {
+    vi.mocked(likeMessage).mockResolvedValue({ count: 2, likedByMe: true });
+    await renderFlushed([withLikes(msg(1, BOB.id, "чужое"), 1, false)]);
+
+    await click(screen.getByRole("button", { name: "Поставить лайк" }));
+
+    expect(likeMessage).toHaveBeenCalledWith(5, 1);
+    // при двух и более лайках рядом с сердечком показывается число
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("при одном лайке числа нет, а у сообщения без лайков нет и сердечка в пузыре", async () => {
+    await renderFlushed([
+      withLikes(msg(2, BOB.id, "с лайком"), 1, false),
+      withLikes(msg(1, BOB.id, "без лайков"), 0, false),
+    ]);
+
+    expect(screen.getAllByRole("button", { name: "Поставить лайк" })).toHaveLength(1);
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+  });
+
+  it("при ошибке показывает её и не меняет кнопку", async () => {
+    vi.mocked(likeMessage).mockRejectedValue(new Error("Этому пользователю нельзя отправить сообщение"));
+    await renderFlushed([msg(1, BOB.id, "чужое")]);
+
+    await hoverLong(1);
+    await click(heart(1) as HTMLElement);
+
+    expect(
+      screen.getByText("Этому пользователю нельзя отправить сообщение"),
+    ).toBeInTheDocument();
+    expect(heart(1)).toHaveAttribute("aria-label", "Нравится");
+  });
+
+  it("у заблокированного собеседника нельзя поставить лайк, но можно снять свой", async () => {
+    await renderFlushed(
+      [
+        withLikes(msg(2, BOB.id, "лайкнуто"), 1, true),
+        withLikes(msg(1, BOB.id, "не лайкнуто"), 0, false),
+      ],
+      { blockedByMe: true },
+    );
+
+    await hoverLong(1);
+    expect(heart(1)).not.toBeInTheDocument();
+    fireEvent.mouseLeave(zone(1));
+    await advance(0);
+
+    await hoverLong(2);
+    expect(heart(2)).toHaveAttribute("aria-label", "Убрать лайк");
+  });
+});
+
+describe("MessagesPage: подгрузка истории", () => {
+  it("«Показать более ранние» грузит по курсору и ставит старые сообщения выше", async () => {
+    vi.mocked(fetchMessages)
+      .mockResolvedValueOnce({
+        messages: [msg(3, ME, "третье"), msg(2, ME, "второе")],
+        nextCursor: 2,
+      })
+      .mockResolvedValueOnce({ messages: [msg(1, ME, "первое")], nextCursor: null });
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+
+    await user.click(await screen.findByRole("button", { name: "Показать более ранние" }));
+
+    const oldest = await screen.findByText("первое");
+    expect(fetchMessages).toHaveBeenLastCalledWith(5, 2);
+    expectBefore(oldest, screen.getByText("второе"));
+    expect(screen.queryByRole("button", { name: "Показать более ранние" })).not.toBeInTheDocument();
+  });
+
+  it("кнопки нет, если история помещается в одну страницу", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({ messages: [msg(1, ME, "одно")], nextCursor: null });
+    renderAt("/messages/5");
+
+    await screen.findByText("одно");
+    expect(screen.queryByRole("button", { name: "Показать более ранние" })).not.toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function renderFlushed(path: string) {
+    let utils!: ReturnType<typeof renderAt>;
+    await act(async () => {
+      utils = renderAt(path);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    return utils;
+  }
+
+  const tick = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  it("открытый диалог опрашивается каждые 4 секунды и подтягивает новые сообщения", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "первое")],
+      nextCursor: null,
+    });
+    await renderFlushed("/messages/5");
+    expect(screen.getByText("первое")).toBeInTheDocument();
+    expect(fetchMessages).toHaveBeenCalledTimes(1);
+
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, BOB.id, "второе"), msg(1, BOB.id, "первое")],
+      nextCursor: null,
+    });
+    await tick(15000);
+
+    expect(fetchMessages).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("второе")).toBeInTheDocument();
+  });
+
+  it("не помечает прочитанным повторно, пока нет новых входящих", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "первое")],
+      nextCursor: null,
+    });
+    await renderFlushed("/messages/5");
+    await tick(30000);
+
+    expect(fetchMessages).toHaveBeenCalledTimes(3);
+    expect(markConversationRead).toHaveBeenCalledTimes(1);
+  });
+
+  it("плашка ответа исчезает, если собеседник удалил оригинал", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "оригинал")],
+      nextCursor: null,
+    });
+    await renderFlushed("/messages/5");
+
+    fireEvent.click(screen.getByText("оригинал"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ответить" }));
+    expect(cancelReplyButton()).toBeInTheDocument();
+
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [{ ...msg(1, BOB.id, ""), deleted: true }],
+      nextCursor: null,
+    });
+    await tick(15000);
+
+    expect(queryCancelReply()).not.toBeInTheDocument();
+  });
+
+  it("список диалогов обновляется каждые 10 секунд", async () => {
+    await renderFlushed("/messages");
+    expect(fetchConversations).toHaveBeenCalledTimes(1);
+
+    vi.mocked(fetchConversations).mockResolvedValue({
+      conversations: [conv({ otherUser: ALICE })],
+    });
+    await tick(60000);
+
+    expect(fetchConversations).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("alice")).toBeInTheDocument();
+  });
+
+  it("после размонтирования опрос прекращается", async () => {
+    const { unmount } = await renderFlushed("/messages/5");
+    unmount();
+    const convCalls = vi.mocked(fetchConversations).mock.calls.length;
+    const msgCalls = vi.mocked(fetchMessages).mock.calls.length;
+
+    await tick(20000);
+
+    expect(fetchConversations).toHaveBeenCalledTimes(convCalls);
+    expect(fetchMessages).toHaveBeenCalledTimes(msgCalls);
+  });
+});

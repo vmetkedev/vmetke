@@ -1,0 +1,126 @@
+import { useEffect, useRef, useState } from "react";
+import { createPost } from "@/entities/post";
+import { useAuth } from "@/entities/session";
+import { Avatar } from "@/shared/ui/Avatar";
+import { BlockEditor } from "@/features/block-editor";
+import { MarkdownToolbar } from "@/features/markdown-toolbar";
+import { TagInput } from "@/shared/ui/TagInput";
+import { useDraftAutosave } from "../model/useDraftAutosave";
+import { DraftRestoreBanner } from "./DraftRestoreBanner";
+
+const MAX_TITLE = 100;
+const MAX_CONTENT = 55000;
+const DRAFT_STORAGE_KEY = "vmetke:draft:new-post";
+
+type PostComposerProps = {
+  onPosted: () => void;
+  mode: "wysiwyg" | "markdown";
+  editorKey: number;
+};
+
+export function PostComposer({ onPosted, mode, editorKey }: PostComposerProps) {
+  const { user } = useAuth();
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [restoreCounter, setRestoreCounter] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const { hasDraft, draftSavedAt, saveDraft, restoreDraft, discardDraft } = useDraftAutosave({
+    storageKey: DRAFT_STORAGE_KEY,
+  });
+
+  // автосохранение при любом изменении заголовка или текста
+  useEffect(() => {
+    saveDraft(title, content);
+  }, [title, content, saveDraft]);
+
+  const handleRestore = () => {
+    const restored = restoreDraft();
+    if (restored) {
+      setTitle(restored.title);
+      setContent(restored.content);
+      setRestoreCounter((c) => c + 1); // форс ремаунт BlockEditor в режиме wysiwyg
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !content.trim()) return;
+    if (content.length > MAX_CONTENT) {
+      setError(`Максимум ${MAX_CONTENT} символов`);
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createPost(title.trim(), content.trim(), tags);
+      discardDraft();
+      setTitle("");
+      setContent("");
+      setTags([]);
+      onPosted();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {hasDraft && draftSavedAt && (
+        <DraftRestoreBanner savedAt={draftSavedAt} onRestore={handleRestore} onDiscard={discardDraft} />
+      )}
+
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+
+      {user && (
+        <div className="flex items-center gap-2">
+          <Avatar username={user.username} avatarColor={user.avatarColor} size="sm" />
+          <span className="text-sm font-medium dark:text-gray-100">{user.username}</span>
+          <span className="text-sm text-gray-400 dark:text-gray-500">Новый пост</span>
+        </div>
+      )}
+
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Заголовок"
+        maxLength={MAX_TITLE}
+        className="w-full bg-transparent text-3xl font-bold placeholder-gray-300 dark:placeholder-gray-600 dark:text-gray-100 focus:outline-none"
+      />
+
+      {mode === "wysiwyg" ? (
+        <BlockEditor key={`${editorKey}-${restoreCounter}`} content={content} onChange={setContent} />
+      ) : (
+        <>
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full min-h-50 bg-transparent text-sm font-mono text-gray-700 dark:text-gray-300 focus:outline-none resize-y"
+            placeholder="Введите текст"
+          />
+          <MarkdownToolbar textareaRef={textareaRef} content={content} onChange={setContent} />
+        </>
+      )}
+
+      <TagInput value={tags} onChange={setTags} />
+
+      <div className="flex justify-between items-center pt-4 border-t dark:border-gray-700">
+        <span />
+        <button
+          onClick={handleSubmit}
+          disabled={submitting || !title.trim() || !content.trim()}
+          className="bg-blue-600 text-white rounded px-4 py-1.5 text-sm disabled:opacity-50"
+        >
+          {submitting ? "Публикация..." : "Опубликовать"}
+        </button>
+      </div>
+    </div>
+  );
+}

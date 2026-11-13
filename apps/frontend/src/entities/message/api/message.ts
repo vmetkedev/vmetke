@@ -1,0 +1,194 @@
+import { api } from "@/shared/api";
+
+export type ConversationUser = {
+  id: string;
+  username: string;
+  displayName: string | null;
+  avatarColor: number | null;
+};
+
+export type ReplyPreview = {
+  id: number;
+  senderId: string | null;
+  content: string;
+  deleted: boolean;
+};
+
+export type ForwardAuthor = {
+  id: string;
+  username: string;
+  displayName: string | null;
+};
+
+export type MessageLikes = {
+  count: number;
+  likedByMe: boolean;
+};
+
+export type Message = {
+  id: number;
+  conversationId: number;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  editedAt?: string | null;
+  deleted: boolean;
+  replyTo?: ReplyPreview | null;
+  forwardedFrom?: ForwardAuthor | null;
+  likes?: MessageLikes;
+};
+
+export type Conversation = {
+  id: number;
+  otherUser: ConversationUser;
+  lastMessage: {
+    id: number;
+    content: string;
+    senderId: string;
+    createdAt: string;
+    deleted: boolean;
+  };
+  unreadCount: number;
+};
+
+export type DeleteScope = "me" | "all";
+
+export const MAX_MESSAGE = 5000;
+export const MESSAGES_CHANGED_EVENT = "messages:changed";
+
+export class RequestError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function parse<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new RequestError(body?.error ?? "Ошибка запроса", res.status);
+  }
+  return res.json();
+}
+
+export async function fetchConversations(): Promise<{ conversations: Conversation[] }> {
+  return parse(await api.get("/conversations"));
+}
+
+export async function openConversation(userId: string): Promise<{ id: number }> {
+  const data = await parse<{ conversation: { id: number } }>(
+    await api.post("/conversations", { userId }),
+  );
+  return data.conversation;
+}
+
+export async function fetchMessages(
+  conversationId: number,
+  before?: number,
+): Promise<{ messages: Message[]; nextCursor: number | null; blockedByMe?: boolean }> {
+  const qs = before ? `?before=${before}` : "";
+  return parse(await api.get(`/conversations/${conversationId}/messages${qs}`));
+}
+
+export async function sendMessage(
+  conversationId: number,
+  content: string,
+  replyToId?: number,
+): Promise<Message> {
+  const body = replyToId === undefined ? { content } : { content, replyToId };
+  const data = await parse<{ message: Message }>(
+    await api.post(`/conversations/${conversationId}/messages`, body),
+  );
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+  return data.message;
+}
+
+export async function editMessage(
+  conversationId: number,
+  messageId: number,
+  content: string,
+): Promise<Message> {
+  const data = await parse<{ message: Message }>(
+    await api.post(`/conversations/${conversationId}/messages/${messageId}/edit`, { content }),
+  );
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+  return data.message;
+}
+
+export async function forwardMessage(
+  conversationId: number,
+  messageId: number,
+  toConversationId: number,
+): Promise<Message> {
+  const data = await parse<{ message: Message }>(
+    await api.post(`/conversations/${conversationId}/messages/${messageId}/forward`, {
+      toConversationId,
+    }),
+  );
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+  return data.message;
+}
+
+// Лайки не влияют на список диалогов и счётчики, поэтому событие MESSAGES_CHANGED_EVENT не шлём
+export async function likeMessage(
+  conversationId: number,
+  messageId: number,
+): Promise<MessageLikes> {
+  const data = await parse<{ likes: MessageLikes }>(
+    await api.post(`/conversations/${conversationId}/messages/${messageId}/like`),
+  );
+  return data.likes;
+}
+
+export async function unlikeMessage(
+  conversationId: number,
+  messageId: number,
+): Promise<MessageLikes> {
+  const data = await parse<{ likes: MessageLikes }>(
+    await api.delete(`/conversations/${conversationId}/messages/${messageId}/like`),
+  );
+  return data.likes;
+}
+
+export async function markConversationRead(conversationId: number): Promise<void> {
+  await parse(await api.post(`/conversations/${conversationId}/read`));
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export async function deleteMessage(
+  conversationId: number,
+  messageId: number,
+  scope: DeleteScope,
+): Promise<void> {
+  await parse(
+    await api.delete(`/conversations/${conversationId}/messages/${messageId}?scope=${scope}`),
+  );
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export async function deleteConversation(
+  conversationId: number,
+  scope: DeleteScope,
+): Promise<void> {
+  await parse(await api.delete(`/conversations/${conversationId}?scope=${scope}`));
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export type BlockedUser = ConversationUser & { blockedAt: string };
+
+export async function fetchBlockedUsers(): Promise<{ blocked: BlockedUser[] }> {
+  return parse(await api.get("/blocks"));
+}
+
+export async function blockUser(userId: string): Promise<void> {
+  await parse(await api.post("/blocks", { userId }));
+}
+
+export async function unblockUser(userId: string): Promise<void> {
+  await parse(await api.delete(`/blocks/${userId}`));
+}
+
+export async function sendTyping(conversationId: number): Promise<void> {
+  await parse(await api.post(`/conversations/${conversationId}/typing`));
+}
