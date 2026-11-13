@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/entities/user";
-import { fetchUserPosts } from "@/entities/post";
-import type { Post } from "@/entities/post";
+import { fetchUserPosts, type Post } from "@/entities/post";
 import { PostCard } from "@/widgets/post-card";
 import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
