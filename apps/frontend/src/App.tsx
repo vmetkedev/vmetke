@@ -1,21 +1,21 @@
 import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router";
-import LoginPage from "./pages/LoginPage";
-import RegisterPage from "./pages/RegisterPage";
+import { LoginPage } from "@/pages/login";
+import { RegisterPage } from "@/pages/register";
 import { FeedPage } from "@/pages/feed";
 import { ProtectedRoute } from "@/entities/session";
 import { AdminGuard } from "@/entities/session";
 
 const ProfilePage = lazy(() => import("@/pages/profile").then((m) => ({ default: m.ProfilePage })));
-const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const NotificationsPage = lazy(() => import("@/pages/notifications").then((m) => ({ default: m.NotificationsPage })));
 const PostPage = lazy(() => import("@/pages/post").then((m) => ({ default: m.PostPage })));
-const NewPostPage = lazy(() => import("./pages/NewPostPage"));
-const BookmarksPage = lazy(() => import("./pages/BookmarksPage"));
-const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const SearchPage = lazy(() => import("./pages/SearchPage"));
-const MessagesPage = lazy(() => import("./pages/MessagesPage"));
-const MarkdownHelpPage = lazy(() => import("./pages/help/MarkdownHelpPage"));
-const WysiwygHelpPage = lazy(() => import("./pages/help/WysiwygHelpPage"));
+const NewPostPage = lazy(() => import("@/pages/new-post").then((m) => ({ default: m.NewPostPage })));
+const BookmarksPage = lazy(() => import("@/pages/bookmarks").then((m) => ({ default: m.BookmarksPage })));
+const SettingsPage = lazy(() => import("@/pages/settings").then((m) => ({ default: m.SettingsPage })));
+const SearchPage = lazy(() => import("@/pages/search").then((m) => ({ default: m.SearchPage })));
+const MessagesPage = lazy(() => import("@/pages/messages").then((m) => ({ default: m.MessagesPage })));
+const MarkdownHelpPage = lazy(() => import("@/pages/help").then((m) => ({ default: m.MarkdownHelpPage })));
+const WysiwygHelpPage = lazy(() => import("@/pages/help").then((m) => ({ default: m.WysiwygHelpPage })));
 const AdminRoutes = lazy(() => import("./pages/admin/AdminRoutes"));
 
 function PageFallback() {
