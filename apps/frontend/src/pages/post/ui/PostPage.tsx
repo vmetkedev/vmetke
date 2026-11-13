@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from "react-router";
 import { fetchPost, type Post } from "@/entities/post";
 import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/entities/user";
 import { PostCard } from "@/widgets/post-card";
-import { PostComments } from "@/widgets/post-comments";
+import { PostComments } from "./PostComments";
 import { AppLayout } from "@/widgets/layout";
 import { useAuth } from "@/entities/session";
 import { Avatar } from "@/shared/ui/Avatar";

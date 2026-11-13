@@ -5,8 +5,8 @@ import { Avatar } from "@/shared/ui/Avatar";
 import { BlockEditor } from "@/features/block-editor";
 import { MarkdownToolbar } from "@/features/markdown-toolbar";
 import { TagInput } from "@/shared/ui/TagInput";
-import { useDraftAutosave } from "@/features/draft-autosave";
-import { DraftRestoreBanner } from "@/features/draft-autosave";
+import { useDraftAutosave } from "../model/useDraftAutosave";
+import { DraftRestoreBanner } from "./DraftRestoreBanner";
 
 const MAX_TITLE = 100;
 const MAX_CONTENT = 55000;

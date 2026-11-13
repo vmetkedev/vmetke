@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Heart, Trash2, Flag } from "lucide-react";
 import { ReportDialog } from "@/features/report";
-import { fetchComments, createComment, deleteComment, likeComment, unlikeComment, type Comment } from "@/entities/comment";
+import { fetchComments, createComment, deleteComment, likeComment, unlikeComment, type Comment } from "../api/comment";
 import { useAuth } from "@/entities/session";
 import { Avatar } from "@/shared/ui/Avatar";
 

@@ -6,7 +6,7 @@ import { PostComments } from "./PostComments";
 
 const { mockUseAuth, mockFetch } = vi.hoisted(() => ({ mockUseAuth: vi.fn(), mockFetch: vi.fn() }));
 vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
-vi.mock("@/entities/comment", () => ({
+vi.mock("@/pages/post/api/comment", () => ({
   fetchComments: mockFetch,
   createComment: vi.fn(),
   deleteComment: vi.fn(),

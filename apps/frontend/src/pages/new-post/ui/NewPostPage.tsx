@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { PostComposer } from "@/widgets/post-composer";
+import { PostComposer } from "./PostComposer";
 import { AppLayout } from "@/widgets/layout";
 import { EditorSettingsModal } from "@/features/editor-settings";
 
