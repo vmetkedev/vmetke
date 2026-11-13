@@ -5,7 +5,7 @@ import { isStaff, useAuth } from "@/entities/session";
 import { fetchConversations, MESSAGES_CHANGED_EVENT } from "@/entities/message";
 import { Avatar } from "@/shared/ui/Avatar";
 import { coalesce } from "@/shared/lib/coalesce";
-import { useRealtime } from "@/shared/api/useRealtime";
+import { useRealtime } from "@/shared/api";
 
 const UNREAD_FALLBACK_POLL_MS = 60000;
 // Только эти события меняют счётчик непрочитанных

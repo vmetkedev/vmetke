@@ -32,7 +32,7 @@ import {
   type RequestError,
 } from "@/entities/message";
 import { coalesce } from "@/shared/lib/coalesce";
-import { useRealtime } from "@/shared/api/useRealtime";
+import { useRealtime } from "@/shared/api";
 
 // Пока SSE не подключён, список и открытый тред обновляются редким опросом
 const LIST_FALLBACK_POLL_MS = 60000;

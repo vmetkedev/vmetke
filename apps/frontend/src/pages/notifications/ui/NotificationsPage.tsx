@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/entities/session";
 import { coalesce } from "@/shared/lib/coalesce";
-import { useRealtime } from "@/shared/api/useRealtime";
+import { useRealtime } from "@/shared/api";
 import { Link } from "react-router";
 import { Heart, MessageCircle, UserPlus, Trash2, ShieldAlert } from "lucide-react";
 import {

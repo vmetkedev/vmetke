@@ -1,7 +1,7 @@
 import { ReactRenderer } from "@tiptap/react";
 import tippy, { type Instance as TippyInstance } from "tippy.js";
 import { MentionList } from "./MentionList";
-import { api } from "@/shared/api/client";
+import { api } from "@/shared/api";
 
 type MentionItem = { id: string; username: string; displayName: string | null; avatarColor: number | null };
 

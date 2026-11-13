@@ -4,7 +4,7 @@ import { Bell, Search, SquarePen } from "lucide-react";
 import { useAuth } from "@/entities/session";
 import { coalesce } from "@/shared/lib/coalesce";
 import { fetchNotifications, NOTIFICATIONS_CHANGED_EVENT } from "@/entities/notification";
-import { useRealtime } from "@/shared/api/useRealtime";
+import { useRealtime } from "@/shared/api";
 import { ProfileMenu } from "./ProfileMenu";
 
 // Пока SSE не подключён, счётчик обновляется редким опросом

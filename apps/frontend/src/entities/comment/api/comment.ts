@@ -1,4 +1,4 @@
-import { api } from "@/shared/api/client";
+import { api } from "@/shared/api";
 
 export type Comment = {
   id: string;
