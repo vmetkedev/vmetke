@@ -4,10 +4,10 @@ import { ArrowLeft, Check, Heart, Send, X } from "lucide-react";
 import { useAuth } from "@/entities/session";
 import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
-import { ConversationMenu } from "@/features/conversation-actions";
-import { DeleteConversationModal } from "@/features/conversation-actions";
-import { ForwardModal } from "@/features/message-actions";
-import { MessageMenu } from "@/features/message-actions";
+import { ConversationMenu } from "./ConversationMenu";
+import { DeleteConversationModal } from "./DeleteConversationModal";
+import { ForwardModal } from "./ForwardModal";
+import { MessageMenu } from "./MessageMenu";
 import { ReportDialog } from "@/features/report";
 import {
   MAX_MESSAGE,
