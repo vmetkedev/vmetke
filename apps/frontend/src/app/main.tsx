@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "@/entities/session";
 import { ThemeProvider } from "@/shared/lib/ThemeContext";
 import App from "./App";
-import "./index.css";
+import "./styles/index.css";
 import "katex/dist/katex.min.css";
 
 const queryClient = new QueryClient();

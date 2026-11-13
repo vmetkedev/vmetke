@@ -16,7 +16,7 @@ const SearchPage = lazy(() => import("@/pages/search").then((m) => ({ default: m
 const MessagesPage = lazy(() => import("@/pages/messages").then((m) => ({ default: m.MessagesPage })));
 const MarkdownHelpPage = lazy(() => import("@/pages/help").then((m) => ({ default: m.MarkdownHelpPage })));
 const WysiwygHelpPage = lazy(() => import("@/pages/help").then((m) => ({ default: m.WysiwygHelpPage })));
-const AdminRoutes = lazy(() => import("./pages/admin/AdminRoutes"));
+const AdminRoutes = lazy(() => import("@/pages/admin").then((m) => ({ default: m.AdminRoutes })));
 
 function PageFallback() {
   return (

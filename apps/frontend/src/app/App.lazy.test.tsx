@@ -17,7 +17,7 @@ vi.mock("@/entities/session/ui/AdminGuard", async () => {
 // Ленивые страницы, которые проверяем
 vi.mock("@/pages/settings/ui/SettingsPage", () => ({ default: () => <h1>settings-page</h1> }));
 vi.mock("@/pages/help/ui/MarkdownHelpPage", () => ({ default: () => <h1>markdown-help-page</h1> }));
-vi.mock("./pages/admin/AdminRoutes", () => ({ default: () => <h1>admin-routes</h1> }));
+vi.mock("@/pages/admin/ui/AdminRoutes", () => ({ default: () => <h1>admin-routes</h1> }));
 
 const renderAt = (path: string) =>
   render(
