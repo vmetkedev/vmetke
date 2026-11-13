@@ -1,7 +1,7 @@
 import type { UserRole } from "@/entities/session";
 import { useEffect, useState } from "react";
 import { REPORT_REASONS, type ReportReason, type ReportTargetType } from "@/entities/report";
-import type { ReportStatus } from "@/features/admin";
+import type { ReportStatus } from "../api/admin";
 
 export const reasonLabel = (r: ReportReason) => REPORT_REASONS.find((x) => x.id === r)?.label ?? r;
 

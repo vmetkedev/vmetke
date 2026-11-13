@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminReportPage } from "./AdminReportPage";
 
 const api = vi.hoisted(() => ({ fetchAdminReport: vi.fn(), resolveAdminReport: vi.fn() }));
-vi.mock("@/features/admin", () => api);
+vi.mock("@/pages/admin/api/admin", () => api);
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));

@@ -7,7 +7,7 @@ import {
   resolveAdminReport,
   type ReportAction,
   type ReportResolution,
-} from "@/features/admin";
+} from "../api/admin";
 import type { ReportTargetType } from "@/entities/report";
 import { ResolveDialog } from "./ResolveDialog";
 import {

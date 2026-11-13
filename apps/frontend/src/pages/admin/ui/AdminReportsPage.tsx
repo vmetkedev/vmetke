@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { fetchAdminReports, type AdminReportsFilter } from "@/features/admin";
+import { fetchAdminReports, type AdminReportsFilter } from "../api/admin";
 import { StatusBadge, TARGET_LABELS, fmtDate, reasonLabel } from "./adminShared";
 
 const INPUT =

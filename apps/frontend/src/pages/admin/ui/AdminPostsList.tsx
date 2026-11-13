@@ -7,7 +7,7 @@ import {
   fetchAdminPosts,
   type AdminContentFilter,
   type AdminPostDetail,
-} from "@/features/admin";
+} from "../api/admin";
 import { AdminDialog } from "./AdminDialog";
 import { DeleteWithReasonDialog } from "./DeleteWithReasonDialog";
 import { useAuth } from "@/entities/session";

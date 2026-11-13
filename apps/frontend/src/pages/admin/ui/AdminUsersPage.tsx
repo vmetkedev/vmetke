@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Avatar } from "@/shared/ui/Avatar";
-import { fetchAdminUsers, type AdminUsersFilter } from "@/features/admin";
+import { fetchAdminUsers, type AdminUsersFilter } from "../api/admin";
 import { BannedBadge, RoleBadge, ROLE_LABELS, fmtDate } from "./adminShared";
 
 const INPUT =

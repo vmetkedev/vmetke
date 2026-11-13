@@ -10,7 +10,7 @@ import {
   fetchAdminUser,
   forceLogoutAdminUser,
   unbanAdminUser,
-} from "@/features/admin";
+} from "../api/admin";
 import { PasswordField } from "./PasswordField";
 import { AdminDialog } from "./AdminDialog";
 import { BannedBadge, RoleBadge, ROLE_LABELS, fmtDate } from "./adminShared";

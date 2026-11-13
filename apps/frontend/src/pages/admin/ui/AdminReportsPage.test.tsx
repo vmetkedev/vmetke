@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminReportsPage } from "./AdminReportsPage";
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
-vi.mock("@/features/admin", () => ({ fetchAdminReports: mockFetch }));
+vi.mock("@/pages/admin/api/admin", () => ({ fetchAdminReports: mockFetch }));
 
 const item = (id: string, extra = {}) => ({
   id,

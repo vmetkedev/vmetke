@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { search, type UserSearchResult, type PostSearchResult } from "@/features/search";
-import { searchPostsByTag } from "@/features/search";
+import { search, type UserSearchResult, type PostSearchResult } from "../api/search";
+import { searchPostsByTag } from "../api/search";
 import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
 

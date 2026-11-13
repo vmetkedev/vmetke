@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminOverviewPage } from "./AdminOverviewPage";
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
-vi.mock("@/features/admin", () => ({ fetchAdminStats: mockFetch }));
+vi.mock("@/pages/admin/api/admin", () => ({ fetchAdminStats: mockFetch }));
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

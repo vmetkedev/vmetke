@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
   forceLogoutAdminUser: vi.fn(),
   deleteAdminUser: vi.fn(),
 }));
-vi.mock("@/features/admin", () => api);
+vi.mock("@/pages/admin/api/admin", () => api);
 
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));

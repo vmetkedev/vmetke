@@ -6,7 +6,7 @@ import {
   fetchAdminComments,
   type AdminCommentListItem,
   type AdminContentFilter,
-} from "@/features/admin";
+} from "../api/admin";
 import { DeleteWithReasonDialog } from "./DeleteWithReasonDialog";
 import { useAuth } from "@/entities/session";
 import { BTN, DELETE_FORBIDDEN_HINT, canDeleteContent, fmtDate } from "./adminShared";
