@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { useAuth } from "@/entities/session";
 import { deleteAccount } from "@/entities/user";
 import { updateAvatarColor } from "@/entities/user";

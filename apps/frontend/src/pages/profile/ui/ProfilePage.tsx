@@ -4,7 +4,7 @@ import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/
 import { fetchUserPosts } from "@/entities/post";
 import type { Post } from "@/entities/post";
 import { PostCard } from "@/widgets/post-card";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
 import { Mail, Flag } from "lucide-react";
 import { ReportDialog } from "@/features/report";

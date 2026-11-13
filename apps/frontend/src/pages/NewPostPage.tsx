@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { PostComposer } from "@/widgets/post-composer";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { EditorSettingsModal } from "@/features/editor-settings";
 
 export default function NewPostPage() {

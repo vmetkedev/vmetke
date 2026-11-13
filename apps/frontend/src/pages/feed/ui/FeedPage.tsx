@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchFeed, type Post } from "@/entities/post";
 import { PostCard } from "@/widgets/post-card";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 
 export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);

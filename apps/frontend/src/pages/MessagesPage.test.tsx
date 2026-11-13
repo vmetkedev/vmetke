@@ -25,7 +25,7 @@ vi.mock("@/entities/session/model/AuthContext", () => ({
   useAuth: () => ({ user: { id: ME, username: "me", avatarColor: null } }),
 }));
 
-vi.mock("@/app/layouts/AppLayout", () => ({
+vi.mock("@/widgets/layout", () => ({
   AppLayout: ({ children }: { children: ReactNode }) => children,
 }));
 

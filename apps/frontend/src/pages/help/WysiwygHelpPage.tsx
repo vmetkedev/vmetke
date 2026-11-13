@@ -1,4 +1,4 @@
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 
 export default function WysiwygHelpPage() {
   return (

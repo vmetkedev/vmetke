@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, Check, Heart, Send, X } from "lucide-react";
 import { useAuth } from "@/entities/session";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
 import { ConversationMenu } from "@/features/conversation-actions";
 import { DeleteConversationModal } from "@/features/conversation-actions";

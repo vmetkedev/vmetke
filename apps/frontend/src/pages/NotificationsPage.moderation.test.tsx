@@ -18,7 +18,7 @@ vi.mock("@/shared/api/realtime", () => ({
   isRealtimeConnected: () => false,
 }));
 vi.mock("@/entities/notification", () => api);
-vi.mock("@/app/layouts/AppLayout", () => ({
+vi.mock("@/widgets/layout", () => ({
   AppLayout: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 

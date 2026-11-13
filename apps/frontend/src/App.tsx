@@ -2,13 +2,13 @@ import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
-import FeedPage from "./pages/FeedPage";
+import { FeedPage } from "@/pages/feed";
 import { ProtectedRoute } from "@/entities/session";
 import { AdminGuard } from "@/entities/session";
 
-const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const ProfilePage = lazy(() => import("@/pages/profile").then((m) => ({ default: m.ProfilePage })));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
-const PostPage = lazy(() => import("./pages/PostPage"));
+const PostPage = lazy(() => import("@/pages/post").then((m) => ({ default: m.PostPage })));
 const NewPostPage = lazy(() => import("./pages/NewPostPage"));
 const BookmarksPage = lazy(() => import("./pages/BookmarksPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));

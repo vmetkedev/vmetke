@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { search, type UserSearchResult, type PostSearchResult } from "@/features/search";
 import { searchPostsByTag } from "@/features/search";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
 
 export default function SearchPage() {

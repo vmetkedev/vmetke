@@ -6,7 +6,7 @@ import AdminRoutes from "./AdminRoutes";
 const { mockUseAuth } = vi.hoisted(() => ({ mockUseAuth: vi.fn() }));
 vi.mock("@/entities/session/model/AuthContext", () => ({ useAuth: () => mockUseAuth() }));
 
-vi.mock("@/app/layouts/AppLayout", () => {
+vi.mock("@/widgets/layout", () => {
   const AppLayout = ({ children }: { children: React.ReactNode }) => <>{children}</>;
   return { AppLayout, default: AppLayout };
 });

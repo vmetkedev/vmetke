@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { AppHeader } from "@/widgets/header";
-import { Footer } from "@/widgets/footer";
+import { AppHeader } from "./AppHeader";
+import { Footer } from "./Footer";
 
 export function AppLayout({ children }: { children: ReactNode }) {
   return (

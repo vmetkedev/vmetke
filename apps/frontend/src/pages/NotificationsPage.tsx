@@ -10,7 +10,7 @@ import {
   deleteNotification,
   type Notification,
 } from "@/entities/notification";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 
 // Пока SSE не подключён, список обновляется редким опросом
 const FALLBACK_POLL_MS = 30000;

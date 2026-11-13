@@ -6,7 +6,7 @@ import App from "./App";
 // Eager-страницы и обёртки, чтобы не тянуть всё приложение
 vi.mock("./pages/LoginPage", () => ({ default: () => <h1>login-page</h1> }));
 vi.mock("./pages/RegisterPage", () => ({ default: () => <h1>register-page</h1> }));
-vi.mock("./pages/FeedPage", () => ({ default: () => <h1>feed-page</h1> }));
+vi.mock("@/pages/feed/ui/FeedPage", () => ({ default: () => <h1>feed-page</h1> }));
 vi.mock("@/entities/session/ui/ProtectedRoute", () => ({
   ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

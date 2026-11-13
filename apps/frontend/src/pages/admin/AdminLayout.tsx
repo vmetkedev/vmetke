@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router";
 import { LayoutDashboard, Users, FileText, Flag, ScrollText } from "lucide-react";
 import { useAuth } from "@/entities/session";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { ReportsBadge } from "./ReportsBadge";
 
 const NAV = [

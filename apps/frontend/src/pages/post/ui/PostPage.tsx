@@ -4,7 +4,7 @@ import { fetchPost, type Post } from "@/entities/post";
 import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/entities/user";
 import { PostCard } from "@/widgets/post-card";
 import { PostComments } from "@/widgets/post-comments";
-import { AppLayout } from "@/app/layouts/AppLayout";
+import { AppLayout } from "@/widgets/layout";
 import { useAuth } from "@/entities/session";
 import { Avatar } from "@/shared/ui/Avatar";
 
