@@ -28,6 +28,9 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      - name: FSD boundaries
+        run: pnpm --filter frontend lint:fsd
+
       - name: Build
         run: pnpm -r build
 
@@ -71,3 +74,6 @@ jobs:
 
       - name: Run backend tests
         run: pnpm --filter backend test
+
+      - name: Run frontend tests
+        run: pnpm --filter frontend test
