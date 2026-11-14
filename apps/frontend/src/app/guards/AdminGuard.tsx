@@ -1,6 +1,5 @@
 import { Navigate, Outlet } from "react-router";
-import { useAuth } from "../model/AuthContext";
-import { isStaff } from "../model/roles";
+import { isStaff, useAuth } from "@/entities/session";
 
 export function AdminGuard() {
   const { user, loading } = useAuth();

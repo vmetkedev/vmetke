@@ -7,10 +7,10 @@ import App from "./App";
 vi.mock("@/pages/login/ui/LoginPage", () => ({ default: () => <h1>login-page</h1> }));
 vi.mock("@/pages/register/ui/RegisterPage", () => ({ default: () => <h1>register-page</h1> }));
 vi.mock("@/pages/feed/ui/FeedPage", () => ({ default: () => <h1>feed-page</h1> }));
-vi.mock("@/entities/session/ui/ProtectedRoute", () => ({
+vi.mock("./guards/ProtectedRoute", () => ({
   ProtectedRoute: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
-vi.mock("@/entities/session/ui/AdminGuard", async () => {
+vi.mock("./guards/AdminGuard", async () => {
   const { Outlet } = await import("react-router");
   return { AdminGuard: () => <Outlet /> };
 });

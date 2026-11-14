@@ -3,7 +3,8 @@ import { Routes, Route } from "react-router";
 import { LoginPage } from "@/pages/login";
 import { RegisterPage } from "@/pages/register";
 import { FeedPage } from "@/pages/feed";
-import { AdminGuard, ProtectedRoute } from "@/entities/session";
+import { AdminGuard } from "./guards/AdminGuard";
+import { ProtectedRoute } from "./guards/ProtectedRoute";
 
 const ProfilePage = lazy(() => import("@/pages/profile").then((m) => ({ default: m.ProfilePage })));
 const NotificationsPage = lazy(() => import("@/pages/notifications").then((m) => ({ default: m.NotificationsPage })));
