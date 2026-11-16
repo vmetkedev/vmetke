@@ -12,8 +12,19 @@ import { AdminDialog } from "./AdminDialog";
 import { DeleteWithReasonDialog } from "./DeleteWithReasonDialog";
 import { useAuth } from "@/entities/session";
 import { BTN, BTN_DANGER, DELETE_FORBIDDEN_HINT, canDeleteContent, fmtDate } from "./adminShared";
+import { useMarkdownHtml } from "@/shared/lib/useMarkdownHtml";
 
 type DeleteTarget = { id: string; title: string | null; author: { username: string } };
+
+function PostBody({ content }: { content: string }) {
+  const html = useMarkdownHtml(content);
+  return (
+    <div
+      className="post-content mt-3 max-h-80 overflow-auto break-words rounded-md bg-gray-50 dark:bg-gray-900 p-3 text-sm dark:text-gray-100"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
 
 function ViewPostDialog({
   id,
@@ -45,9 +56,7 @@ function ViewPostDialog({
               {data.tags.map((t) => `#${t}`).join(" ")}
             </div>
           )}
-          <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md bg-gray-50 dark:bg-gray-900 p-3 text-sm font-sans dark:text-gray-100">
-            {data.content}
-          </pre>
+          <PostBody content={data.content} />
         </>
       )}
       <div className="mt-4 flex justify-end gap-2">
