@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { comments, commentLikes, users, posts } from "../db/schema/index.js";
-import { NotOwnerError, NotFoundError } from "./posts.service.js";
+import { NotOwnerError, NotFoundError } from "../lib/errors.js";
 import { createNotification } from "./notifications.service.js";
 
 const authorFields = {

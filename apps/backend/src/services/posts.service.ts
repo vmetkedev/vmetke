@@ -3,8 +3,7 @@ import { db } from "../db/client.js";
 import { posts, users, likes, comments, bookmarks } from "../db/schema/index.js";
 import type { FeedQuery } from "../schemas/posts.js";
 
-export class NotOwnerError extends Error {}
-export class NotFoundError extends Error {}
+import { NotFoundError, NotOwnerError } from "../lib/errors.js";
 
 export async function createPost(authorId: string, title: string, content: string, tags: string[] = []) {
   const [post] = await db.insert(posts).values({ authorId, title, content, tags }).returning();

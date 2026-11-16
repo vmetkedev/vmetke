@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { likes, posts } from "../db/schema/index.js";
 import { createNotification } from "./notifications.service.js";
-import { NotFoundError } from "./posts.service.js";
+import { NotFoundError } from "../lib/errors.js";
 
 export async function likePost(postId: string, userId: string) {
   const [post] = await db.select({ authorId: posts.authorId }).from(posts).where(eq(posts.id, postId));

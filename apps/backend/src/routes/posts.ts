@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { handleOwnershipError } from "../lib/errors.js";
 import { createPostSchema, feedQuerySchema } from "../schemas/posts.js";
 import { createCommentSchema } from "../schemas/comments.js";
 import {
@@ -9,8 +10,6 @@ import {
   getBookmarkedPosts,
   updatePost,
   deletePost,
-  NotOwnerError,
-  NotFoundError,
 } from "../services/posts.service.js";
 import { likePost, unlikePost } from "../services/likes.service.js";
 import { bookmarkPost, unbookmarkPost } from "../services/bookmarks.service.js";
@@ -25,11 +24,6 @@ import {
 const postIdParamSchema = z.object({ postId: z.string().uuid() });
 const commentIdParamSchema = z.object({ commentId: z.string().uuid() });
 
-function handleOwnershipError(err: unknown, reply: any) {
-  if (err instanceof NotFoundError) return reply.code(404).send({ error: err.message });
-  if (err instanceof NotOwnerError) return reply.code(403).send({ error: err.message });
-  throw err;
-}
 
 export default async function postsRoutes(app: FastifyInstance) {
   app.post(
