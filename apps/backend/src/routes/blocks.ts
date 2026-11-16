@@ -17,7 +17,7 @@ function fail(reply: FastifyReply, e: unknown) {
 
 export default async function blocksRoutes(app: FastifyInstance) {
   app.get("/", { preHandler: [app.authenticate] }, async (request) => {
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     return { blocked: await listBlockedUsers(payload.sub) };
   });
 
@@ -25,7 +25,7 @@ export default async function blocksRoutes(app: FastifyInstance) {
     const body = blockBody.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await blockUser(payload.sub, body.data.userId);
       return { success: true };
@@ -38,7 +38,7 @@ export default async function blocksRoutes(app: FastifyInstance) {
     const params = userParams.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await unblockUser(payload.sub, params.data.userId);
     return { success: true };
   });

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { handleOwnershipError } from "../lib/errors.js";
 import { createPostSchema, feedQuerySchema } from "../schemas/posts.js";
 import { createCommentSchema } from "../schemas/comments.js";
 import {
@@ -9,8 +10,6 @@ import {
   getBookmarkedPosts,
   updatePost,
   deletePost,
-  NotOwnerError,
-  NotFoundError,
 } from "../services/posts.service.js";
 import { likePost, unlikePost } from "../services/likes.service.js";
 import { bookmarkPost, unbookmarkPost } from "../services/bookmarks.service.js";
@@ -25,11 +24,6 @@ import {
 const postIdParamSchema = z.object({ postId: z.string().uuid() });
 const commentIdParamSchema = z.object({ commentId: z.string().uuid() });
 
-function handleOwnershipError(err: unknown, reply: any) {
-  if (err instanceof NotFoundError) return reply.code(404).send({ error: err.message });
-  if (err instanceof NotOwnerError) return reply.code(403).send({ error: err.message });
-  throw err;
-}
 
 export default async function postsRoutes(app: FastifyInstance) {
   app.post(
@@ -39,7 +33,7 @@ export default async function postsRoutes(app: FastifyInstance) {
       const parsed = createPostSchema.safeParse(request.body);
       if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       const post = await createPost(payload.sub, parsed.data.title, parsed.data.content, parsed.data.tags);
       return reply.code(201).send({ post });
     }
@@ -61,7 +55,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = feedQuerySchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     return getBookmarkedPosts(payload.sub, parsed.data);
   });
 
@@ -86,7 +80,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const bodyParsed = createPostSchema.safeParse(request.body);
     if (!bodyParsed.success) return reply.code(400).send({ error: bodyParsed.error.flatten() });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       const post = await updatePost(
         paramsParsed.data.postId,
@@ -105,7 +99,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = postIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await deletePost(parsed.data.postId, payload.sub);
       return { success: true };
@@ -121,7 +115,7 @@ export default async function postsRoutes(app: FastifyInstance) {
       const parsed = postIdParamSchema.safeParse(request.params);
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         await likePost(parsed.data.postId, payload.sub);
         return { success: true };
@@ -135,7 +129,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = postIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await unlikePost(parsed.data.postId, payload.sub);
     return { success: true };
   });
@@ -144,7 +138,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = postIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await bookmarkPost(parsed.data.postId, payload.sub);
     return { success: true };
   });
@@ -153,7 +147,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = postIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await unbookmarkPost(parsed.data.postId, payload.sub);
     return { success: true };
   });
@@ -181,7 +175,7 @@ export default async function postsRoutes(app: FastifyInstance) {
       const bodyParsed = createCommentSchema.safeParse(request.body);
       if (!bodyParsed.success) return reply.code(400).send({ error: bodyParsed.error.flatten() });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       const comment = await createComment(paramsParsed.data.postId, payload.sub, bodyParsed.data.content);
       return reply.code(201).send({ comment });
     }
@@ -191,7 +185,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = commentIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID комментария" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await deleteComment(parsed.data.commentId, payload.sub);
       return { success: true };
@@ -207,7 +201,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = commentIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID комментария" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await likeComment(parsed.data.commentId, payload.sub);
       return { success: true };
@@ -221,7 +215,7 @@ export default async function postsRoutes(app: FastifyInstance) {
     const parsed = commentIdParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID комментария" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await unlikeComment(parsed.data.commentId, payload.sub);
     return { success: true };
   });

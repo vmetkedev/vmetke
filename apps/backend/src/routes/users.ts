@@ -19,7 +19,7 @@ export default async function usersRoutes(app: FastifyInstance) {
     const parsed = updateAvatarSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await updateAvatarColor(payload.sub, parsed.data.avatarColor);
     return { success: true };
   });
@@ -28,7 +28,7 @@ export default async function usersRoutes(app: FastifyInstance) {
     const parsed = deleteAccountSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await deleteAccount(payload.sub, parsed.data.password);
       reply.clearCookie("refresh_token", { path: "/api/auth" });

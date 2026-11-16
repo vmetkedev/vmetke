@@ -25,7 +25,7 @@ export default async function reportsRoutes(app: FastifyInstance) {
     const parsed = bodySchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       const { id } = await createReport(payload.sub, {
         ...parsed.data,

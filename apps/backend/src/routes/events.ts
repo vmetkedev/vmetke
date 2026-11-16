@@ -26,7 +26,7 @@ export default async function eventsRoutes(app: FastifyInstance) {
       config: { rateLimit: { max: 30, timeWindow: "1 minute", keyGenerator: userKey } },
     },
     async (request, reply) => {
-      const userId = (request.user as { sub: string }).sub;
+      const userId = request.user.sub;
 
       // hijack: дальше пишем в сокет сами, поэтому заголовки (CORS, helmet) берём из reply
       reply.hijack();
