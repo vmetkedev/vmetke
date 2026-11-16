@@ -104,7 +104,7 @@ export default async function authRoutes(app: FastifyInstance) {
   });
 
   app.get("/me", { preHandler: [app.authenticate] }, async (request) => {
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     const [user] = await db
       .select({ id: users.id, username: users.username, avatarColor: users.avatarColor, role: users.role })
       .from(users)

@@ -11,7 +11,7 @@ const idParamSchema = z.object({ id: z.string().uuid() });
 
 export default async function notificationsRoutes(app: FastifyInstance) {
   app.get("/", { preHandler: [app.authenticate] }, async (request) => {
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     const [notifications, unreadCount] = await Promise.all([
       getNotifications(payload.sub),
       getUnreadCount(payload.sub),
@@ -20,7 +20,7 @@ export default async function notificationsRoutes(app: FastifyInstance) {
   });
 
   app.post("/read", { preHandler: [app.authenticate] }, async (request) => {
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await markAllRead(payload.sub);
     return { success: true };
   });
@@ -29,7 +29,7 @@ export default async function notificationsRoutes(app: FastifyInstance) {
     const parsed = idParamSchema.safeParse(request.params);
     if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID уведомления" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await deleteNotification(parsed.data.id, payload.sub);
     return { success: true };
   });

@@ -14,7 +14,7 @@ export default async function followsRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Некорректный ID пользователя" });
       }
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
 
       try {
         await followUser(payload.sub, parsed.data.userId);
@@ -34,7 +34,7 @@ export default async function followsRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Некорректный ID пользователя" });
     }
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     await unfollowUser(payload.sub, parsed.data.userId);
     return { success: true };
   });

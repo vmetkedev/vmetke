@@ -70,7 +70,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
       const body = createBody.safeParse(request.body);
       if (!body.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         return { conversation: await getOrCreateConversation(payload.sub, body.data.userId) };
       } catch (e) {
@@ -80,7 +80,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
   );
 
   app.get("/", { preHandler: [app.authenticate] }, async (request) => {
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     return { conversations: await listConversations(payload.sub) };
   });
 
@@ -91,7 +91,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Некорректные данные" });
     }
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       return await getMessages(params.data.id, payload.sub, query.data.before, query.data.limit);
     } catch (e) {
@@ -112,7 +112,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Некорректные данные" });
       }
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         const message = await sendMessage(
           params.data.id,
@@ -141,7 +141,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Некорректные данные" });
       }
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         const message = await editMessage(
           params.data.id,
@@ -170,7 +170,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Некорректные данные" });
       }
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         const message = await forwardMessage(
           params.data.id,
@@ -196,7 +196,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
       const params = messageParams.safeParse(request.params);
       if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         const likes = await likeMessage(params.data.id, params.data.messageId, payload.sub);
         return { likes };
@@ -216,7 +216,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
       const params = messageParams.safeParse(request.params);
       if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         const likes = await unlikeMessage(params.data.id, params.data.messageId, payload.sub);
         return { likes };
@@ -237,7 +237,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
       const params = idParams.safeParse(request.params);
       if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         await notifyTyping(params.data.id, payload.sub);
         return { success: true };
@@ -251,7 +251,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
     const params = idParams.safeParse(request.params);
     if (!params.success) return reply.code(400).send({ error: "Некорректные данные" });
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await markRead(params.data.id, payload.sub);
       return { success: true };
@@ -267,7 +267,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Некорректные данные" });
     }
 
-    const payload = request.user as { sub: string };
+    const payload = request.user;
     try {
       await deleteConversation(params.data.id, payload.sub, query.data.scope);
       return { success: true };
@@ -286,7 +286,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: "Некорректные данные" });
       }
 
-      const payload = request.user as { sub: string };
+      const payload = request.user;
       try {
         await deleteMessage(params.data.id, params.data.messageId, payload.sub, query.data.scope);
         return { success: true };
