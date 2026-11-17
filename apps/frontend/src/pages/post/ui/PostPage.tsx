@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router";
+import { useParams, useNavigate, useLocation, Link } from "react-router";
 import { fetchPost, type Post } from "@/entities/post";
 import { fetchUserProfile, followUser, unfollowUser, type UserProfile } from "@/entities/user";
 import { PostCard } from "@/widgets/post-card";
@@ -17,6 +17,7 @@ export default function PostPage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { hash } = useLocation();
 
   useEffect(() => {
     if (!postId) return;
@@ -29,6 +30,23 @@ export default function PostPage() {
       .catch((err) => setError((err as Error).message))
       .finally(() => setLoading(false));
   }, [postId]);
+
+  useEffect(() => {
+    if (loading || !post || hash !== "#comments") return;
+
+    const scroll = () => document.getElementById("comments")?.scrollIntoView({ block: "start" });
+    scroll();
+    const timers = [100, 400, 1000].map((ms) => setTimeout(scroll, ms));
+
+    const events = ["wheel", "touchstart", "keydown"] as const;
+    const cancel = () => {
+      timers.forEach(clearTimeout);
+      events.forEach((e) => window.removeEventListener(e, cancel));
+    };
+    events.forEach((e) => window.addEventListener(e, cancel, { passive: true }));
+
+    return cancel;
+  }, [loading, post, hash]);
 
   const handleFollowToggle = async () => {
     if (!user) return navigate("/login");

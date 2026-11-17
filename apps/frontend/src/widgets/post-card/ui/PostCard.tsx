@@ -259,7 +259,7 @@ export function PostCard({
         </button>
 
         {linkTitle ? (
-          <Link to={`/post/${post.id}`} className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+          <Link to={`/post/${post.id}#comments`} className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
             <MessageCircle size={16} />
             {post.commentsCount}
           </Link>
