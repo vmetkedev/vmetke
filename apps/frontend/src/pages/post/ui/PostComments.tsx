@@ -5,6 +5,17 @@ import { ReportDialog } from "@/features/report";
 import { fetchComments, createComment, deleteComment, likeComment, unlikeComment, type Comment } from "../api/comment";
 import { useAuth } from "@/entities/session";
 import { Avatar } from "@/shared/ui/Avatar";
+import { useMarkdownHtml } from "@/shared/lib/useMarkdownHtml";
+
+function CommentBody({ content }: { content: string }) {
+  const html = useMarkdownHtml(content);
+  return (
+    <span
+      className="post-content text-gray-700 dark:text-gray-300 ml-1.5 wrap-anywhere [&_p]:inline [&_p]:m-0"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
 
 export function PostComments({
   postId,
@@ -100,7 +111,7 @@ export function PostComments({
                   <Link to={`/u/${c.author.username}`} className="font-medium hover:underline dark:text-gray-100">
                     {c.author.displayName || c.author.username}
                   </Link>
-                  <span className="text-gray-700 dark:text-gray-300 ml-1.5 wrap-anywhere">{c.content}</span>
+                  <CommentBody content={c.content} />
                   <div className="mt-0.5">
                     <button
                       onClick={() => handleToggleLike(c)}

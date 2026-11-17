@@ -8,6 +8,7 @@ import {
   type AdminContentFilter,
 } from "../api/admin";
 import { DeleteWithReasonDialog } from "./DeleteWithReasonDialog";
+import { AdminMarkdownBody } from "./AdminMarkdownBody";
 import { useAuth } from "@/entities/session";
 import { BTN, DELETE_FORBIDDEN_HINT, canDeleteContent, fmtDate } from "./adminShared";
 
@@ -46,7 +47,7 @@ export function AdminCommentsList({ filter }: { filter: AdminContentFilter }) {
             <li key={c.id} className="px-4 py-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm whitespace-pre-wrap break-words dark:text-gray-100">{c.content}</p>
+                  <AdminMarkdownBody content={c.content} className="max-h-40 overflow-auto text-sm" />
                   <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-gray-500 dark:text-gray-400">
                     <Link to={`/u/${c.author.username}`} className="hover:underline">
                       @{c.author.username}
