@@ -90,7 +90,7 @@ export function PostComments({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3">
+    <div id="comments" className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow space-y-3 scroll-mt-20">
       <h3 className="text-sm font-medium dark:text-gray-100">Комментарии</h3>
       {loading ? (
         <p className="text-xs text-gray-400 dark:text-gray-500">Загрузка...</p>
