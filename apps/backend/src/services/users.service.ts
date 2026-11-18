@@ -3,9 +3,9 @@ import crypto from "node:crypto";
 import { eq, and, count } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, follows, refreshTokens } from "../db/schema/index.js";
+import { NotFoundError } from "../lib/errors.js";
 
 export class InvalidPasswordError extends Error {}
-export class UserNotFoundError extends Error {}
 
 type Updater = Pick<typeof db, "update">;
 
@@ -77,7 +77,7 @@ export async function anonymizeAccount(executor: Updater, userId: string) {
 
 export async function deleteAccount(userId: string, password: string) {
   const [user] = await db.select().from(users).where(eq(users.id, userId));
-  if (!user) throw new UserNotFoundError("Пользователь не найден");
+  if (!user) throw new NotFoundError("Пользователь не найден");
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new InvalidPasswordError("Неверный пароль");

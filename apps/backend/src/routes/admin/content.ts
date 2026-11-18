@@ -25,8 +25,8 @@ const listQuery = z.object({
 });
 const deleteBody = z.object({ reason: z.string().trim().min(3, "укажите причину").max(500) });
 
-const actor = (request: { user: unknown; staffRole?: UserRole }) => ({
-  id: (request.user as { sub: string }).sub,
+const actor = (request: { user: { sub: string }; staffRole?: UserRole }) => ({
+  id: request.user.sub,
   role: request.staffRole!,
 });
 
@@ -37,7 +37,7 @@ function handleError(err: unknown, reply: FastifyReply) {
 
 export default async function adminContentRoutes(app: FastifyInstance) {
   // Хуки родителя (authenticate + минимум «модератор») наследуются
-  const actorId = (request: { user: unknown }) => (request.user as { sub: string }).sub;
+  const actorId = (request: { user: { sub: string } }) => request.user.sub;
 
   app.get("/posts", async (request, reply) => {
     const parsed = listQuery.safeParse(request.query);

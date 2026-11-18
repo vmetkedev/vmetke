@@ -35,7 +35,7 @@ function handleError(err: unknown, reply: FastifyReply) {
 export default async function adminUsersRoutes(app: FastifyInstance) {
   app.addHook("onRequest", requireRole("admin"));
 
-  const actorId = (request: { user: unknown }) => (request.user as { sub: string }).sub;
+  const actorId = (request: { user: { sub: string } }) => request.user.sub;
 
   app.get("/", async (request, reply) => {
     const parsed = listQuery.safeParse(request.query);

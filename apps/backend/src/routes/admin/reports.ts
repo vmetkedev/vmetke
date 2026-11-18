@@ -29,8 +29,8 @@ function handleError(err: unknown, reply: FastifyReply) {
 
 export default async function adminReportsRoutes(app: FastifyInstance) {
   // Хуки родителя (authenticate + минимум «модератор») наследуются
-  const actor = (request: { user: unknown; staffRole?: UserRole }) => ({
-    id: (request.user as { sub: string }).sub,
+  const actor = (request: { user: { sub: string }; staffRole?: UserRole }) => ({
+    id: request.user.sub,
     role: request.staffRole!,
   });
 

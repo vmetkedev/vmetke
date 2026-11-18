@@ -5,11 +5,12 @@ import {
   updateAvatarColor,
   deleteAccount,
   InvalidPasswordError,
-  UserNotFoundError,
 } from "../services/users.service.js";
 import { getUserPosts } from "../services/posts.service.js";
 import { feedQuerySchema } from "../schemas/posts.js";
 import { updateAvatarSchema } from "../schemas/users.js";
+import { handleOwnershipError } from "../lib/errors.js";
+import { getViewerId } from "../lib/auth.js";
 
 const usernameParamSchema = z.object({ username: z.string() });
 const deleteAccountSchema = z.object({ password: z.string().min(1, "пароль обязателен") });
@@ -19,8 +20,7 @@ export default async function usersRoutes(app: FastifyInstance) {
     const parsed = updateAvatarSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user;
-    await updateAvatarColor(payload.sub, parsed.data.avatarColor);
+    await updateAvatarColor(request.user.sub, parsed.data.avatarColor);
     return { success: true };
   });
 
@@ -28,15 +28,13 @@ export default async function usersRoutes(app: FastifyInstance) {
     const parsed = deleteAccountSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-    const payload = request.user;
     try {
-      await deleteAccount(payload.sub, parsed.data.password);
+      await deleteAccount(request.user.sub, parsed.data.password);
       reply.clearCookie("refresh_token", { path: "/api/auth" });
       return { success: true };
     } catch (err) {
       if (err instanceof InvalidPasswordError) return reply.code(401).send({ error: err.message });
-      if (err instanceof UserNotFoundError) return reply.code(404).send({ error: err.message });
-      throw err;
+      return handleOwnershipError(err, reply);
     }
   });
 
@@ -47,8 +45,7 @@ export default async function usersRoutes(app: FastifyInstance) {
       const parsed = usernameParamSchema.safeParse(request.params);
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный username" });
 
-      const payload = request.user as { sub: string } | undefined;
-      const profile = await getUserProfile(parsed.data.username, payload?.sub ?? null);
+      const profile = await getUserProfile(parsed.data.username, getViewerId(request));
       if (!profile) return reply.code(404).send({ error: "Пользователь не найден" });
       return { user: profile };
     }
@@ -64,11 +61,11 @@ export default async function usersRoutes(app: FastifyInstance) {
       const queryParsed = feedQuerySchema.safeParse(request.query);
       if (!queryParsed.success) return reply.code(400).send({ error: queryParsed.error.flatten() });
 
-      const payload = request.user as { sub: string } | undefined;
-      const profile = await getUserProfile(paramsParsed.data.username, payload?.sub ?? null);
+      const viewerId = getViewerId(request);
+      const profile = await getUserProfile(paramsParsed.data.username, viewerId);
       if (!profile) return reply.code(404).send({ error: "Пользователь не найден" });
 
-      return getUserPosts(profile.id, payload?.sub ?? null, queryParsed.data);
+      return getUserPosts(profile.id, viewerId, queryParsed.data);
     }
   );
 }

@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { eq } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { users, type UserRole } from "../db/schema/index.js";
+import { getViewerId } from "../lib/auth.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -13,7 +14,7 @@ const RANK: Record<UserRole, number> = { user: 0, moderator: 1, admin: 2 };
 
 export function requireRole(min: Exclude<UserRole, "user">) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const sub = (request.user as { sub?: string } | undefined)?.sub;
+    const sub = getViewerId(request);
     if (!sub) return reply.code(401).send({ error: "Требуется авторизация" });
 
     const [row] = await db

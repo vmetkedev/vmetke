@@ -20,6 +20,7 @@ import {
   likeComment,
   unlikeComment,
 } from "../services/comments.service.js";
+import { getViewerId } from "../lib/auth.js";
 
 const postIdParamSchema = z.object({ postId: z.string().uuid() });
 const commentIdParamSchema = z.object({ commentId: z.string().uuid() });
@@ -46,8 +47,8 @@ export default async function postsRoutes(app: FastifyInstance) {
       const parsed = feedQuerySchema.safeParse(request.query);
       if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
 
-      const payload = request.user as { sub: string } | undefined;
-      return getFeed(payload?.sub ?? null, parsed.data);
+      const viewerId = getViewerId(request);
+      return getFeed(viewerId, parsed.data);
     }
   );
 
@@ -66,8 +67,8 @@ export default async function postsRoutes(app: FastifyInstance) {
       const parsed = postIdParamSchema.safeParse(request.params);
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-      const payload = request.user as { sub: string } | undefined;
-      const post = await getPostById(parsed.data.postId, payload?.sub ?? null, true);
+      const viewerId = getViewerId(request);
+      const post = await getPostById(parsed.data.postId, viewerId, true);
       if (!post) return reply.code(404).send({ error: "Пост не найден" });
       return { post };
     }
@@ -159,8 +160,8 @@ export default async function postsRoutes(app: FastifyInstance) {
       const parsed = postIdParamSchema.safeParse(request.params);
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
-      const payload = request.user as { sub: string } | undefined;
-      const comments = await getPostComments(parsed.data.postId, payload?.sub ?? null);
+      const viewerId = getViewerId(request);
+      const comments = await getPostComments(parsed.data.postId, viewerId);
       return { comments };
     }
   );
