@@ -18,6 +18,7 @@ import adminRoutes from "./routes/admin/index.js";
 import reportsRoutes from "./routes/reports.js";
 import { applyAdminRateLimit } from "./routes/admin/rate-limit.js";
 import eventsRoutes from "./routes/events.js";
+import seoRoutes from "./routes/seo.js";
 
 const app = Fastify({ logger: true, trustProxy: "127.0.0.1" });
 
@@ -48,6 +49,7 @@ const start = async () => {
   await app.register(notificationsRoutes, { prefix: "/api/notifications" });
   await app.register(searchRoutes, { prefix: "/api/search" });
   await app.register(sitemapRoutes);
+  await app.register(seoRoutes);
 
   await app.register(messagesRoutes, { prefix: "/api/conversations" });
   await app.register(blocksRoutes, { prefix: "/api/blocks" });
