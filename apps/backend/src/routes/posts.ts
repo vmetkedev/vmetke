@@ -21,6 +21,8 @@ import {
   unlikeComment,
 } from "../services/comments.service.js";
 import { getViewerId } from "../lib/auth.js";
+import { registerPostView } from "../services/post-views.service.js";
+import { viewerKeyFor } from "../lib/viewer-key.js";
 
 const postIdParamSchema = z.object({ postId: z.string().uuid() });
 const commentIdParamSchema = z.object({ commentId: z.string().uuid() });
@@ -68,9 +70,14 @@ export default async function postsRoutes(app: FastifyInstance) {
       if (!parsed.success) return reply.code(400).send({ error: "Некорректный ID поста" });
 
       const viewerId = getViewerId(request);
-      const post = await getPostById(parsed.data.postId, viewerId, true);
+      // countView=false: просмотры теперь считаются ниже, один на зрителя
+      const post = await getPostById(parsed.data.postId, viewerId, false);
       if (!post) return reply.code(404).send({ error: "Пост не найден" });
-      return { post };
+
+      if (post.author.id === viewerId) return { post };
+
+      const counted = await registerPostView(post.id, viewerKeyFor(request, viewerId));
+      return { post: counted ? { ...post, viewsCount: post.viewsCount + 1 } : post };
     }
   );
 

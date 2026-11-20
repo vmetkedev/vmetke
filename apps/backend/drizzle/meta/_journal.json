@@ -162,6 +162,13 @@
       "when": 1794027708947,
       "tag": "0023_breezy_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795151932764,
+      "tag": "0024_gorgeous_nomad",
+      "breakpoints": true
     }
   ]
 }
