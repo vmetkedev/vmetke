@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildNoIndexHead,
   buildNotFoundHead,
   buildPostHead,
+  buildProfileHead,
   firstImageUrl,
   injectHead,
   markdownToPlainText,
@@ -120,5 +122,44 @@ describe("buildPostHead + injectHead", () => {
 describe("buildNotFoundHead", () => {
   it("закрывает страницу от индексации", () => {
     expect(injectHead(TEMPLATE, buildNotFoundHead())).toContain("noindex");
+  });
+});
+
+describe("buildProfileHead", () => {
+  const profile = {
+    username: "sirdi",
+    displayName: "Сирди",
+    bio: "Пишу про Linux  и терминалы",
+    createdAt: new Date("2026-09-01T10:00:00Z"),
+  };
+
+  it("ставит title, canonical, og:type profile и описание из bio", () => {
+    const html = injectHead(TEMPLATE, buildProfileHead(profile, SITE));
+    expect(html).toContain("<title>Сирди (@sirdi) | Vmetke.ru</title>");
+    expect(html).toContain(`rel="canonical" href="${SITE}/u/sirdi"`);
+    expect(html).toContain('property="og:type" content="profile"');
+    expect(html).toContain('content="Пишу про Linux и терминалы"');
+    expect(html).not.toContain('content="def"');
+  });
+
+  it("без имени и bio использует @username и запасное описание", () => {
+    const html = injectHead(TEMPLATE, buildProfileHead({ ...profile, displayName: null, bio: null }, SITE));
+    expect(html).toContain("<title>@sirdi | Vmetke.ru</title>");
+    expect(html).toContain("Профиль @sirdi на Vmetke.ru");
+  });
+
+  it("экранирует HTML в имени и bio", () => {
+    const html = injectHead(
+      TEMPLATE,
+      buildProfileHead({ ...profile, displayName: "<b>x</b>", bio: '"><script>1</script>' }, SITE)
+    );
+    expect(html).not.toContain("<b>x</b>");
+    expect(html.match(/<\/script>/g)?.length).toBe(1);
+  });
+});
+
+describe("buildNoIndexHead", () => {
+  it("закрывает страницу от индексации", () => {
+    expect(injectHead(TEMPLATE, buildNoIndexHead("Профиль"))).toContain("noindex");
   });
 });

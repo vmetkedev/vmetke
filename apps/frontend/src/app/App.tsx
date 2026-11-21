@@ -37,7 +37,7 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/" element={<FeedPage />} />
         <Route path="/post/:postId" element={<PostPage />} />
-        <Route path="/u/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/u/:username" element={<ProfilePage />} />
         <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
         <Route path="/new-post" element={<ProtectedRoute><NewPostPage /></ProtectedRoute>} />
         <Route path="/bookmarks" element={<ProtectedRoute><BookmarksPage /></ProtectedRoute>} />

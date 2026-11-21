@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { getAllPostsForSitemap } from "../services/sitemap.service.js";
+import { getAllPostsForSitemap, getAllProfilesForSitemap } from "../services/sitemap.service.js";
 
 const SITE_URL = "https://vmetke.ru";
 
@@ -12,13 +12,20 @@ function escapeXml(value: string) {
 
 export default async function sitemapRoutes(app: FastifyInstance) {
   app.get("/sitemap.xml", async (request, reply) => {
-    const posts = await getAllPostsForSitemap();
+    const [posts, profiles] = await Promise.all([
+      getAllPostsForSitemap(),
+      getAllProfilesForSitemap(),
+    ]);
 
     const urls = [
       `<url><loc>${escapeXml(SITE_URL + "/")}</loc><changefreq>hourly</changefreq><priority>1.0</priority></url>`,
       ...posts.map(
         (post) =>
           `<url><loc>${escapeXml(`${SITE_URL}/post/${post.id}`)}</loc><lastmod>${post.createdAt.toISOString()}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`
+      ),
+      ...profiles.map(
+        (p) =>
+          `<url><loc>${escapeXml(`${SITE_URL}/u/${encodeURIComponent(p.username)}`)}</loc>${p.lastPostAt ? `<lastmod>${p.lastPostAt.toISOString()}</lastmod>` : ""}<changefreq>weekly</changefreq><priority>0.5</priority></url>`
       ),
     ].join("");
 

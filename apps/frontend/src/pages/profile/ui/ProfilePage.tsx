@@ -8,6 +8,7 @@ import { Avatar } from "@/shared/ui/Avatar";
 import { Mail, Flag } from "lucide-react";
 import { ReportDialog } from "@/features/report";
 import { blockUser, fetchBlockedUsers, openConversation, unblockUser } from "@/entities/message";
+import { useAuth } from "@/entities/session";
 
 type Tab = "profile" | "posts";
 
@@ -38,6 +39,7 @@ export default function ProfilePage() {
   const [blockLoading, setBlockLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showReport, setShowReport] = useState(false);
 
   const load = useCallback(async () => {
@@ -65,11 +67,12 @@ export default function ProfilePage() {
 
   const profileId = profile?.id;
   const isMe = profile?.isMe;
+  const loggedIn = !!user;
 
   useEffect(() => {
     setBlocked(false);
     setActionError(null);
-    if (!profileId || isMe) return;
+    if (!profileId || isMe || !loggedIn) return;
     let cancelled = false;
     fetchBlockedUsers()
       .then((data) => {
@@ -79,10 +82,11 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [profileId, isMe]);
+  }, [profileId, isMe, loggedIn]);
 
   const handleFollowToggle = async () => {
     if (!profile) return;
+    if (!user) return navigate("/login");
     setFollowLoading(true);
     try {
       if (profile.isFollowedByMe) {
@@ -104,6 +108,7 @@ export default function ProfilePage() {
 
   const handleMessage = async () => {
     if (!profile) return;
+    if (!user) return navigate("/login");
     setActionError(null);
     try {
       const conv = await openConversation(profile.id);
@@ -124,6 +129,7 @@ export default function ProfilePage() {
 
   const handleBlockToggle = async () => {
     if (!profile || blockLoading) return;
+    if (!user) return navigate("/login");
     if (
       !blocked &&
       !window.confirm(
@@ -204,7 +210,7 @@ export default function ProfilePage() {
                       {blocked ? "Разблокировать" : "Заблокировать"}
                     </button>
                     <button
-                      onClick={() => setShowReport(true)}
+                      onClick={() => (user ? setShowReport(true) : navigate("/login"))}
                       className="flex items-center gap-1.5 text-sm rounded px-3 py-1.5 border dark:border-gray-600 text-gray-700 dark:text-gray-200"
                     >
                       <Flag size={14} />

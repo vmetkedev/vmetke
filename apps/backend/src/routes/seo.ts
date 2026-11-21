@@ -1,8 +1,15 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { readFile, stat } from "node:fs/promises";
 import { z } from "zod";
 import { getPostById } from "../services/posts.service.js";
-import { buildNotFoundHead, buildPostHead, injectHead } from "../lib/seo.js";
+import { getProfileForSeo } from "../services/profile-seo.service.js";
+import {
+  buildNoIndexHead,
+  buildNotFoundHead,
+  buildPostHead,
+  buildProfileHead,
+  injectHead,
+} from "../lib/seo.js";
 
 const SITE_URL = "https://vmetke.ru";
 const postIdSchema = z.string().uuid();
@@ -30,21 +37,26 @@ async function loadTemplate(): Promise<string | null> {
 // а CSP по умолчанию запретит внешние картинки в постах.
 const STRIPPED_HEADERS = ["content-security-policy", "cross-origin-opener-policy"];
 
+function prepareHtmlReply(reply: FastifyReply) {
+  for (const name of STRIPPED_HEADERS) {
+    reply.removeHeader(name);
+    reply.raw.removeHeader(name);
+  }
+  reply.header("content-type", "text/html; charset=utf-8");
+  reply.header("cache-control", "no-cache");
+}
+
+const seoRateLimit = { rateLimit: { max: 120, timeWindow: "1 minute" } };
+
 export default async function seoRoutes(app: FastifyInstance) {
   app.get<{ Params: { postId: string } }>(
     "/post/:postId",
-    { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } },
+    { config: seoRateLimit },
     async (request, reply) => {
       const template = await loadTemplate();
       // 503: Nginx перехватит и отдаст обычный index.html
       if (!template) return reply.code(503).send("index.html unavailable");
-
-      for (const name of STRIPPED_HEADERS) {
-        reply.removeHeader(name);
-        reply.raw.removeHeader(name);
-      }
-      reply.header("content-type", "text/html; charset=utf-8");
-      reply.header("cache-control", "no-cache");
+      prepareHtmlReply(reply);
 
       const parsed = postIdSchema.safeParse(request.params.postId);
       // countView=false: боты и превью в мессенджерах не накручивают просмотры
@@ -52,6 +64,28 @@ export default async function seoRoutes(app: FastifyInstance) {
 
       if (!post) return reply.code(404).send(injectHead(template, buildNotFoundHead()));
       return reply.send(injectHead(template, buildPostHead(post, SITE_URL)));
+    }
+  );
+
+  app.get<{ Params: { username: string } }>(
+    "/u/:username",
+    { config: seoRateLimit },
+    async (request, reply) => {
+      const template = await loadTemplate();
+      if (!template) return reply.code(503).send("index.html unavailable");
+      prepareHtmlReply(reply);
+
+      const username = request.params.username;
+      const profile = username.length <= 64 ? await getProfileForSeo(username) : null;
+
+      if (!profile) {
+        return reply.code(404).send(injectHead(template, buildNoIndexHead("Пользователь не найден")));
+      }
+      // Удалённые и забаненные профили людям доступны, но в поиск не попадают
+      if (profile.deletedAt || profile.bannedAt) {
+        return reply.send(injectHead(template, buildNoIndexHead("Профиль")));
+      }
+      return reply.send(injectHead(template, buildProfileHead(profile, SITE_URL)));
     }
   );
 }

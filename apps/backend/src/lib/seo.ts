@@ -142,3 +142,60 @@ export function injectHead(template: string, head: HeadParts): string {
     .replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${escapeHtml(head.title)}</title>`)
     .replace(/<\/head>/i, () => `${head.tags}\n</head>`);
 }
+
+
+export interface SeoProfile {
+  username: string;
+  displayName: string | null;
+  bio: string | null;
+  createdAt: Date;
+}
+
+export function buildProfileHead(profile: SeoProfile, siteUrl: string): HeadParts {
+  const url = `${siteUrl}/u/${encodeURIComponent(profile.username)}`;
+  const handle = `@${profile.username}`;
+  const displayName = profile.displayName?.trim() || "";
+  const name = displayName || handle;
+  const heading = displayName ? `${displayName} (${handle})` : handle;
+  const bio = truncate((profile.bio ?? "").replace(/\s+/g, " ").trim(), 200);
+  const description = bio || `Профиль ${heading} на ${SITE_NAME}: посты и подписчики.`;
+  const ogImage = `${siteUrl}/icon-512.png`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    dateCreated: profile.createdAt.toISOString(),
+    mainEntity: {
+      "@type": "Person",
+      name,
+      alternateName: handle,
+      url,
+      ...(bio ? { description: bio } : {}),
+    },
+  };
+
+  const lines = [
+    metaName("description", description),
+    `<link rel="canonical" href="${escapeHtml(url)}">`,
+    metaProp("og:site_name", SITE_NAME),
+    metaProp("og:locale", "ru_RU"),
+    metaProp("og:type", "profile"),
+    metaProp("og:url", url),
+    metaProp("og:title", heading),
+    metaProp("og:description", description),
+    metaProp("og:image", ogImage),
+    metaProp("profile:username", profile.username),
+    metaName("twitter:card", "summary"),
+    metaName("twitter:title", heading),
+    metaName("twitter:description", description),
+    metaName("twitter:image", ogImage),
+    `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, "\\u003c")}</script>`,
+  ];
+
+  return { title: `${heading} | ${SITE_NAME}`, tags: lines.join("\n") };
+}
+
+/** Страница существует для людей, но поисковикам её показывать не нужно. */
+export function buildNoIndexHead(title: string): HeadParts {
+  return { title: `${title} | ${SITE_NAME}`, tags: metaName("robots", "noindex, nofollow") };
+}
