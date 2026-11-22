@@ -19,7 +19,10 @@ import {
 } from "@/entities/message";
 import MessagesPage from "./MessagesPage";
 
-const { ME } = vi.hoisted(() => ({ ME: "me-id" }));
+const { ME, handlers } = vi.hoisted(() => ({
+  ME: "me-id",
+  handlers: new Set<(e: unknown) => void>(),
+}));
 
 vi.mock("@/entities/session/model/AuthContext", () => ({
   useAuth: () => ({ user: { id: ME, username: "me", avatarColor: null } }),
@@ -47,7 +50,12 @@ vi.mock("@/entities/message", async (importOriginal) => ({
 }));
 
 vi.mock("@/shared/api/realtime", () => ({
-  subscribeRealtime: () => () => {},
+  subscribeRealtime: (_userId: string, handler: (e: unknown) => void) => {
+    handlers.add(handler);
+    return () => {
+      handlers.delete(handler);
+    };
+  },
   subscribeStatus: () => () => {},
   isRealtimeConnected: () => false,
 }));
@@ -97,12 +105,18 @@ function expectBefore(a: HTMLElement, b: HTMLElement) {
   expect(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
 
+const emit = (event: { type: string; conversationId?: number; lastReadId?: number }) =>
+  act(() => {
+    for (const h of [...handlers]) h(event);
+  });
+
 const input = () => screen.getByPlaceholderText("Напишите сообщение...");
 const sendButton = () => screen.getByRole("button", { name: "Отправить" });
 const cancelReplyButton = () => screen.getByRole("button", { name: "Отменить ответ" });
 const queryCancelReply = () => screen.queryByRole("button", { name: "Отменить ответ" });
 
 beforeEach(() => {
+  handlers.clear();
   vi.resetAllMocks();
   vi.mocked(fetchConversations).mockResolvedValue({ conversations: [] });
   vi.mocked(fetchMessages).mockResolvedValue({ messages: [], nextCursor: null });
@@ -863,6 +877,115 @@ describe("MessagesPage: лайки", () => {
 
     await hoverLong(2);
     expect(heart(2)).toHaveAttribute("aria-label", "Убрать лайк");
+  });
+});
+
+describe("MessagesPage: галочки прочтения", () => {
+  const bubble = (text: string) =>
+    screen.getByText(text).closest("[data-message-bubble]") as HTMLElement;
+
+  it("у моих сообщений одна галочка, пока собеседник не дочитал, и две после", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "новое"), msg(1, ME, "старое")],
+      nextCursor: null,
+      otherLastReadId: 1,
+    });
+    renderAt("/messages/5");
+    await screen.findByText("новое");
+
+    expect(within(bubble("старое")).getByLabelText("Прочитано")).toBeInTheDocument();
+    expect(within(bubble("новое")).getByLabelText("Отправлено")).toBeInTheDocument();
+  });
+
+  it("у чужих сообщений галочек нет", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "чужое")],
+      nextCursor: null,
+      otherLastReadId: 1,
+    });
+    renderAt("/messages/5");
+    await screen.findByText("чужое");
+
+    expect(screen.queryByLabelText("Отправлено")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Прочитано")).not.toBeInTheDocument();
+  });
+
+  it("conversation.read обновляет галочки без перезапроса истории", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, ME, "привет")],
+      nextCursor: null,
+      otherLastReadId: 0,
+    });
+    renderAt("/messages/5");
+    await screen.findByText("привет");
+    expect(within(bubble("привет")).getByLabelText("Отправлено")).toBeInTheDocument();
+
+    emit({ type: "conversation.read", conversationId: 5, lastReadId: 1 });
+
+    expect(within(bubble("привет")).getByLabelText("Прочитано")).toBeInTheDocument();
+    expect(fetchMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it("событие другого диалога игнорируется", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, ME, "привет")],
+      nextCursor: null,
+      otherLastReadId: 0,
+    });
+    renderAt("/messages/5");
+    await screen.findByText("привет");
+
+    emit({ type: "conversation.read", conversationId: 6, lastReadId: 1 });
+
+    expect(within(bubble("привет")).getByLabelText("Отправлено")).toBeInTheDocument();
+  });
+
+  it("прочитано только до lastReadId и никогда не откатывается назад", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "второе"), msg(1, ME, "первое")],
+      nextCursor: null,
+      otherLastReadId: 0,
+    });
+    renderAt("/messages/5");
+    await screen.findByText("второе");
+
+    emit({ type: "conversation.read", conversationId: 5, lastReadId: 1 });
+    expect(within(bubble("первое")).getByLabelText("Прочитано")).toBeInTheDocument();
+    expect(within(bubble("второе")).getByLabelText("Отправлено")).toBeInTheDocument();
+
+    emit({ type: "conversation.read", conversationId: 5, lastReadId: 2 });
+    emit({ type: "conversation.read", conversationId: 5, lastReadId: 1 });
+
+    expect(screen.getAllByLabelText("Прочитано")).toHaveLength(2);
+    expect(screen.queryByLabelText("Отправлено")).not.toBeInTheDocument();
+  });
+
+  it("в списке диалогов галочки только у моего последнего сообщения", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({
+      conversations: [
+        conv({
+          id: 5,
+          lastMessage: { id: 9, content: "прочитано", senderId: ME, createdAt: now(), deleted: false },
+          otherLastReadId: 9,
+        }),
+        conv({
+          id: 6,
+          otherUser: ALICE,
+          lastMessage: { id: 4, content: "ещё нет", senderId: ME, createdAt: now(), deleted: false },
+          otherLastReadId: 3,
+        }),
+        conv({
+          id: 7,
+          lastMessage: { id: 2, content: "входящее", senderId: BOB.id, createdAt: now(), deleted: false },
+          otherLastReadId: 9,
+        }),
+      ],
+    });
+    renderAt("/messages");
+    await screen.findByText("Вы: прочитано");
+
+    expect(screen.getAllByLabelText("Прочитано")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Отправлено")).toHaveLength(1);
   });
 });
 

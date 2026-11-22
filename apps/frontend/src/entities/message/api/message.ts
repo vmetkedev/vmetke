@@ -49,6 +49,7 @@ export type Conversation = {
     deleted: boolean;
   };
   unreadCount: number;
+  otherLastReadId?: number;
 };
 
 export type DeleteScope = "me" | "all";
@@ -86,7 +87,12 @@ export async function openConversation(userId: string): Promise<{ id: number }> 
 export async function fetchMessages(
   conversationId: number,
   before?: number,
-): Promise<{ messages: Message[]; nextCursor: number | null; blockedByMe?: boolean }> {
+): Promise<{
+  messages: Message[];
+  nextCursor: number | null;
+  blockedByMe?: boolean;
+  otherLastReadId?: number;
+}> {
   const qs = before ? `?before=${before}` : "";
   return parse(await api.get(`/conversations/${conversationId}/messages${qs}`));
 }

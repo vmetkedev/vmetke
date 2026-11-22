@@ -13,6 +13,7 @@ export type RealtimeEvent = {
     | "notification.changed"
     | "typing";
   conversationId?: number;
+  lastReadId?: number;
 };
 
 type EventHandler = (event: RealtimeEvent) => void;

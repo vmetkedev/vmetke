@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { ArrowLeft, Check, Heart, Send, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Heart, Send, X } from "lucide-react";
 import { useAuth } from "@/entities/session";
 import { AppLayout } from "@/widgets/layout";
 import { Avatar } from "@/shared/ui/Avatar";
@@ -71,6 +71,18 @@ function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
   return [...map.values()].sort((a, b) => a.id - b.id);
 }
 
+function ReadTicks({ read, className = "" }: { read: boolean; className?: string }) {
+  const Icon = read ? CheckCheck : Check;
+  return (
+    <Icon
+      size={12}
+      role="img"
+      aria-label={read ? "Прочитано" : "Отправлено"}
+      className={className}
+    />
+  );
+}
+
 function Thread({
   conversationId,
   conversations,
@@ -108,6 +120,8 @@ function Thread({
   const [forwardError, setForwardError] = useState<string | null>(null);
   // Сообщение, над которым курсор продержался LIKE_HOVER_DELAY_MS: рядом с ним показываем кнопку лайка
   const [hoverId, setHoverId] = useState<number | null>(null);
+  // До какого сообщения дочитал собеседник (только растёт)
+  const [otherLastReadId, setOtherLastReadId] = useState(0);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -131,6 +145,10 @@ function Thread({
     senderId === myId ? "Вы" : (otherName ?? "Собеседник");
   const forwardName = (a: ForwardAuthor) => (a.id === myId ? "Вы" : a.displayName || a.username);
   const menuTarget = menu ? messages.find((m) => m.id === menu.id) : undefined;
+  const otherRead = Math.max(
+    otherLastReadId,
+    conversations.find((c) => c.id === conversationId)?.otherLastReadId ?? 0,
+  );
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -164,6 +182,7 @@ function Thread({
         if (initial) setNextCursor(data.nextCursor);
         markIfNeeded(asc);
         setBlockedByMe(data.blockedByMe === true);
+        setOtherLastReadId((prev) => Math.max(prev, data.otherLastReadId ?? 0));
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -195,8 +214,14 @@ function Thread({
 
   const { connected } = useRealtime(myId, {
     onEvent: (e) => {
-      // отметка «прочитано» на сами сообщения не влияет
-      if (e.type === "conversation.read") return;
+      if (e.type === "conversation.read") {
+        // собеседник дочитал: обновляем галочки без запроса
+        const lastReadId = e.lastReadId;
+        if (e.conversationId === conversationId && lastReadId !== undefined) {
+          setOtherLastReadId((prev) => Math.max(prev, lastReadId));
+        }
+        return;
+      }
       if (e.conversationId !== undefined && e.conversationId !== conversationId) return;
       refreshThread();
     },
@@ -569,6 +594,7 @@ function Thread({
               const forwardedFrom = m.forwardedFrom ?? null;
               const likes = m.likes ?? null;
               const likedByMe = likes?.likedByMe === true;
+              const read = mine && m.id <= otherRead;
               // Кнопка лайка: после 1,5 с наведения, а также пока открыто меню сообщения
               // (так до неё можно добраться с тачскрина и с клавиатуры).
               // При блокировке ставить лайк нельзя, но снять свой можно.
@@ -664,12 +690,13 @@ function Thread({
                           <span />
                         )}
                         <p
-                          className={`ml-auto text-[10px] ${
+                          className={`ml-auto flex items-center gap-1 text-[10px] ${
                             mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
                           }`}
                         >
-                          {m.editedAt && <span className="mr-1">изменено</span>}
-                          {formatMessageTime(m.createdAt)}
+                          {m.editedAt && <span>изменено</span>}
+                          <span>{formatMessageTime(m.createdAt)}</span>
+                          {mine && <ReadTicks read={read} className={read ? "text-white" : "text-blue-200"} />}
                         </p>
                       </div>
                     </div>
@@ -965,7 +992,13 @@ export default function MessagesPage() {
                           <span className="text-sm font-medium truncate dark:text-gray-100">
                             {c.otherUser.displayName || c.otherUser.username}
                           </span>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                          <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                            {mine && (
+                              <ReadTicks
+                                read={c.lastMessage.id <= (c.otherLastReadId ?? 0)}
+                                className="text-blue-500"
+                              />
+                            )}
                             {formatListDate(c.lastMessage.createdAt)}
                           </span>
                         </div>
