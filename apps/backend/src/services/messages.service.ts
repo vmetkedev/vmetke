@@ -315,6 +315,10 @@ export async function listConversations(me: string) {
         WHERE ${userBlocks.blockerId} = ${me}
           AND ${userBlocks.blockedId} = ${otherId}
       )`,
+      otherLastReadId: sql<number>`COALESCE(
+        CASE WHEN ${conversations.userLowId} = ${me}
+          THEN ${conversations.lastReadHighId}
+          ELSE ${conversations.lastReadLowId} END, 0)`,
     })
     .from(conversations)
     .innerJoin(users, sql`${users.id} = ${otherId}`)
@@ -382,6 +386,8 @@ export async function getMessages(
     messages: await hydrate(items, me, clearedFor(conv, me)),
     nextCursor: hasMore ? items[items.length - 1].id : null,
     blockedByMe,
+    // до какого сообщения дочитал собеседник (0, если ничего)
+    otherLastReadId: (isLow(conv, me) ? conv.lastReadHighId : conv.lastReadLowId) ?? 0,
   };
 }
 
@@ -509,6 +515,10 @@ export async function markRead(conversationId: number, me: string) {
   if (!conv.lastMessageId) return;
 
   const low = isLow(conv, me);
+  const prev = (low ? conv.lastReadLowId : conv.lastReadHighId) ?? 0;
+  // Уже прочитано: ничего не пишем и не шлём событие (клиент зовёт /read часто)
+  if (prev >= conv.lastMessageId) return;
+
   const col = low ? conversations.lastReadLowId : conversations.lastReadHighId;
   const value = sql`GREATEST(COALESCE(${col}, 0), ${conv.lastMessageId})`;
 
@@ -516,6 +526,17 @@ export async function markRead(conversationId: number, me: string) {
     .update(conversations)
     .set(low ? { lastReadLowId: value } : { lastReadHighId: value })
     .where(eq(conversations.id, conversationId));
+
+  // Собеседнику сообщаем, до какого сообщения я дочитал.
+  // При блокировке в любую сторону молчим, как и с «печатает…».
+  const other = otherOf(conv, me);
+  const state = await blockState(me, other);
+  if (state.blockedByMe || state.blockedMe) return;
+  publish([other], {
+    type: "conversation.read",
+    conversationId,
+    lastReadId: conv.lastMessageId,
+  });
 }
 
 // «Печатает…»: ничего не пишем в БД, сигнал уходит только собеседнику.

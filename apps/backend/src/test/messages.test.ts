@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildTestApp } from "./app.js";
+import type { ServerResponse } from "node:http";
+import { addClient } from "../services/realtime.service.js";
 
 async function registerAndLogin(app: FastifyInstance, username: string) {
   const res = await app.inject({
@@ -14,6 +16,24 @@ async function registerAndLogin(app: FastifyInstance, username: string) {
 // id пользователя лежит в поле sub access-токена
 function userIdFromToken(token: string) {
   return JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString()).sub as string;
+}
+
+type SseFrame = { type: string; conversationId?: number; lastReadId?: number };
+
+// Фейковое SSE-соединение: собирает кадры, которые hub пишет пользователю
+function listen(userId: string, stops: Array<() => void>) {
+  const frames: SseFrame[] = [];
+  const res = {
+    writableEnded: false,
+    destroyed: false,
+    write: (chunk: string) => {
+      if (chunk.startsWith("data: ")) frames.push(JSON.parse(chunk.slice(6)));
+      return true;
+    },
+    end: () => {},
+  } as unknown as ServerResponse;
+  stops.push(addClient(userId, res));
+  return frames;
 }
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -39,12 +59,14 @@ function send(app: FastifyInstance, token: string, conversationId: number, conte
 
 describe("messages", () => {
   let app: FastifyInstance;
+  const stops: Array<() => void> = [];
 
   beforeEach(async () => {
     app = await buildTestApp();
   });
 
   afterEach(async () => {
+    stops.splice(0).forEach((stop) => stop());
     await app.close();
   });
 
@@ -1080,5 +1102,105 @@ describe("messages", () => {
 
     const copy = await forwardMsg(alice, c1.id, m.id, c2.id);
     expect(copy.json().message.likes).toEqual({ count: 0, likedByMe: false });
+  });
+
+  const markRead = (token: string, convId: number) =>
+    app.inject({
+      method: "POST",
+      url: `/api/conversations/${convId}/read`,
+      headers: auth(token),
+    });
+
+  const readFrames = (frames: SseFrame[]) => frames.filter((f) => f.type === "conversation.read");
+
+  it("read receipt: reading notifies only the other participant with lastReadId", async () => {
+    const alice = await registerAndLogin(app, "alice60");
+    const bob = await registerAndLogin(app, "bob60");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    await send(app, alice, conv.id, "раз");
+    const last = (await send(app, alice, conv.id, "два")).json().message as { id: number };
+
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+    const bobFrames = listen(userIdFromToken(bob), stops);
+
+    expect((await markRead(bob, conv.id)).statusCode).toBe(200);
+
+    expect(readFrames(aliceFrames)).toEqual([
+      { type: "conversation.read", conversationId: conv.id, lastReadId: last.id },
+    ]);
+    expect(readFrames(bobFrames)).toHaveLength(0);
+  });
+
+  it("read receipt: a repeated read sends no event, a newer message sends a new one", async () => {
+    const alice = await registerAndLogin(app, "alice61");
+    const bob = await registerAndLogin(app, "bob61");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    await send(app, alice, conv.id, "раз");
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+
+    await markRead(bob, conv.id);
+    await markRead(bob, conv.id);
+    expect(readFrames(aliceFrames)).toHaveLength(1);
+
+    const next = (await send(app, alice, conv.id, "два")).json().message as { id: number };
+    await markRead(bob, conv.id);
+    const frames = readFrames(aliceFrames);
+    expect(frames).toHaveLength(2);
+    expect(frames[1].lastReadId).toBe(next.id);
+  });
+
+  it("read receipt: reading an empty conversation sends nothing", async () => {
+    const alice = await registerAndLogin(app, "alice62");
+    const bob = await registerAndLogin(app, "bob62");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+
+    expect((await markRead(bob, conv.id)).statusCode).toBe(200);
+    expect(readFrames(aliceFrames)).toHaveLength(0);
+  });
+
+  it("read receipt: no event when the pair is blocked", async () => {
+    const alice = await registerAndLogin(app, "alice63");
+    const bob = await registerAndLogin(app, "bob63");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    await send(app, alice, conv.id, "привет");
+    await app.inject({
+      method: "POST",
+      url: "/api/blocks",
+      headers: auth(bob),
+      payload: { userId: userIdFromToken(alice) },
+    });
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+
+    expect((await markRead(bob, conv.id)).statusCode).toBe(200);
+    expect(readFrames(aliceFrames)).toHaveLength(0);
+  });
+
+  it("read receipt: otherLastReadId in history and list follows the other side's reads", async () => {
+    const alice = await registerAndLogin(app, "alice64");
+    const bob = await registerAndLogin(app, "bob64");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    await send(app, alice, conv.id, "раз");
+    const last = (await send(app, alice, conv.id, "два")).json().message as { id: number };
+
+    const historyFor = async (token: string) =>
+      (
+        await app.inject({
+          method: "GET",
+          url: `/api/conversations/${conv.id}/messages`,
+          headers: auth(token),
+        })
+      ).json() as { otherLastReadId: number };
+
+    // Боб ещё не читал
+    expect((await historyFor(alice)).otherLastReadId).toBe(0);
+    expect((await listOf(alice))[0].otherLastReadId).toBe(0);
+
+    await markRead(bob, conv.id);
+    expect((await historyFor(alice)).otherLastReadId).toBe(last.id);
+    expect((await listOf(alice))[0].otherLastReadId).toBe(last.id);
+
+    // у Боба обратная сторона: Алиса «прочла» свои сообщения, отправив их
+    expect((await historyFor(bob)).otherLastReadId).toBe(last.id);
   });
 });

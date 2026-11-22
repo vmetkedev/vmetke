@@ -13,6 +13,7 @@ export type RealtimeEvent = {
     | "notification.changed"
     | "typing";
   conversationId?: number;
+  lastReadId?: number;
 };
 
 export const MAX_CONNECTIONS_PER_USER = 5;
