@@ -538,22 +538,47 @@ function Thread({
         <Link to="/messages" className="md:hidden text-gray-500 dark:text-gray-400" aria-label="Назад">
           <ArrowLeft size={18} />
         </Link>
-        {otherUser ? (
-          <Link
-            to={`/u/${otherUser.username}`}
-            className="flex items-center gap-2 min-w-0 hover:underline dark:text-gray-100"
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {otherUser && (
+            // аватар дублирует ссылку с именем, поэтому скрыт от скринридеров и табуляции
+            <Link
+              to={`/u/${otherUser.username}`}
+              aria-hidden="true"
+              tabIndex={-1}
+              className="shrink-0"
+            >
+              <Avatar
+                username={otherUser.username}
+                displayName={otherUser.displayName}
+                avatarColor={otherUser.avatarColor}
+                size="sm"
+              />
+            </Link>
+          )}
+          <div
+            className={`relative min-w-0 leading-tight transition-transform duration-150 ${
+              otherTyping ? "-translate-y-2" : ""
+            }`}
           >
-            <Avatar
-              username={otherUser.username}
-              displayName={otherUser.displayName}
-              avatarColor={otherUser.avatarColor}
-              size="sm"
-            />
-            <span className="font-medium text-sm truncate">{otherName}</span>
-          </Link>
-        ) : (
-          <span className="font-medium text-sm dark:text-gray-100">Диалог</span>
-        )}
+            {otherUser ? (
+              <Link
+                to={`/u/${otherUser.username}`}
+                className="block truncate text-sm font-medium hover:underline dark:text-gray-100"
+              >
+                {otherName}
+              </Link>
+            ) : (
+              <span className="block text-sm font-medium dark:text-gray-100">Диалог</span>
+            )}
+            {/* Вне потока: без «печатает…» имя по центру, высота шапки не меняется */}
+            <p
+              aria-live="polite"
+              className="absolute left-0 top-full whitespace-nowrap text-xs italic leading-4 text-blue-600 dark:text-blue-400"
+            >
+              {otherTyping ? "печатает…" : ""}
+            </p>
+          </div>
+        </div>
         <ConversationMenu
           blocked={blockedByMe}
           canBlock={otherUser !== null}
@@ -1004,7 +1029,7 @@ export default function MessagesPage() {
                         </div>
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {typingIds.has(c.id) ? (
+                            {typingIds.has(c.id) && c.id !== activeId ? (
                               <span className="italic text-blue-600 dark:text-blue-400">печатает…</span>
                             ) : (
                               <>

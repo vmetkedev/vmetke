@@ -989,6 +989,65 @@ describe("MessagesPage: галочки прочтения", () => {
   });
 });
 
+describe("MessagesPage: «печатает…»", () => {
+  const ALICE_CONV = () =>
+    conv({
+      id: 6,
+      otherUser: ALICE,
+      lastMessage: { id: 9, content: "привет", senderId: ALICE.id, createdAt: now(), deleted: false },
+    });
+
+  it("в открытом диалоге показывается в шапке под именем, превью в списке не заменяется", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv()] });
+    renderAt("/messages/5");
+    const name = await screen.findByRole("link", { name: "Боб" });
+    expect(screen.getByText("последнее")).toBeInTheDocument();
+
+    emit({ type: "typing", conversationId: 5 });
+
+    expect(screen.getAllByText("печатает…")).toHaveLength(1);
+    expect(within(name.parentElement as HTMLElement).getByText("печатает…")).toBeInTheDocument();
+    expect(screen.getByText("последнее")).toBeInTheDocument();
+  });
+
+  it("в другом диалоге показывается в списке вместо превью, а в шапке нет", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv(), ALICE_CONV()] });
+    renderAt("/messages/5");
+    const name = await screen.findByRole("link", { name: "Боб" });
+    await screen.findByText("привет");
+
+    emit({ type: "typing", conversationId: 6 });
+
+    expect(screen.queryByText("привет")).not.toBeInTheDocument();
+    expect(screen.getAllByText("печатает…")).toHaveLength(1);
+    expect(within(name.parentElement as HTMLElement).queryByText("печатает…")).toBeNull();
+    expect(screen.getByText("последнее")).toBeInTheDocument();
+  });
+
+  it("если диалог не открыт, показывается в списке вместо превью", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv()] });
+    renderAt("/messages");
+    await screen.findByText("последнее");
+
+    emit({ type: "typing", conversationId: 5 });
+
+    expect(screen.getByText("печатает…")).toBeInTheDocument();
+    expect(screen.queryByText("последнее")).not.toBeInTheDocument();
+  });
+
+  it("новое сообщение гасит «печатает…»", async () => {
+    vi.mocked(fetchConversations).mockResolvedValue({ conversations: [conv()] });
+    renderAt("/messages/5");
+    await screen.findByRole("link", { name: "Боб" });
+
+    emit({ type: "typing", conversationId: 5 });
+    expect(screen.getByText("печатает…")).toBeInTheDocument();
+
+    emit({ type: "message.new", conversationId: 5 });
+    expect(screen.queryByText("печатает…")).not.toBeInTheDocument();
+  });
+});
+
 describe("MessagesPage: подгрузка истории", () => {
   it("«Показать более ранние» грузит по курсору и ставит старые сообщения выше", async () => {
     vi.mocked(fetchMessages)
