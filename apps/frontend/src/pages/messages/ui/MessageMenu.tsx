@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CornerUpLeft, Flag, Forward, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CornerUpLeft,
+  Flag,
+  Forward,
+  Mail,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
-const MENU_WIDTH = 192;
+const MENU_WIDTH = 224;
 
 export function MessageMenu({
   anchor,
@@ -16,6 +24,8 @@ export function MessageMenu({
   onClose,
   canReport = false,
   onReport,
+  canMarkUnread = false,
+  onMarkUnread,
 }: {
   anchor: DOMRect;
   mine: boolean;
@@ -29,6 +39,8 @@ export function MessageMenu({
   onClose: () => void;
   canReport?: boolean;
   onReport?: () => void;
+  canMarkUnread?: boolean;
+  onMarkUnread?: () => void;
 }) {
   const [view, setView] = useState<"main" | "delete">("main");
   const ref = useRef<HTMLDivElement>(null);
@@ -53,9 +65,12 @@ export function MessageMenu({
     };
   }, [onClose]);
 
-  const placeAbove = window.innerHeight - anchor.bottom < 230;
+  const placeAbove = window.innerHeight - anchor.bottom < 270;
   const rawLeft = mine ? anchor.right - MENU_WIDTH : anchor.left;
-  const left = Math.max(8, Math.min(rawLeft, window.innerWidth - MENU_WIDTH - 8));
+  const left = Math.max(
+    8,
+    Math.min(rawLeft, window.innerWidth - MENU_WIDTH - 8),
+  );
 
   const item =
     "flex w-full items-center gap-2 px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-100";
@@ -85,6 +100,12 @@ export function MessageMenu({
             <Forward size={14} />
             Переслать
           </button>
+          {canMarkUnread && (
+            <button role="menuitem" className={item} onClick={onMarkUnread}>
+              <Mail size={14} />
+              Отметить непрочитанным
+            </button>
+          )}
           {canEdit && (
             <button role="menuitem" className={item} onClick={onEdit}>
               <Pencil size={14} />
@@ -97,14 +118,22 @@ export function MessageMenu({
               Пожаловаться
             </button>
           )}
-          <button role="menuitem" className={item} onClick={() => setView("delete")}>
+          <button
+            role="menuitem"
+            className={item}
+            onClick={() => setView("delete")}
+          >
             <Trash2 size={14} />
             Удалить
           </button>
         </>
       ) : (
         <>
-          <button role="menuitem" className={`${item} text-gray-500`} onClick={() => setView("main")}>
+          <button
+            role="menuitem"
+            className={`${item} text-gray-500`}
+            onClick={() => setView("main")}
+          >
             <ArrowLeft size={14} />
             Назад
           </button>
@@ -112,7 +141,11 @@ export function MessageMenu({
             Удалить у меня
           </button>
           {mine && (
-            <button role="menuitem" className={`${item} text-red-600`} onClick={onDeleteForAll}>
+            <button
+              role="menuitem"
+              className={`${item} text-red-600`}
+              onClick={onDeleteForAll}
+            >
               Удалить у всех
             </button>
           )}

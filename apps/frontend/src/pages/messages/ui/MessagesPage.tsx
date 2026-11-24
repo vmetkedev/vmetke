@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, Check, CheckCheck, Heart, Send, X } from "lucide-react";
 import { useAuth } from "@/entities/session";
@@ -20,6 +28,7 @@ import {
   forwardMessage,
   likeMessage,
   markConversationRead,
+  markConversationUnread,
   sendMessage,
   unblockUser,
   unlikeMessage,
@@ -58,7 +67,10 @@ function formatListDate(iso: string) {
 
 function formatMessageTime(iso: string) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   return isToday(d)
     ? time
     : `${d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}, ${time}`;
@@ -71,7 +83,13 @@ function mergeMessages(prev: Message[], incoming: Message[]): Message[] {
   return [...map.values()].sort((a, b) => a.id - b.id);
 }
 
-function ReadTicks({ read, className = "" }: { read: boolean; className?: string }) {
+function ReadTicks({
+  read,
+  className = "",
+}: {
+  read: boolean;
+  className?: string;
+}) {
   const Icon = read ? CheckCheck : Check;
   return (
     <Icon
@@ -89,6 +107,7 @@ function Thread({
   otherUser,
   myId,
   otherTyping,
+  onMarkedUnread,
   onChanged,
 }: {
   conversationId: number;
@@ -96,6 +115,8 @@ function Thread({
   otherUser: ConversationUser | null;
   myId: string;
   otherTyping: boolean;
+  // подсказка списку: в открытом диалоге показать бейдж после ручной отметки
+  onMarkedUnread: (conversationId: number | null) => void;
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
@@ -111,7 +132,11 @@ function Thread({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [blockedByMe, setBlockedByMe] = useState(false);
   const [blockBusy, setBlockBusy] = useState(false);
-  const [menu, setMenu] = useState<{ id: number; mine: boolean; anchor: DOMRect } | null>(null);
+  const [menu, setMenu] = useState<{
+    id: number;
+    mine: boolean;
+    anchor: DOMRect;
+  } | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
@@ -122,6 +147,8 @@ function Thread({
   const [hoverId, setHoverId] = useState<number | null>(null);
   // До какого сообщения дочитал собеседник (только растёт)
   const [otherLastReadId, setOtherLastReadId] = useState(0);
+  // Над каким сообщением стоит разделитель «Непрочитанные сообщения»
+  const [unreadFromId, setUnreadFromId] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -136,19 +163,23 @@ function Thread({
   const likeBusy = useRef<Set<number>>(new Set());
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const visibleMessages = messages.filter((m) => !m.deleted && !hiddenIds.current.has(m.id));
-  const otherName = otherUser ? otherUser.displayName || otherUser.username : undefined;
+  const visibleMessages = messages.filter(
+    (m) => !m.deleted && !hiddenIds.current.has(m.id),
+  );
+  const otherName = otherUser
+    ? otherUser.displayName || otherUser.username
+    : undefined;
   // Если оригинал пропал (удалён или скрыт), пока я писал ответ, плашка исчезает
   const activeReply =
-    replyTo && visibleMessages.some((m) => m.id === replyTo.id) ? replyTo : null;
+    replyTo && visibleMessages.some((m) => m.id === replyTo.id)
+      ? replyTo
+      : null;
   const authorName = (senderId: string | null) =>
     senderId === myId ? "Вы" : (otherName ?? "Собеседник");
-  const forwardName = (a: ForwardAuthor) => (a.id === myId ? "Вы" : a.displayName || a.username);
+  const forwardName = (a: ForwardAuthor) =>
+    a.id === myId ? "Вы" : a.displayName || a.username;
   const menuTarget = menu ? messages.find((m) => m.id === menu.id) : undefined;
-  const otherRead = Math.max(
-    otherLastReadId,
-    conversations.find((c) => c.id === conversationId)?.otherLastReadId ?? 0,
-  );
+  const otherRead = otherLastReadId;
 
   const markIfNeeded = useCallback(
     (list: Message[]) => {
@@ -165,6 +196,8 @@ function Thread({
 
   const loadRef = useRef<(initial: boolean) => Promise<void>>(async () => {});
   const loadSeq = useRef({ started: 0, applied: 0 });
+  // Сколько раз пришла граница прочтения собеседника: свежее любого ответа, начатого раньше
+  const readEventSeq = useRef(0);
   const lastTypingSent = useRef(0);
 
   useEffect(() => {
@@ -172,6 +205,7 @@ function Thread({
 
     const load = async (initial: boolean) => {
       const seq = ++loadSeq.current.started;
+      const readEvents = readEventSeq.current;
       try {
         const data = await fetchMessages(conversationId);
         // ответ старее уже применённого не должен откатывать правки и лайки
@@ -179,10 +213,38 @@ function Thread({
         loadSeq.current.applied = seq;
         const asc = [...data.messages].reverse();
         setMessages((prev) => mergeMessages(prev, asc));
-        if (initial) setNextCursor(data.nextCursor);
+        if (initial) {
+          setNextCursor(data.nextCursor);
+          // Разделитель ставим один раз, по состоянию до открытия диалога.
+          // Если граница прочтения выше загруженной страницы, место неизвестно: не ставим.
+          if (data.myReadId !== undefined) {
+            const readId = data.myReadId;
+            const boundaryLoaded =
+              data.nextCursor === null ||
+              (asc[0] !== undefined && asc[0].id <= readId);
+            const firstUnread = asc.find(
+              (m) => !m.deleted && m.senderId !== myId && m.id > readId,
+            );
+            if (firstUnread && boundaryLoaded) setUnreadFromId(firstUnread.id);
+          }
+        }
         markIfNeeded(asc);
+        // Ручная отметка снимается при открытии, даже если на первой странице нет входящих
+        if (
+          initial &&
+          data.markedUnread === true &&
+          lastMarkedId.current === 0
+        ) {
+          markConversationRead(conversationId)
+            .then(onChanged)
+            .catch(() => {});
+        }
         setBlockedByMe(data.blockedByMe === true);
-        setOtherLastReadId((prev) => Math.max(prev, data.otherLastReadId ?? 0));
+        // Граница собеседника может и уменьшиться. Событие, пришедшее во время запроса,
+        // свежее ответа: тогда границу из ответа не применяем.
+        if (readEventSeq.current === readEvents) {
+          setOtherLastReadId(data.otherLastReadId ?? 0);
+        }
         setError(null);
       } catch (e) {
         if (cancelled) return;
@@ -215,14 +277,17 @@ function Thread({
   const { connected } = useRealtime(myId, {
     onEvent: (e) => {
       if (e.type === "conversation.read") {
-        // собеседник дочитал: обновляем галочки без запроса
+        // граница прочтения собеседника: может и уменьшиться, если он отметил непрочитанным
         const lastReadId = e.lastReadId;
         if (e.conversationId === conversationId && lastReadId !== undefined) {
-          setOtherLastReadId((prev) => Math.max(prev, lastReadId));
+          readEventSeq.current += 1;
+          setOtherLastReadId(lastReadId);
         }
         return;
       }
-      if (e.conversationId !== undefined && e.conversationId !== conversationId) return;
+      if (e.type === "conversation.unread") return;
+      if (e.conversationId !== undefined && e.conversationId !== conversationId)
+        return;
       refreshThread();
     },
     onCatchUp: () => void loadRef.current(false),
@@ -238,7 +303,10 @@ function Thread({
   // Пока SSE не подключён, тред обновляется редким опросом
   useEffect(() => {
     if (connected) return;
-    const interval = setInterval(() => void loadRef.current(false), THREAD_FALLBACK_POLL_MS);
+    const interval = setInterval(
+      () => void loadRef.current(false),
+      THREAD_FALLBACK_POLL_MS,
+    );
     return () => clearInterval(interval);
   }, [connected]);
 
@@ -266,6 +334,9 @@ function Thread({
     }
   }, [editing, messages]);
 
+  // Ушли из диалога: бейдж у него снова скрывается как у любого открытого
+  useEffect(() => () => onMarkedUnread(null), [onMarkedUnread]);
+
   // Таймер наведения не должен пережить компонент
   useEffect(() => {
     return () => {
@@ -277,7 +348,8 @@ function Thread({
     const el = scrollRef.current;
     if (!el) return;
     if (menu) setMenu(null);
-    stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    stickToBottom.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
   const handleLoadMore = async () => {
@@ -328,6 +400,7 @@ function Thread({
         setMessages((prev) => mergeMessages(prev, [msg]));
         setText("");
         setReplyTo(null);
+        setUnreadFromId(null);
         lastTypingSent.current = 0;
       }
       setError(null);
@@ -365,7 +438,9 @@ function Thread({
         setMessages((prev) => prev.filter((m) => m.id !== id));
       } else {
         setMessages((prev) =>
-          prev.map((m) => (m.id === id ? { ...m, content: "", deleted: true } : m)),
+          prev.map((m) =>
+            m.id === id ? { ...m, content: "", deleted: true } : m,
+          ),
         );
       }
       setError(null);
@@ -386,7 +461,9 @@ function Thread({
         target.likes?.likedByMe === true
           ? await unlikeMessage(conversationId, id)
           : await likeMessage(conversationId, id);
-      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, likes } : m)));
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, likes } : m)),
+      );
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -407,7 +484,9 @@ function Thread({
   };
 
   const toggleMenu = (id: number, mine: boolean, el: HTMLElement) => {
-    setMenu((cur) => (cur?.id === id ? null : { id, mine, anchor: el.getBoundingClientRect() }));
+    setMenu((cur) =>
+      cur?.id === id ? null : { id, mine, anchor: el.getBoundingClientRect() },
+    );
   };
 
   const handleReply = (id: number) => {
@@ -455,7 +534,11 @@ function Thread({
     setForwardBusy(true);
     setForwardError(null);
     try {
-      const sent = await forwardMessage(conversationId, forwarding.id, toConversationId);
+      const sent = await forwardMessage(
+        conversationId,
+        forwarding.id,
+        toConversationId,
+      );
       setForwardBusy(false);
       setForwarding(null);
       onChanged();
@@ -466,7 +549,8 @@ function Thread({
         // переходим в диалог получателя, чтобы было видно, что сообщение ушло
         navigate(`/messages/${toConversationId}`, {
           state: {
-            otherUser: conversations.find((c) => c.id === toConversationId)?.otherUser,
+            otherUser: conversations.find((c) => c.id === toConversationId)
+              ?.otherUser,
           },
         });
       }
@@ -477,7 +561,9 @@ function Thread({
   };
 
   const scrollToMessage = (id: number) => {
-    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-message-id="${id}"]`);
+    const el = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-message-id="${id}"]`,
+    );
     if (!el) return;
     stickToBottom.current = false;
     el.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -496,11 +582,28 @@ function Thread({
     }
   };
 
+  // Диалог остаётся открытым: отметка вступает в силу, когда уйдёшь из него
+  // и откроешь снова (или придёт новое входящее: оно снимет отметку)
+  const handleMarkUnread = async (id: number) => {
+    setMenu(null);
+    try {
+      await markConversationUnread(conversationId, id);
+      setError(null);
+      setUnreadFromId(id);
+      onMarkedUnread(conversationId);
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
   const handleBlock = async () => {
     if (!otherUser || blockBusy) return;
     const name = otherUser.displayName || otherUser.username;
     if (
-      !window.confirm(`Заблокировать ${name}? Переписка будет невозможна, пока вы не разблокируете.`)
+      !window.confirm(
+        `Заблокировать ${name}? Переписка будет невозможна, пока вы не разблокируете.`,
+      )
     ) {
       return;
     }
@@ -535,7 +638,11 @@ function Thread({
   return (
     <>
       <div className="flex items-center gap-3 px-4 py-3 border-b dark:border-gray-700">
-        <Link to="/messages" className="md:hidden text-gray-500 dark:text-gray-400" aria-label="Назад">
+        <Link
+          to="/messages"
+          className="md:hidden text-gray-500 dark:text-gray-400"
+          aria-label="Назад"
+        >
           <ArrowLeft size={18} />
         </Link>
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -568,7 +675,9 @@ function Thread({
                 {otherName}
               </Link>
             ) : (
-              <span className="block text-sm font-medium dark:text-gray-100">Диалог</span>
+              <span className="block text-sm font-medium dark:text-gray-100">
+                Диалог
+              </span>
             )}
             {/* Вне потока: без «печатает…» имя по центру, высота шапки не меняется */}
             <p
@@ -591,9 +700,15 @@ function Thread({
         />
       </div>
 
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-2">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-4 space-y-2"
+      >
         {loading ? (
-          <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-8">Загрузка...</p>
+          <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-8">
+            Загрузка...
+          </p>
         ) : (
           <>
             {nextCursor && (
@@ -624,126 +739,159 @@ function Thread({
               // (так до неё можно добраться с тачскрина и с клавиатуры).
               // При блокировке ставить лайк нельзя, но снять свой можно.
               const showHeart =
-                (hoverId === m.id || menu?.id === m.id) && (!blockedByMe || likedByMe);
+                (hoverId === m.id || menu?.id === m.id) &&
+                (!blockedByMe || likedByMe);
               return (
-                <div
-                  key={m.id}
-                  data-message-id={m.id}
-                  className={`flex ${mine ? "justify-end" : "justify-start"}`}
-                >
+                <Fragment key={m.id}>
+                  {unreadFromId === m.id && (
+                    <div className="flex items-center gap-2 py-1 text-xs text-blue-600 dark:text-blue-400">
+                      <span className="h-px flex-1 bg-current opacity-30" />
+                      <span>Непрочитанные сообщения</span>
+                      <span className="h-px flex-1 bg-current opacity-30" />
+                    </div>
+                  )}
                   <div
-                    data-testid={`msg-hover-${m.id}`}
-                    className="relative max-w-[80%]"
-                    onMouseEnter={() => startHover(m.id)}
-                    onMouseLeave={() => endHover(m.id)}
+                    data-message-id={m.id}
+                    className={`flex ${mine ? "justify-end" : "justify-start"}`}
                   >
                     <div
-                      data-message-bubble
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        // выделение текста мышью не должно открывать меню
-                        if (window.getSelection()?.toString()) return;
-                        toggleMenu(m.id, mine, e.currentTarget);
-                      }}
-                      onKeyDown={(e) => {
-                        // Enter на вложенной кнопке (сердечко) не должен открывать меню
-                        if (e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggleMenu(m.id, mine, e.currentTarget);
-                        }
-                      }}
-                      className={`cursor-pointer rounded-lg px-3 py-2 text-sm ${
-                        mine
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
-                      } ${selected ? "ring-2 ring-blue-400" : ""}`}
+                      data-testid={`msg-hover-${m.id}`}
+                      className="relative max-w-[80%]"
+                      onMouseEnter={() => startHover(m.id)}
+                      onMouseLeave={() => endHover(m.id)}
                     >
-                      {forwardedFrom && (
-                        <p className="mb-1 truncate text-xs font-medium italic opacity-80">
-                          Переслано от {forwardName(forwardedFrom)}
-                        </p>
-                      )}
-                      {quote && (
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!quote.deleted) scrollToMessage(quote.id);
-                          }}
-                          className={`mb-1 rounded border-l-2 px-2 py-1 text-xs ${
-                            mine
-                              ? "border-blue-200 bg-blue-500/60"
-                              : "border-gray-400 bg-gray-200 dark:bg-gray-600"
-                          } ${quote.deleted ? "" : "cursor-pointer"}`}
-                        >
-                          {quote.deleted ? (
-                            <p className="italic opacity-80">Сообщение удалено</p>
-                          ) : (
-                            <>
-                              <p className="font-medium truncate">{authorName(quote.senderId)}</p>
-                              <p className="line-clamp-2 whitespace-pre-wrap wrap-anywhere opacity-90">
-                                {quote.content}
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      <p className="whitespace-pre-wrap wrap-anywhere">{m.content}</p>
-                      <div className="mt-1 flex items-center justify-between gap-3">
-                        {likes && likes.count > 0 ? (
-                          <button
-                            type="button"
-                            aria-label={likes.likedByMe ? "Убрать лайк" : "Поставить лайк"}
-                            aria-pressed={likes.likedByMe}
+                      <div
+                        data-message-bubble
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          // выделение текста мышью не должно открывать меню
+                          if (window.getSelection()?.toString()) return;
+                          toggleMenu(m.id, mine, e.currentTarget);
+                        }}
+                        onKeyDown={(e) => {
+                          // Enter на вложенной кнопке (сердечко) не должен открывать меню
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleMenu(m.id, mine, e.currentTarget);
+                          }
+                        }}
+                        className={`cursor-pointer rounded-lg px-3 py-2 text-sm ${
+                          mine
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 dark:bg-gray-700 dark:text-gray-100"
+                        } ${selected ? "ring-2 ring-blue-400" : ""}`}
+                      >
+                        {forwardedFrom && (
+                          <p className="mb-1 truncate text-xs font-medium italic opacity-80">
+                            Переслано от {forwardName(forwardedFrom)}
+                          </p>
+                        )}
+                        {quote && (
+                          <div
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleToggleLike(m.id);
+                              if (!quote.deleted) scrollToMessage(quote.id);
                             }}
-                            className={`flex items-center gap-1 text-[11px] ${
-                              likes.likedByMe
-                                ? mine
-                                  ? "text-red-300"
-                                  : "text-red-500"
-                                : "opacity-60"
+                            className={`mb-1 rounded border-l-2 px-2 py-1 text-xs ${
+                              mine
+                                ? "border-blue-200 bg-blue-500/60"
+                                : "border-gray-400 bg-gray-200 dark:bg-gray-600"
+                            } ${quote.deleted ? "" : "cursor-pointer"}`}
+                          >
+                            {quote.deleted ? (
+                              <p className="italic opacity-80">
+                                Сообщение удалено
+                              </p>
+                            ) : (
+                              <>
+                                <p className="font-medium truncate">
+                                  {authorName(quote.senderId)}
+                                </p>
+                                <p className="line-clamp-2 whitespace-pre-wrap wrap-anywhere opacity-90">
+                                  {quote.content}
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap wrap-anywhere">
+                          {m.content}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between gap-3">
+                          {likes && likes.count > 0 ? (
+                            <button
+                              type="button"
+                              aria-label={
+                                likes.likedByMe
+                                  ? "Убрать лайк"
+                                  : "Поставить лайк"
+                              }
+                              aria-pressed={likes.likedByMe}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleLike(m.id);
+                              }}
+                              className={`flex items-center gap-1 text-[11px] ${
+                                likes.likedByMe
+                                  ? mine
+                                    ? "text-red-300"
+                                    : "text-red-500"
+                                  : "opacity-60"
+                              }`}
+                            >
+                              <Heart size={12} className="fill-current" />
+                              {likes.count > 1 && <span>{likes.count}</span>}
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+                          <p
+                            className={`ml-auto flex items-center gap-1 text-[10px] ${
+                              mine
+                                ? "text-blue-100"
+                                : "text-gray-400 dark:text-gray-400"
                             }`}
                           >
-                            <Heart size={12} className="fill-current" />
-                            {likes.count > 1 && <span>{likes.count}</span>}
-                          </button>
-                        ) : (
-                          <span />
-                        )}
-                        <p
-                          className={`ml-auto flex items-center gap-1 text-[10px] ${
-                            mine ? "text-blue-100" : "text-gray-400 dark:text-gray-400"
-                          }`}
-                        >
-                          {m.editedAt && <span>изменено</span>}
-                          <span>{formatMessageTime(m.createdAt)}</span>
-                          {mine && <ReadTicks read={read} className={read ? "text-white" : "text-blue-200"} />}
-                        </p>
+                            {m.editedAt && <span>изменено</span>}
+                            <span>{formatMessageTime(m.createdAt)}</span>
+                            {mine && (
+                              <ReadTicks
+                                read={read}
+                                className={
+                                  read ? "text-white" : "text-blue-200"
+                                }
+                              />
+                            )}
+                          </p>
+                        </div>
                       </div>
+                      {showHeart && (
+                        // Нижний угол пузыря снаружи: слева у моих сообщений, справа у чужих.
+                        // Кнопка вплотную к пузырю, чтобы курсор мог перейти на неё без разрыва.
+                        <button
+                          type="button"
+                          data-like-button
+                          data-testid={`like-hover-${m.id}`}
+                          aria-label={likedByMe ? "Убрать лайк" : "Нравится"}
+                          aria-pressed={likedByMe}
+                          onClick={() => handleToggleLike(m.id)}
+                          className={`absolute bottom-0 pb-0.5 ${
+                            mine
+                              ? "right-full pl-1 pr-1.5"
+                              : "left-full pl-1.5 pr-1"
+                          } ${likedByMe ? "text-red-500" : "text-gray-400 hover:text-red-500"}`}
+                        >
+                          <Heart
+                            size={16}
+                            className={likedByMe ? "fill-current" : ""}
+                          />
+                        </button>
+                      )}
                     </div>
-                    {showHeart && (
-                      // Нижний угол пузыря снаружи: слева у моих сообщений, справа у чужих.
-                      // Кнопка вплотную к пузырю, чтобы курсор мог перейти на неё без разрыва.
-                      <button
-                        type="button"
-                        data-like-button
-                        data-testid={`like-hover-${m.id}`}
-                        aria-label={likedByMe ? "Убрать лайк" : "Нравится"}
-                        aria-pressed={likedByMe}
-                        onClick={() => handleToggleLike(m.id)}
-                        className={`absolute bottom-0 pb-0.5 ${
-                          mine ? "right-full pl-1 pr-1.5" : "left-full pl-1.5 pr-1"
-                        } ${likedByMe ? "text-red-500" : "text-gray-400 hover:text-red-500"}`}
-                      >
-                        <Heart size={16} className={likedByMe ? "fill-current" : ""} />
-                      </button>
-                    )}
                   </div>
-                </div>
+                </Fragment>
               );
             })}
           </>
@@ -767,17 +915,15 @@ function Thread({
         </div>
       ) : (
         <div className="border-t dark:border-gray-700">
-          <div
-            aria-live="polite"
-            className="h-5 px-4 pt-1 text-xs italic text-gray-500 dark:text-gray-400"
-          >
-            {otherTyping ? `${otherName ?? "Собеседник"} печатает…` : ""}
-          </div>
           {editing ? (
             <div className="flex items-center gap-2 px-3 pt-2 text-xs">
               <div className="flex-1 min-w-0 border-l-2 border-amber-500 pl-2">
-                <p className="font-medium text-amber-600 dark:text-amber-400">Редактирование</p>
-                <p className="truncate text-gray-500 dark:text-gray-400">{editing.content}</p>
+                <p className="font-medium text-amber-600 dark:text-amber-400">
+                  Редактирование
+                </p>
+                <p className="truncate text-gray-500 dark:text-gray-400">
+                  {editing.content}
+                </p>
               </div>
               <button
                 onClick={cancelEdit}
@@ -793,7 +939,9 @@ function Thread({
                 <p className="font-medium text-blue-600 dark:text-blue-400 truncate">
                   {authorName(activeReply.senderId)}
                 </p>
-                <p className="truncate text-gray-500 dark:text-gray-400">{activeReply.content}</p>
+                <p className="truncate text-gray-500 dark:text-gray-400">
+                  {activeReply.content}
+                </p>
               </div>
               <button
                 onClick={() => setReplyTo(null)}
@@ -810,7 +958,8 @@ function Thread({
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
-                if (e.target.value.trim() && !editing && !blockedByMe) notifyTyping();
+                if (e.target.value.trim() && !editing && !blockedByMe)
+                  notifyTyping();
               }}
               onKeyDown={handleKeyDown}
               maxLength={MAX_MESSAGE}
@@ -844,6 +993,8 @@ function Thread({
           onDeleteForAll={() => handleDeleteMessage(menu.id, "all")}
           canReport={!menu.mine}
           onReport={() => handleStartReport(menu.id)}
+          canMarkUnread={!menu.mine}
+          onMarkUnread={() => handleMarkUnread(menu.id)}
         />
       )}
 
@@ -886,10 +1037,15 @@ export default function MessagesPage() {
   const { user } = useAuth();
   const location = useLocation();
   const parsedId = id ? Number(id) : null;
-  const activeId = parsedId !== null && Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+  const activeId =
+    parsedId !== null && Number.isInteger(parsedId) && parsedId > 0
+      ? parsedId
+      : null;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  // Диалог, который я только что вручную отметил непрочитанным, не выходя из него
+  const [markedUnreadId, setMarkedUnreadId] = useState<number | null>(null);
 
   const listSeq = useRef({ started: 0, applied: 0 });
   const [typingIds, setTypingIds] = useState<Set<number>>(new Set());
@@ -915,7 +1071,9 @@ export default function MessagesPage() {
         conversationId,
         setTimeout(() => clearTyping(conversationId), TYPING_TTL_MS),
       );
-      setTypingIds((prev) => (prev.has(conversationId) ? prev : new Set(prev).add(conversationId)));
+      setTypingIds((prev) =>
+        prev.has(conversationId) ? prev : new Set(prev).add(conversationId),
+      );
     },
     [clearTyping],
   );
@@ -957,9 +1115,11 @@ export default function MessagesPage() {
         return;
       }
       // новое сообщение гасит «печатает…» в этом диалоге
-      if (e.type === "message.new" && e.conversationId !== undefined) clearTyping(e.conversationId);
+      if (e.type === "message.new" && e.conversationId !== undefined)
+        clearTyping(e.conversationId);
       // лайки и уведомления на список диалогов не влияют
-      if (e.type === "message.like" || e.type.startsWith("notification.")) return;
+      if (e.type === "message.like" || e.type.startsWith("notification."))
+        return;
       refreshList();
     },
     onCatchUp: () => void loadConversations(),
@@ -967,12 +1127,18 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (connected) return;
-    const interval = setInterval(() => void loadConversations(), LIST_FALLBACK_POLL_MS);
+    const interval = setInterval(
+      () => void loadConversations(),
+      LIST_FALLBACK_POLL_MS,
+    );
     return () => clearInterval(interval);
   }, [connected, loadConversations]);
 
-  const stateUser = (location.state as { otherUser?: ConversationUser } | null)?.otherUser ?? null;
-  const activeUser = conversations.find((c) => c.id === activeId)?.otherUser ?? stateUser;
+  const stateUser =
+    (location.state as { otherUser?: ConversationUser } | null)?.otherUser ??
+    null;
+  const activeUser =
+    conversations.find((c) => c.id === activeId)?.otherUser ?? stateUser;
 
   return (
     <AppLayout>
@@ -989,10 +1155,13 @@ export default function MessagesPage() {
             </h1>
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-8">Загрузка...</p>
+                <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-8">
+                  Загрузка...
+                </p>
               ) : conversations.length === 0 ? (
                 <p className="text-gray-500 dark:text-gray-400 text-center text-sm py-8 px-4">
-                  Пока нет диалогов. Откройте профиль пользователя и нажмите «Написать».
+                  Пока нет диалогов. Откройте профиль пользователя и нажмите
+                  «Написать».
                 </p>
               ) : (
                 conversations.map((c) => {
@@ -1020,7 +1189,9 @@ export default function MessagesPage() {
                           <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 shrink-0">
                             {mine && (
                               <ReadTicks
-                                read={c.lastMessage.id <= (c.otherLastReadId ?? 0)}
+                                read={
+                                  c.lastMessage.id <= (c.otherLastReadId ?? 0)
+                                }
                                 className="text-blue-500"
                               />
                             )}
@@ -1030,7 +1201,9 @@ export default function MessagesPage() {
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                             {typingIds.has(c.id) && c.id !== activeId ? (
-                              <span className="italic text-blue-600 dark:text-blue-400">печатает…</span>
+                              <span className="italic text-blue-600 dark:text-blue-400">
+                                печатает…
+                              </span>
                             ) : (
                               <>
                                 {mine ? "Вы: " : ""}
@@ -1038,11 +1211,12 @@ export default function MessagesPage() {
                               </>
                             )}
                           </span>
-                          {c.unreadCount > 0 && c.id !== activeId && (
-                            <span className="bg-blue-600 text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center shrink-0">
-                              {c.unreadCount > 99 ? "99+" : c.unreadCount}
-                            </span>
-                          )}
+                          {c.unreadCount > 0 &&
+                            (c.id !== activeId || c.id === markedUnreadId) && (
+                              <span className="bg-blue-600 text-white text-[10px] rounded-full min-w-4 h-4 px-1 flex items-center justify-center shrink-0">
+                                {c.unreadCount > 99 ? "99+" : c.unreadCount}
+                              </span>
+                            )}
                         </div>
                       </div>
                     </Link>
@@ -1053,7 +1227,9 @@ export default function MessagesPage() {
           </div>
 
           {/* Переписка */}
-          <div className={`${activeId ? "flex" : "hidden md:flex"} flex-col flex-1 min-w-0`}>
+          <div
+            className={`${activeId ? "flex" : "hidden md:flex"} flex-col flex-1 min-w-0`}
+          >
             {activeId && user ? (
               <Thread
                 key={activeId}
@@ -1062,6 +1238,7 @@ export default function MessagesPage() {
                 otherUser={activeUser}
                 otherTyping={typingIds.has(activeId)}
                 myId={user.id}
+                onMarkedUnread={setMarkedUnreadId}
                 onChanged={loadConversations}
               />
             ) : (

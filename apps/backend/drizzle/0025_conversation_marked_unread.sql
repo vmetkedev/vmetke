@@ -1,0 +1,2 @@
+ALTER TABLE "conversations" ADD COLUMN "marked_unread_low" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "conversations" ADD COLUMN "marked_unread_high" boolean DEFAULT false NOT NULL;

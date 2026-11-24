@@ -31,9 +31,15 @@ export const conversations = pgTable(
     // «Удалить у меня»: сообщения с id <= отметки скрыты для этой стороны
     clearedLowId: integer("cleared_low_id"),
     clearedHighId: integer("cleared_high_id"),
+    // «Отметить непрочитанным»: ручной флаг на сторону, last_read не трогаем,
+    // чтобы у собеседника не пропали галочки «прочитано»
+    unreadFromLowId: integer("unread_from_low_id"),
+    unreadFromHighId: integer("unread_from_high_id"),
     // «Удалить у всех»: soft delete
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
   (t) => [
     // Уникальна только живая пара: после «удалить у всех» можно начать новый диалог

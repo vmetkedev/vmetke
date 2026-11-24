@@ -10,6 +10,7 @@ import {
   forwardMessage,
   likeMessage,
   markConversationRead,
+  markConversationUnread,
   sendMessage,
   unlikeMessage,
   type Conversation,
@@ -47,6 +48,7 @@ vi.mock("@/entities/message", async (importOriginal) => ({
   unlikeMessage: vi.fn(),
   sendTyping: vi.fn().mockResolvedValue(undefined),
   markConversationRead: vi.fn(),
+  markConversationUnread: vi.fn(),
 }));
 
 vi.mock("@/shared/api/realtime", () => ({
@@ -940,7 +942,7 @@ describe("MessagesPage: галочки прочтения", () => {
     expect(within(bubble("привет")).getByLabelText("Отправлено")).toBeInTheDocument();
   });
 
-  it("прочитано только до lastReadId и никогда не откатывается назад", async () => {
+  it("галочки следуют за границей прочтения собеседника, в том числе назад", async () => {
     vi.mocked(fetchMessages).mockResolvedValue({
       messages: [msg(2, ME, "второе"), msg(1, ME, "первое")],
       nextCursor: null,
@@ -950,14 +952,24 @@ describe("MessagesPage: галочки прочтения", () => {
     await screen.findByText("второе");
 
     emit({ type: "conversation.read", conversationId: 5, lastReadId: 1 });
-    expect(within(bubble("первое")).getByLabelText("Прочитано")).toBeInTheDocument();
-    expect(within(bubble("второе")).getByLabelText("Отправлено")).toBeInTheDocument();
+    expect(
+      within(bubble("первое")).getByLabelText("Прочитано"),
+    ).toBeInTheDocument();
+    expect(
+      within(bubble("второе")).getByLabelText("Отправлено"),
+    ).toBeInTheDocument();
 
     emit({ type: "conversation.read", conversationId: 5, lastReadId: 2 });
-    emit({ type: "conversation.read", conversationId: 5, lastReadId: 1 });
-
     expect(screen.getAllByLabelText("Прочитано")).toHaveLength(2);
-    expect(screen.queryByLabelText("Отправлено")).not.toBeInTheDocument();
+
+    // собеседник отметил второе сообщение непрочитанным
+    emit({ type: "conversation.read", conversationId: 5, lastReadId: 1 });
+    expect(
+      within(bubble("первое")).getByLabelText("Прочитано"),
+    ).toBeInTheDocument();
+    expect(
+      within(bubble("второе")).getByLabelText("Отправлено"),
+    ).toBeInTheDocument();
   });
 
   it("в списке диалогов галочки только у моего последнего сообщения", async () => {
@@ -1045,6 +1057,206 @@ describe("MessagesPage: «печатает…»", () => {
 
     emit({ type: "message.new", conversationId: 5 });
     expect(screen.queryByText("печатает…")).not.toBeInTheDocument();
+  });
+});
+
+describe("MessagesPage: разделитель непрочитанных", () => {
+  const label = () => screen.queryByText("Непрочитанные сообщения");
+
+  it("стоит над первым входящим непрочитанным сообщением", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        msg(3, BOB.id, "новое2"),
+        msg(2, BOB.id, "новое1"),
+        msg(1, BOB.id, "старое"),
+      ],
+      nextCursor: null,
+      myReadId: 1,
+    });
+    renderAt("/messages/5");
+
+    const sep = await screen.findByText("Непрочитанные сообщения");
+    expectBefore(screen.getByText("старое"), sep);
+    expectBefore(sep, screen.getByText("новое1"));
+    expectBefore(sep, screen.getByText("новое2"));
+  });
+
+  it("пропускает мои сообщения и встаёт над первым входящим", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        msg(3, BOB.id, "входящее2"),
+        msg(2, ME, "моё"),
+        msg(1, BOB.id, "входящее1"),
+      ],
+      nextCursor: null,
+      myReadId: 0,
+    });
+    renderAt("/messages/5");
+
+    const sep = await screen.findByText("Непрочитанные сообщения");
+    expectBefore(sep, screen.getByText("входящее1"));
+    expectBefore(sep, screen.getByText("моё"));
+  });
+
+  it("нет, если всё прочитано или граница неизвестна", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, BOB.id, "второе"), msg(1, BOB.id, "первое")],
+      nextCursor: null,
+      myReadId: 2,
+    });
+    const { unmount } = renderAt("/messages/5");
+    await screen.findByText("второе");
+    expect(label()).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, BOB.id, "второе"), msg(1, BOB.id, "первое")],
+      nextCursor: null,
+    });
+    renderAt("/messages/5");
+    await screen.findByText("второе");
+    expect(label()).not.toBeInTheDocument();
+  });
+
+  it("нет, если граница прочтения выше загруженной страницы", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(5, BOB.id, "пятое"), msg(4, BOB.id, "четвёртое")],
+      nextCursor: 4,
+      myReadId: 1,
+    });
+    renderAt("/messages/5");
+
+    await screen.findByText("пятое");
+    expect(label()).not.toBeInTheDocument();
+  });
+
+  it("после ручной отметки появляется над отмеченным сообщением, диалог остаётся открытым", async () => {
+    vi.mocked(markConversationUnread).mockResolvedValue(undefined);
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, BOB.id, "второе"), msg(1, BOB.id, "первое")],
+      nextCursor: null,
+      myReadId: 2,
+    });
+    const user = userEvent.setup();
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+    await user.click(await screen.findByText("первое"));
+    expect(label()).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("menuitem", { name: "Отметить непрочитанным" }),
+    );
+
+    const sep = await screen.findByText("Непрочитанные сообщения");
+    expectBefore(sep, screen.getByText("первое"));
+    expectBefore(sep, screen.getByText("второе"));
+    expect(input()).toBeInTheDocument();
+  });
+
+  it("исчезает, когда я отправляю сообщение", async () => {
+    vi.mocked(sendMessage).mockResolvedValue(msg(2, ME, "ответ"));
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "привет")],
+      nextCursor: null,
+      myReadId: 0,
+    });
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+    await screen.findByText("Непрочитанные сообщения");
+
+    await user.type(input(), "ответ");
+    await user.click(sendButton());
+
+    await waitFor(() => expect(label()).not.toBeInTheDocument());
+  });
+});
+
+describe("MessagesPage: отметить непрочитанным", () => {
+  const markItem = () =>
+    screen.queryByRole("menuitem", { name: "Отметить непрочитанным" });
+  const mark = () =>
+    screen.getByRole("menuitem", { name: "Отметить непрочитанным" });
+
+  it("пункт есть у входящих сообщений и нет у моих", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, ME, "моё"), msg(1, BOB.id, "чужое")],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    await user.click(await screen.findByText("чужое"));
+    expect(markItem()).toBeInTheDocument();
+
+    await user.click(screen.getByText("моё"));
+    expect(markItem()).not.toBeInTheDocument();
+  });
+
+  it("клик отмечает сообщение, закрывает меню и оставляет диалог открытым", async () => {
+    vi.mocked(markConversationUnread).mockResolvedValue(undefined);
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "привет")],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    await user.click(await screen.findByText("привет"));
+    await user.click(mark());
+
+    expect(markConversationUnread).toHaveBeenCalledWith(5, 1);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(input()).toBeInTheDocument();
+    expect(screen.queryByText("Выберите диалог")).not.toBeInTheDocument();
+  });
+
+  it("у открытого диалога бейдж непрочитанных появляется только после отметки", async () => {
+    vi.mocked(markConversationUnread).mockResolvedValue(undefined);
+    vi.mocked(fetchConversations)
+      .mockResolvedValueOnce({ conversations: [conv()] })
+      .mockResolvedValue({ conversations: [conv({ unreadCount: 1 })] });
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "привет")],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt("/messages/5");
+
+    await user.click(await screen.findByText("привет"));
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+
+    await user.click(mark());
+
+    expect(await screen.findByText("1")).toBeInTheDocument();
+  });
+
+  it("при ошибке показывает её", async () => {
+    vi.mocked(markConversationUnread).mockRejectedValue(
+      new Error("Не получилось"),
+    );
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, BOB.id, "привет")],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+
+    await user.click(await screen.findByText("привет"));
+    await user.click(mark());
+
+    expect(await screen.findByText("Не получилось")).toBeInTheDocument();
+    expect(input()).toBeInTheDocument();
+  });
+
+  it("ручная отметка снимается при открытии, даже если входящих на странице нет", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(1, ME, "моё")],
+      nextCursor: null,
+      markedUnread: true,
+    });
+    renderAt("/messages/5");
+
+    await screen.findByText("моё");
+    await waitFor(() => expect(markConversationRead).toHaveBeenCalledWith(5));
   });
 });
 

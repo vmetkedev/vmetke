@@ -5,12 +5,17 @@ import { MessageMenu } from "./MessageMenu";
 
 const anchor = { top: 100, bottom: 130, left: 50, right: 250 } as DOMRect;
 
-function setup(mine: boolean, opts: { canReply?: boolean; canEdit?: boolean } = {}) {
+function setup(
+  mine: boolean,
+  opts: { canReply?: boolean; canEdit?: boolean; canMarkUnread?: boolean } = {},
+) {
   const props = {
     anchor,
     mine,
     canReply: opts.canReply ?? true,
     canEdit: opts.canEdit ?? false,
+    canMarkUnread: opts.canMarkUnread ?? false,
+    onMarkUnread: vi.fn(),
     onReply: vi.fn(),
     onForward: vi.fn(),
     onEdit: vi.fn(),
@@ -65,6 +70,21 @@ describe("MessageMenu", () => {
   it("hides «Изменить» by default", () => {
     setup(true);
     expect(screen.queryByRole("menuitem", { name: "Изменить" })).not.toBeInTheDocument();
+  });
+
+  it("shows «Отметить непрочитанным» only when allowed and calls onMarkUnread", async () => {
+    const p = setup(false, { canMarkUnread: true });
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Отметить непрочитанным" }),
+      );
+    expect(p.onMarkUnread).toHaveBeenCalledTimes(1);
+  });
+
+    it("hides «Отметить непрочитанным» by default", () => {
+      setup(false);
+      expect(
+      screen.queryByRole("menuitem", { name: "Отметить непрочитанным" }),
+    ).not.toBeInTheDocument();
   });
 
   it("own message: submenu offers delete for me and for everyone", async () => {

@@ -12,6 +12,8 @@ const UNREAD_FALLBACK_POLL_MS = 60000;
 const UNREAD_EVENTS = new Set([
   "message.new",
   "message.deleted",
+  "conversation.read",
+  "conversation.unread",
   "conversation.deleted",
 ]);
 

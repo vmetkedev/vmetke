@@ -47,6 +47,18 @@ const NO_LIKES: Likes = { count: 0, likedByMe: false };
 
 const isLow = (conv: { userLowId: string }, me: string) => conv.userLowId === me;
 
+// До какого сообщения сторона «прочитала» (для собеседника и для счётчика): ручная отметка
+// «непрочитанным» отодвигает границу назад, а сам last_read не трогаем
+function readBoundary(lastRead: number | null, unreadFrom: number | null) {
+  const read = lastRead ?? 0;
+  return unreadFrom === null ? read : Math.min(read, unreadFrom - 1);
+}
+
+const sideBoundary = (conv: Conv, low: boolean) =>
+  low
+    ? readBoundary(conv.lastReadLowId, conv.unreadFromLowId)
+    : readBoundary(conv.lastReadHighId, conv.unreadFromHighId);
+
 // Отметка «удалено у меня»: сообщения с id <= этого значения мне не показываются
 const clearedFor = (conv: Conv, me: string) =>
   (isLow(conv, me) ? conv.clearedLowId : conv.clearedHighId) ?? 0;
@@ -216,7 +228,11 @@ async function findVisibleMessage(
 async function insertMessage(
   conv: Conv,
   me: string,
-  values: { content: string; replyToId?: number | null; forwardedFromId?: string | null },
+  values: {
+    content: string;
+    replyToId?: number | null;
+    forwardedFromId?: string | null;
+  },
 ) {
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -235,7 +251,10 @@ async function insertMessage(
       .set({
         lastMessageId: row.id,
         lastMessageAt: row.createdAt,
-        ...(isLow(conv, me) ? { lastReadLowId: row.id } : { lastReadHighId: row.id }),
+        // моё сообщение считается прочитанным мной и снимает ручную отметку «непрочитанным»
+        ...(isLow(conv, me)
+          ? { lastReadLowId: row.id, unreadFromLowId: null }
+          : { lastReadHighId: row.id, unreadFromHighId: null }),
       })
       .where(eq(conversations.id, conv.id));
 
@@ -279,6 +298,13 @@ export async function getOrCreateConversation(me: string, otherId: string) {
 export async function listConversations(me: string) {
   const otherId = sql<string>`CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.userHighId} ELSE ${conversations.userLowId} END`;
   const myCleared = sql`COALESCE(CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.clearedLowId} ELSE ${conversations.clearedHighId} END, 0)`;
+  const myRead = sql`COALESCE(CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.lastReadLowId} ELSE ${conversations.lastReadHighId} END, 0)`;
+  const myUnreadFrom = sql`CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.unreadFromLowId} ELSE ${conversations.unreadFromHighId} END`;
+  // Граница «всё до этого прочитано»: ручная отметка сдвигает её назад,
+  // а last_read (его видит собеседник) остаётся нетронутым
+  const myReadBoundary = sql`LEAST(${myRead}, COALESCE(${myUnreadFrom} - 1, ${myRead}))`;
+  const otherRead = sql`COALESCE(CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.lastReadHighId} ELSE ${conversations.lastReadLowId} END, 0)`;
+  const otherUnreadFrom = sql`CASE WHEN ${conversations.userLowId} = ${me} THEN ${conversations.unreadFromHighId} ELSE ${conversations.unreadFromLowId} END`;
 
   const rows = await db
     .select({
@@ -305,20 +331,14 @@ export async function listConversations(me: string) {
             SELECT 1 FROM ${messageHides} AS h
             WHERE h.message_id = m.id AND h.user_id = ${me}
           )
-          AND m.id > COALESCE(
-            CASE WHEN ${conversations.userLowId} = ${me}
-              THEN ${conversations.lastReadLowId}
-              ELSE ${conversations.lastReadHighId} END, 0)
+          AND m.id > ${myReadBoundary}
       )`,
       blockedByMe: sql<boolean>`EXISTS (
         SELECT 1 FROM ${userBlocks}
         WHERE ${userBlocks.blockerId} = ${me}
           AND ${userBlocks.blockedId} = ${otherId}
       )`,
-      otherLastReadId: sql<number>`COALESCE(
-        CASE WHEN ${conversations.userLowId} = ${me}
-          THEN ${conversations.lastReadHighId}
-          ELSE ${conversations.lastReadLowId} END, 0)`,
+      otherLastReadId: sql<number>`LEAST(${otherRead}, COALESCE(${otherUnreadFrom} - 1, ${otherRead}))`,
     })
     .from(conversations)
     .innerJoin(users, sql`${users.id} = ${otherId}`)
@@ -386,8 +406,12 @@ export async function getMessages(
     messages: await hydrate(items, me, clearedFor(conv, me)),
     nextCursor: hasMore ? items[items.length - 1].id : null,
     blockedByMe,
-    // до какого сообщения дочитал собеседник (0, если ничего)
-    otherLastReadId: (isLow(conv, me) ? conv.lastReadHighId : conv.lastReadLowId) ?? 0,
+    // до какого сообщения дочитал собеседник (с учётом его ручной отметки)
+    otherLastReadId: sideBoundary(conv, !isLow(conv, me)),
+    // до какого сообщения дочитал я: по нему клиент ставит разделитель «Непрочитанные»
+    myReadId: sideBoundary(conv, isLow(conv, me)),
+    markedUnread:
+      (isLow(conv, me) ? conv.unreadFromLowId : conv.unreadFromHighId) !== null,
   };
 }
 
@@ -512,31 +536,87 @@ export async function unlikeMessage(conversationId: number, messageId: number, m
 
 export async function markRead(conversationId: number, me: string) {
   const conv = await getConversationFor(conversationId, me);
-  if (!conv.lastMessageId) return;
-
   const low = isLow(conv, me);
-  const prev = (low ? conv.lastReadLowId : conv.lastReadHighId) ?? 0;
-  // Уже прочитано: ничего не пишем и не шлём событие (клиент зовёт /read часто)
-  if (prev >= conv.lastMessageId) return;
 
-  const col = low ? conversations.lastReadLowId : conversations.lastReadHighId;
-  const value = sql`GREATEST(COALESCE(${col}, 0), ${conv.lastMessageId})`;
+  // Граница прочитанного до этого вызова (ручная отметка отодвигает её назад)
+  const before = sideBoundary(conv, low);
 
-  await db
-    .update(conversations)
-    .set(low ? { lastReadLowId: value } : { lastReadHighId: value })
-    .where(eq(conversations.id, conversationId));
+  // Открытие диалога всегда снимает ручную отметку «непрочитанным»,
+  // поэтому блок стоит до любых ранних выходов ниже
+  if ((low ? conv.unreadFromLowId : conv.unreadFromHighId) !== null) {
+    await db
+      .update(conversations)
+      .set(low ? { unreadFromLowId: null } : { unreadFromHighId: null })
+      .where(eq(conversations.id, conversationId));
+  }
 
-  // Собеседнику сообщаем, до какого сообщения я дочитал.
+  const lastRead = (low ? conv.lastReadLowId : conv.lastReadHighId) ?? 0;
+  let after = lastRead;
+  if (conv.lastMessageId && lastRead < conv.lastMessageId) {
+    const col = low
+      ? conversations.lastReadLowId
+      : conversations.lastReadHighId;
+    const value = sql`GREATEST(COALESCE(${col}, 0), ${conv.lastMessageId})`;
+    await db
+      .update(conversations)
+      .set(low ? { lastReadLowId: value } : { lastReadHighId: value })
+      .where(eq(conversations.id, conversationId));
+    after = conv.lastMessageId;
+  }
+
+  // Собеседнику сообщаем новую границу, только если она изменилась.
   // При блокировке в любую сторону молчим, как и с «печатает…».
+  if (after === before) return;
   const other = otherOf(conv, me);
   const state = await blockState(me, other);
   if (state.blockedByMe || state.blockedMe) return;
   publish([other], {
     type: "conversation.read",
     conversationId,
-    lastReadId: conv.lastMessageId,
+    lastReadId: after,
   });
+}
+
+// «Отметить непрочитанным» с выбранного входящего сообщения: оно и всё после него снова
+// считаются непрочитанными. last_read не трогаем, собеседник ничего не узнаёт.
+export async function markUnread(
+  conversationId: number,
+  messageId: number,
+  me: string,
+) {
+  const conv = await getConversationFor(conversationId, me);
+
+  const msg = await findVisibleMessage(conv, conversationId, messageId, me);
+  if (!msg) throw new MessagingError(404, "Сообщение не найдено");
+  if (msg.senderId === me) {
+    throw new MessagingError(
+      400,
+      "Непрочитанным можно отметить только входящее сообщение",
+    );
+  }
+
+  await db
+    .update(conversations)
+    .set(
+      isLow(conv, me)
+        ? { unreadFromLowId: messageId }
+        : { unreadFromHighId: messageId },
+    )
+    .where(eq(conversations.id, conversationId));
+  publish([me], { type: "conversation.unread", conversationId });
+  // Собеседнику: мои галочки на его сообщениях от выбранного и далее снова одинарные.
+  // При блокировке в любую сторону молчим.
+  const other = otherOf(conv, me);
+  const state = await blockState(me, other);
+  if (!state.blockedByMe && !state.blockedMe) {
+    const lastRead =
+      (isLow(conv, me) ? conv.lastReadLowId : conv.lastReadHighId) ?? 0;
+    publish([other], {
+      type: "conversation.read",
+      conversationId,
+      lastReadId: Math.min(lastRead, messageId - 1),
+    });
+  }
 }
 
 // «Печатает…»: ничего не пишем в БД, сигнал уходит только собеседнику.
@@ -625,8 +705,16 @@ export async function deleteConversation(conversationId: number, me: string, sco
     .update(conversations)
     .set(
       isLow(conv, me)
-        ? { clearedLowId: cleared, lastReadLowId: cleared }
-        : { clearedHighId: cleared, lastReadHighId: cleared },
+        ? {
+            clearedLowId: cleared,
+            lastReadLowId: cleared,
+            unreadFromLowId: null,
+          }
+        : {
+            clearedHighId: cleared,
+            lastReadHighId: cleared,
+            unreadFromHighId: null,
+          },
     )
     .where(eq(conversations.id, conversationId));
     publish([me], { type: "conversation.deleted", conversationId });

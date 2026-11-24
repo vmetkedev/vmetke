@@ -7,6 +7,7 @@ export type RealtimeEvent = {
     | "message.deleted"
     | "message.like"
     | "conversation.read"
+    | "conversation.unread"
     | "conversation.deleted"
     | "block.changed"
     | "notification.new"

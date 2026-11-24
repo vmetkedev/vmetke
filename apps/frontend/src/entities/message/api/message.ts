@@ -92,6 +92,9 @@ export async function fetchMessages(
   nextCursor: number | null;
   blockedByMe?: boolean;
   otherLastReadId?: number;
+  // до какого сообщения дочитал я (с учётом ручной отметки): по нему ставится разделитель
+  myReadId?: number;
+  markedUnread?: boolean;
 }> {
   const qs = before ? `?before=${before}` : "";
   return parse(await api.get(`/conversations/${conversationId}/messages${qs}`));
@@ -159,6 +162,18 @@ export async function unlikeMessage(
 
 export async function markConversationRead(conversationId: number): Promise<void> {
   await parse(await api.post(`/conversations/${conversationId}/read`));
+  window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
+}
+
+export async function markConversationUnread(
+  conversationId: number,
+  messageId: number,
+): Promise<void> {
+  await parse(
+    await api.post(
+      `/conversations/${conversationId}/messages/${messageId}/unread`,
+    ),
+  );
   window.dispatchEvent(new Event(MESSAGES_CHANGED_EVENT));
 }
 

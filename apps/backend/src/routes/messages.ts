@@ -10,6 +10,7 @@ import {
   likeMessage,
   listConversations,
   markRead,
+  markUnread,
   MessagingError,
   sendMessage,
   unlikeMessage,
@@ -259,6 +260,33 @@ export default async function messagesRoutes(app: FastifyInstance) {
       return fail(reply, e);
     }
   });
+
+  app.post(
+    "/:id/messages/:messageId/unread",
+    {
+      preHandler: [app.authenticate],
+      config: {
+        rateLimit: {
+          max: LIKE_LIMIT,
+          timeWindow: LIMIT_WINDOW,
+          keyGenerator: userKey,
+        },
+      },
+    },
+    async (request, reply) => {
+      const params = messageParams.safeParse(request.params);
+      if (!params.success)
+        return reply.code(400).send({ error: "Некорректные данные" });
+
+      const payload = request.user;
+      try {
+        await markUnread(params.data.id, params.data.messageId, payload.sub);
+        return { success: true };
+      } catch (e) {
+        return fail(reply, e);
+      }
+    },
+  );
 
   app.delete("/:id", { preHandler: [app.authenticate] }, async (request, reply) => {
     const params = idParams.safeParse(request.params);

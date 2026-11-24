@@ -1203,4 +1203,197 @@ describe("messages", () => {
     // у Боба обратная сторона: Алиса «прочла» свои сообщения, отправив их
     expect((await historyFor(bob)).otherLastReadId).toBe(last.id);
   });
+
+  const markUnread = (token: string, convId: number, msgId: number) =>
+    app.inject({
+      method: "POST",
+      url: `/api/conversations/${convId}/messages/${msgId}/unread`,
+      headers: auth(token),
+    });
+
+  const sendMany = async (token: string, convId: number, texts: string[]) => {
+    const ids: number[] = [];
+    for (const t of texts) {
+      ids.push((await send(app, token, convId, t)).json().message.id as number);
+    }
+    return ids;
+  };
+
+  const historyInfo = async (token: string, convId: number) =>
+    (
+      await app.inject({
+        method: "GET",
+        url: `/api/conversations/${convId}/messages`,
+        headers: auth(token),
+      })
+    ).json() as {
+      markedUnread: boolean;
+      otherLastReadId: number;
+      myReadId: number;
+    };
+
+  it("mark unread: the message and everything after it become unread, the sender's receipts roll back", async () => {
+    const alice = await registerAndLogin(app, "alice70");
+    const bob = await registerAndLogin(app, "bob70");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [, m2, m3] = await sendMany(alice, conv.id, ["раз", "два", "три"]);
+    await markRead(bob, conv.id);
+    expect((await listOf(bob))[0].unreadCount).toBe(0);
+    expect((await listOf(alice))[0].otherLastReadId).toBe(m3);
+
+    expect((await markUnread(bob, conv.id, m2)).statusCode).toBe(200);
+    expect((await listOf(bob))[0].unreadCount).toBe(2);
+    // у Алисы галочки на «два» и «три» снова одинарные
+    expect((await listOf(alice))[0].otherLastReadId).toBe(m2 - 1);
+    expect((await historyInfo(alice, conv.id)).otherLastReadId).toBe(m2 - 1);
+    expect((await historyInfo(bob, conv.id)).myReadId).toBe(m2 - 1);
+
+    // отметка с более позднего сообщения сдвигает границу вперёд
+    await markUnread(bob, conv.id, m3);
+    expect((await listOf(bob))[0].unreadCount).toBe(1);
+    expect((await listOf(alice))[0].otherLastReadId).toBe(m3 - 1);
+  });
+
+  it("mark unread: opening the dialog clears it and restores the sender's receipts", async () => {
+    const alice = await registerAndLogin(app, "alice71");
+    const bob = await registerAndLogin(app, "bob71");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [m1, m2] = await sendMany(alice, conv.id, ["раз", "два"]);
+    await markRead(bob, conv.id);
+    expect((await historyInfo(bob, conv.id)).markedUnread).toBe(false);
+
+    await markUnread(bob, conv.id, m1);
+    expect((await historyInfo(bob, conv.id)).markedUnread).toBe(true);
+    expect((await listOf(bob))[0].unreadCount).toBe(2);
+    expect((await listOf(alice))[0].otherLastReadId).toBe(m1 - 1);
+
+    // реальных непрочитанных нет, но открытие всё равно снимает отметку
+    await markRead(bob, conv.id);
+    expect((await historyInfo(bob, conv.id)).markedUnread).toBe(false);
+    expect((await listOf(bob))[0].unreadCount).toBe(0);
+    expect((await listOf(alice))[0].otherLastReadId).toBe(m2);
+  });
+
+  it("mark unread: my own message clears the mark and the sender's receipts return", async () => {
+    const alice = await registerAndLogin(app, "alice72");
+    const bob = await registerAndLogin(app, "bob72");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [m1] = await sendMany(alice, conv.id, ["раз", "два"]);
+    await markRead(bob, conv.id);
+    await markUnread(bob, conv.id, m1);
+
+    const reply = (await send(app, bob, conv.id, "ответ")).json().message
+      .id as number;
+
+    expect((await historyInfo(bob, conv.id)).markedUnread).toBe(false);
+    expect((await listOf(bob))[0].unreadCount).toBe(0);
+    // ответ означает, что Боб всё прочитал
+    expect((await listOf(alice))[0].otherLastReadId).toBe(reply);
+  });
+
+  it("mark unread counts only visible incoming messages", async () => {
+    const alice = await registerAndLogin(app, "alice73");
+    const bob = await registerAndLogin(app, "bob73");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [m1, m2, m3] = await sendMany(alice, conv.id, ["раз", "два", "три"]);
+    await send(app, bob, conv.id, "моё");
+    await markRead(bob, conv.id);
+
+    await markUnread(bob, conv.id, m1);
+    await deleteMessage(alice, conv.id, m3, "all");
+    await deleteMessage(bob, conv.id, m2, "me");
+
+    expect((await listOf(bob))[0].unreadCount).toBe(1);
+  });
+
+  it("mark unread: the sender gets the rolled back boundary, I get conversation.unread", async () => {
+    const alice = await registerAndLogin(app, "alice74");
+    const bob = await registerAndLogin(app, "bob74");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [, m2] = await sendMany(alice, conv.id, ["раз", "два"]);
+    await markRead(bob, conv.id);
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+    const bobFrames = listen(userIdFromToken(bob), stops);
+
+    await markUnread(bob, conv.id, m2);
+
+    expect(readFrames(aliceFrames)).toEqual([
+      {
+        type: "conversation.read",
+        conversationId: conv.id,
+        lastReadId: m2 - 1,
+      },
+    ]);
+    expect(
+      aliceFrames.filter((f) => f.type === "conversation.unread"),
+    ).toHaveLength(0);
+    expect(bobFrames.filter((f) => f.type === "conversation.unread")).toEqual([
+      { type: "conversation.unread", conversationId: conv.id },
+    ]);
+    expect(readFrames(bobFrames)).toHaveLength(0);
+  });
+
+  it("mark unread: opening the dialog sends the restored boundary exactly once", async () => {
+    const alice = await registerAndLogin(app, "alice76");
+    const bob = await registerAndLogin(app, "bob76");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [m1, m2] = await sendMany(alice, conv.id, ["раз", "два"]);
+    await markRead(bob, conv.id);
+    await markUnread(bob, conv.id, m1);
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+
+    await markRead(bob, conv.id);
+    await markRead(bob, conv.id);
+
+    expect(readFrames(aliceFrames)).toEqual([
+      { type: "conversation.read", conversationId: conv.id, lastReadId: m2 },
+    ]);
+  });
+
+  it("mark unread sends nothing to the sender in a blocked pair", async () => {
+    const alice = await registerAndLogin(app, "alice77");
+    const bob = await registerAndLogin(app, "bob77");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [m1] = await sendMany(alice, conv.id, ["привет"]);
+    await markRead(bob, conv.id);
+    await app.inject({
+      method: "POST",
+      url: "/api/blocks",
+      headers: auth(bob),
+      payload: { userId: userIdFromToken(alice) },
+    });
+    const aliceFrames = listen(userIdFromToken(alice), stops);
+
+    expect((await markUnread(bob, conv.id, m1)).statusCode).toBe(200);
+
+    expect(aliceFrames).toHaveLength(0);
+  });
+
+  it("mark unread rejects own, hidden, deleted and foreign messages", async () => {
+    const alice = await registerAndLogin(app, "alice75");
+    const bob = await registerAndLogin(app, "bob75");
+    const eve = await registerAndLogin(app, "eve75");
+    const conv = await openConversation(app, alice, userIdFromToken(bob));
+    const [live, hidden, gone] = await sendMany(alice, conv.id, [
+      "живое",
+      "скрою",
+      "удалю",
+    ]);
+    const mine = (await send(app, bob, conv.id, "моё")).json().message
+      .id as number;
+    await deleteMessage(bob, conv.id, hidden, "me");
+    await deleteMessage(alice, conv.id, gone, "all");
+
+    expect((await markUnread(bob, conv.id, mine)).statusCode).toBe(400);
+    expect((await markUnread(bob, conv.id, hidden)).statusCode).toBe(404);
+    expect((await markUnread(bob, conv.id, gone)).statusCode).toBe(404);
+    expect((await markUnread(bob, conv.id, 999999)).statusCode).toBe(404);
+    expect((await markUnread(eve, conv.id, live)).statusCode).toBe(404);
+    const bad = await app.inject({
+      method: "POST",
+      url: `/api/conversations/${conv.id}/messages/abc/unread`,
+      headers: auth(bob),
+    });
+    expect(bad.statusCode).toBe(400);
+  });
 });
