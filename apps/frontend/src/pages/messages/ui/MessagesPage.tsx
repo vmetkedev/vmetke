@@ -198,6 +198,9 @@ function Thread({
   const loadSeq = useRef({ started: 0, applied: 0 });
   // Сколько раз пришла граница прочтения собеседника: свежее любого ответа, начатого раньше
   const readEventSeq = useRef(0);
+  // Разделитель «Непрочитанные сообщения» и флаг «при открытии прокрутить к нему»
+  const dividerRef = useRef<HTMLDivElement>(null);
+  const scrollToDivider = useRef(false);
   const lastTypingSent = useRef(0);
 
   useEffect(() => {
@@ -225,7 +228,12 @@ function Thread({
             const firstUnread = asc.find(
               (m) => !m.deleted && m.senderId !== myId && m.id > readId,
             );
-            if (firstUnread && boundaryLoaded) setUnreadFromId(firstUnread.id);
+            if (firstUnread && boundaryLoaded) {
+              // открываем диалог на разделителе, а не в конце переписки
+              scrollToDivider.current = true;
+              stickToBottom.current = false;
+              setUnreadFromId(firstUnread.id);
+            }
           }
         }
         markIfNeeded(asc);
@@ -320,6 +328,19 @@ function Thread({
       el.scrollTop = el.scrollHeight;
     }
   }, [messages]);
+  // Диалог открыт с непрочитанными: ставим разделитель у верхнего края.
+  // Работает один раз за открытие: ручная отметка (handleMarkUnread) не прокручивает.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const divider = dividerRef.current;
+    if (!el || !divider || !scrollToDivider.current) return;
+    scrollToDivider.current = false;
+    const top =
+      divider.getBoundingClientRect().top -
+      el.getBoundingClientRect().top +
+      el.scrollTop;
+    el.scrollTop = Math.max(0, top - 8);
+  }, [unreadFromId]);
 
   // Редактируемое сообщение пропало (например, я удалил его из меню): выходим из правки
   useEffect(() => {
@@ -744,7 +765,10 @@ function Thread({
               return (
                 <Fragment key={m.id}>
                   {unreadFromId === m.id && (
-                    <div className="flex items-center gap-2 py-1 text-xs text-blue-600 dark:text-blue-400">
+                    <div
+                      ref={dividerRef}
+                      className="flex items-center gap-2 py-1 text-xs text-blue-600 dark:text-blue-400"
+                    >
                       <span className="h-px flex-1 bg-current opacity-30" />
                       <span>Непрочитанные сообщения</span>
                       <span className="h-px flex-1 bg-current opacity-30" />

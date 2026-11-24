@@ -1170,6 +1170,88 @@ describe("MessagesPage: разделитель непрочитанных", () =
   });
 });
 
+describe("MessagesPage: прокрутка к разделителю", () => {
+  const original = Object.getOwnPropertyDescriptor(
+    Element.prototype,
+    "scrollTop",
+  );
+  const setScrollTop = vi.fn();
+  let rectSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    setScrollTop.mockClear();
+    Object.defineProperty(Element.prototype, "scrollTop", {
+      configurable: true,
+      get: () => 0,
+      set: setScrollTop,
+    });
+    // разделитель на 300 px от верха окна, контейнер переписки на 100 px
+    rectSpy = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: Element) {
+        const top = this.textContent === "Непрочитанные сообщения" ? 300 : 100;
+        return {
+          top,
+          bottom: top,
+          left: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        } as DOMRect;
+      });
+  });
+
+  afterEach(() => {
+    rectSpy.mockRestore();
+    if (original)
+      Object.defineProperty(Element.prototype, "scrollTop", original);
+    else
+      delete (Element.prototype as unknown as Record<string, unknown>)
+        .scrollTop;
+  });
+
+  it("при открытии с непрочитанными прокручивает к разделителю, а не в конец", async () => {
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [
+        msg(3, BOB.id, "новое2"),
+        msg(2, BOB.id, "новое1"),
+        msg(1, BOB.id, "старое"),
+      ],
+      nextCursor: null,
+      myReadId: 1,
+    });
+    renderAt("/messages/5");
+
+    await screen.findByText("Непрочитанные сообщения");
+
+    // верх разделителя (300) минус верх контейнера (100) минус отступ 8
+    await waitFor(() => expect(setScrollTop).toHaveBeenLastCalledWith(192));
+  });
+
+  it("ручная отметка диалог не прокручивает", async () => {
+    vi.mocked(markConversationUnread).mockResolvedValue(undefined);
+    vi.mocked(fetchMessages).mockResolvedValue({
+      messages: [msg(2, BOB.id, "второе"), msg(1, BOB.id, "первое")],
+      nextCursor: null,
+      myReadId: 2,
+    });
+    const user = userEvent.setup();
+    renderAt({ pathname: "/messages/5", state: { otherUser: BOB } });
+    await user.click(await screen.findByText("первое"));
+    const callsBefore = setScrollTop.mock.calls.length;
+
+    await user.click(
+      screen.getByRole("menuitem", { name: "Отметить непрочитанным" }),
+    );
+    await screen.findByText("Непрочитанные сообщения");
+
+    expect(setScrollTop.mock.calls.length).toBe(callsBefore);
+  });
+});
+
 describe("MessagesPage: отметить непрочитанным", () => {
   const markItem = () =>
     screen.queryByRole("menuitem", { name: "Отметить непрочитанным" });
